@@ -340,7 +340,8 @@ app.get('/widget.js', (req, res) => {
     let code = fs.readFileSync(widgetFilePath, 'utf8');
 
     // Dynamic backend URL injection based on requested protocol and host
-    const backendUrl = `${req.protocol}://${req.get('host')}`;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const backendUrl = `${protocol}://${req.get('host')}`;
     code = code.replace(/__BACKEND_URL__/g, backendUrl);
 
     res.setHeader('Content-Type', 'application/javascript');
