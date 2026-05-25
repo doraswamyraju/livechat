@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Veracity Store - LetsTrack verification site</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0F172A;
+      --bg-card: #1E293B;
+      --primary: #8B5CF6;
+      --primary-hover: #7C3AED;
+      --text: #F9FAFB;
+      --text-muted: #94A3B8;
+      --border: rgba(255, 255, 255, 0.06);
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    h1, h2, h3 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+    }
+    header {
+      background-color: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      font-family: 'Outfit', sans-serif;
+      font-size: 24px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #A78BFA, #F472B6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      cursor: pointer;
+    }
+    nav {
+      display: flex;
+      gap: 20px;
+    }
+    .nav-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+    .nav-btn:hover {
+      color: var(--text);
+      background-color: rgba(255,255,255,0.02);
+    }
+    .nav-btn.active {
+      color: white;
+      background-color: var(--primary);
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 40px;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* API Key Injector Wrapper */
+    .injector-card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 40px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .injector-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #A78BFA;
+    }
+    .injector-row {
+      display: flex;
+      gap: 12px;
+    }
+    .injector-input {
+      flex: 1;
+      background-color: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: white;
+      font-size: 14px;
+      outline: none;
+      font-family: monospace;
+    }
+    .injector-input:focus {
+      border-color: var(--primary);
+    }
+    .injector-btn {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s;
+    }
+    .injector-btn:hover {
+      background-color: var(--primary-hover);
+    }
+
+    /* Store Grid UI */
+    .store-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .product-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .product-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(139, 92, 246, 0.3);
+    }
+    .product-image {
+      height: 160px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #1E1B4B, #312E81);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+    }
+    .product-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .product-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .product-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .product-price {
+      font-size: 20px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      color: #A78BFA;
+    }
+    .buy-btn {
+      background: none;
+      border: 1px solid var(--primary);
+      color: #A78BFA;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .buy-btn:hover {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    footer {
+      background-color: #080B11;
+      border-top: 1px solid var(--border);
+      padding: 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 60px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      background-color: #2D2214;
+      color: #F59E0B;
+      align-self: flex-start;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">Veracity.co</div>
+    <nav>
+      <button class="nav-btn active" onclick="navigatePath('/')">Home Store</button>
+      <button class="nav-btn" onclick="navigatePath('/store')">Products</button>
+      <button class="nav-btn" onclick="navigatePath('/pricing')">Pricing</button>
+      <button class="nav-btn" onclick="navigatePath('/checkout')">Checkout Cart</button>
+    </nav>
+  </header>
+
+  <div class="main-content">
+    
+    <!-- API KEY INJECTOR -->
+    <div class="injector-card">
+      <div class="injector-title">🔗 Connect LetsTrack live Widget (Verification Hook)</div>
+      <p style="font-size: 13px; color: var(--text-muted); line-height: 1.4;">
+        To test tracking in real-time, register a Tenant in the <a href="../dashboard/index.html" style="color:var(--primary); text-decoration:none;">Dashboard</a>, copy your <strong>Tenant API Key</strong> from the sidebar footer, paste it below, and click Initialize. The live floating chat button will appear instantly!
+      </p>
+      <div class="injector-row">
+        <input type="text" class="injector-input" id="apiKeyInput" placeholder="Paste Tenant API Key (e.g. lt_ef8e...)" />
+        <button class="injector-btn" onclick="initializeLetsTrack()">Initialize Widget</button>
+      </div>
+      <div id="connectionStatus" style="font-size: 12px; color: var(--text-muted); display: none;"></div>
+    </div>
+
+    <!-- MAIN INTERACTIVE PAGES CONTAINER -->
+    <div id="pageContent">
+      <h2 style="font-size: 32px; margin-bottom: 8px;">Premium Cloud Infrastructure</h2>
+      <p style="color: var(--text-muted); margin-bottom: 32px; max-width: 600px;">
+        Integrate beautiful SaaS architectures and track online engagements directly from unified mobile and web operator consoles.
+      </p>
+
+      <div class="store-grid">
+        <div class="product-card">
+          <div class="product-image">🚀</div>
+          <div class="badge">Trending</div>
+          <h3 class="product-title">Microservice Broker</h3>
+          <p class="product-desc">Ultra-fast event message bus designed for high concurrency with zero network bottleneck overhead.</p>
+          <div class="product-footer">
+            <span class="product-price">$49<span style="font-size:12px;font-weight:400;color:var(--text-muted)">/mo</span></span>
+            <button class="buy-btn">Add to Cart</button>
+          </div>
+        </div>
+
+        <div class="product-card">
+          <div class="product-image">🛡️</div>
+          <h3 class="product-title">Guard Security Shield</h3>
+          <p class="product-desc">Advanced cryptographically stable authorization gateway enforcing JWT token rotations in microsecond latencies.</p>
+          <div class="product-footer">
+            <span class="product-price">$89<span style="font-size:12px;font-weight:400;color:var(--text-muted)">/mo</span></span>
+            <button class="buy-btn">Add to Cart</button>
+          </div>
+        </div>
+
+        <div class="product-card">
+          <div class="product-image">📊</div>
+          <h3 class="product-title">Analytics Ledger</h3>
+          <p class="product-desc">Aggregated telemetry logging server generating fluid responsive graphical nodes of user traces.</p>
+          <div class="product-footer">
+            <span class="product-price">$29<span style="font-size:12px;font-weight:400;color:var(--text-muted)">/mo</span></span>
+            <button class="buy-btn">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    &copy; 2026 Veracity Store Storefront. Powered by LetsTrack.
+  </footer>
+
+  <script>
+    // ------------------------------------------
+    // MOCK ROUTING CONTROLLER
+    // ------------------------------------------
+    function navigatePath(path) {
+      // Update HTML button highlights
+      const navButtons = document.querySelectorAll('.nav-btn');
+      navButtons.forEach(btn => btn.classList.remove('active'));
+      
+      const targetBtn = Array.from(navButtons).find(btn => 
+        (path === '/' && btn.textContent.includes('Home')) ||
+        (path === '/store' && btn.textContent.includes('Products')) ||
+        (path === '/pricing' && btn.textContent.includes('Pricing')) ||
+        (path === '/checkout' && btn.textContent.includes('Checkout'))
+      );
+      if (targetBtn) targetBtn.classList.add('active');
+
+      // Update inner content body mimicking transitions
+      const pageContent = document.getElementById('pageContent');
+      if (path === '/') {
+        pageContent.innerHTML = `
+          <h2 style="font-size: 32px; margin-bottom: 8px;">Premium Cloud Infrastructure</h2>
+          <p style="color: var(--text-muted); margin-bottom: 32px; max-width: 600px;">
+            Integrate beautiful SaaS architectures and track online engagements directly from unified mobile and web operator consoles.
+          </p>
+          <div class="store-grid">
+            <div class="product-card">
+              <div class="product-image">🚀</div>
+              <div class="badge">Trending</div>
+              <h3 class="product-title">Microservice Broker</h3>
+              <p class="product-desc">Ultra-fast event message bus designed for high concurrency with zero network bottleneck overhead.</p>
+              <div class="product-footer">
+                <span class="product-price">$49<span style="font-size:12px;font-weight:400;color:var(--text-muted)">/mo</span></span>
+                <button class="buy-btn">Add to Cart</button>
+              </div>
+            </div>
+            <div class="product-card">
+              <div class="product-image">🛡️</div>
+              <h3 class="product-title">Guard Security Shield</h3>
+              <p class="product-desc">Advanced cryptographically stable authorization gateway enforcing JWT token rotations in microsecond latencies.</p>
+              <div class="product-footer">
+                <span class="product-price">$89<span style="font-size:12px;font-weight:400;color:var(--text-muted)">/mo</span></span>
+                <button class="buy-btn">Add to Cart</button>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (path === '/store') {
+        pageContent.innerHTML = `
+          <h2 style="font-size: 32px; margin-bottom: 24px;">Our Catalog of Services</h2>
+          <div class="store-grid">
+            <div class="product-card">
+              <div class="product-image">🗄️</div>
+              <h3 class="product-title">Distributed Object Caches</h3>
+              <p class="product-desc">In-memory caching servers replicating user sessions in sub-millisecond network roundtrips.</p>
+              <div class="product-footer">
+                <span class="product-price">$19/mo</span>
+                <button class="buy-btn">Add to Cart</button>
+              </div>
+            </div>
+            <div class="product-card">
+              <div class="product-image">📡</div>
+              <h3 class="product-title">Real-Time WebSockets Hub</h3>
+              <p class="product-desc">Real-time gateway allowing bidirectional multiplexed text routing to millions of active sockets.</p>
+              <div class="product-footer">
+                <span class="product-price">$59/mo</span>
+                <button class="buy-btn">Add to Cart</button>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (path === '/pricing') {
+        pageContent.innerHTML = `
+          <h2 style="font-size: 32px; margin-bottom: 8px;">Flat-Rate Transparent Pricing</h2>
+          <p style="color: var(--text-muted); margin-bottom: 32px;">No hidden charges. Upgrade or downgrade active nodes instantly.</p>
+          <div class="store-grid">
+            <div class="product-card" style="border-color: var(--primary);">
+              <div class="badge">STANDARD</div>
+              <h3 class="product-title">Developer Bundle</h3>
+              <p class="product-desc">Great for small side projects and active REST testing.</p>
+              <h4 style="font-size: 36px; font-family:'Outfit'; font-weight:800; margin:16px 0;">$0 <span style="font-size:14px; font-weight:400; color:var(--text-muted)">/ forever</span></h4>
+              <button class="injector-btn" style="width:100%">Deploy Stack</button>
+            </div>
+            <div class="product-card" style="border-color: #EC4899; box-shadow: 0 4px 20px rgba(236,72,153,0.15);">
+              <div class="badge" style="background-color: #FCE7F3; color: #DB2777;">POPULAR</div>
+              <h3 class="product-title">Enterprise Node</h3>
+              <p class="product-desc">For high-traffic production networks requiring 99.99% operational uptime SLAs.</p>
+              <h4 style="font-size: 36px; font-family:'Outfit'; font-weight:800; margin:16px 0;">$149 <span style="font-size:14px; font-weight:400; color:var(--text-muted)">/ month</span></h4>
+              <button class="injector-btn" style="width:100%; background: linear-gradient(135deg, var(--primary), #EC4899);">Deploy Enterprise Stack</button>
+            </div>
+          </div>
+        `;
+      } else if (path === '/checkout') {
+        pageContent.innerHTML = `
+          <h2 style="font-size: 32px; margin-bottom: 24px;">Secure Your Checkouts</h2>
+          <div style="background-color: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 32px; max-width: 600px; margin: 0 auto;">
+            <h3 style="margin-bottom: 20px;">Review Cart (1 Item)</h3>
+            <div style="display:flex; justify-content:space-between; margin-bottom: 12px; font-size:14px;">
+              <span>Microservice Event Broker (Monthly subscription)</span>
+              <strong>$49.00</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom: 24px; font-size:14px; color:var(--text-muted);">
+              <span>Processing Taxes</span>
+              <span>$0.00</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom: 32px; font-size:18px; border-top:1px solid var(--border); padding-top:20px;">
+              <span>Total Price Due</span>
+              <strong style="color:#A78BFA">$49.00</strong>
+            </div>
+            <button class="injector-btn" style="width:100%" onclick="alert('Transaction secured. Check active LetsTrack dashboards for user session changes!')">Complete Secured Transaction</button>
+          </div>
+        `;
+      }
+
+      // Mimic HTML5 History state tracking dynamically
+      window.history.pushState({}, '', path);
+      
+      // Manually trigger standard popstate or custom notification event for injected widgets
+      const event = new PopStateEvent('popstate', { state: {} });
+      window.dispatchEvent(event);
+    }
+
+    // ------------------------------------------
+    // DYNAMIC WIDGET INJECTOR
+    // ------------------------------------------
+    function initializeLetsTrack() {
+      const apiInput = document.getElementById('apiKeyInput');
+      const apiKey = apiInput.value.trim();
+      const statusDiv = document.getElementById('connectionStatus');
+
+      if (!apiKey) {
+        alert('Please enter a valid Tenant API Key.');
+        return;
+      }
+
+      // Bind config credentials
+      window.LetsTrackConfig = { websiteId: apiKey };
+
+      // Load compiled script statically served by backend
+      const scriptId = 'letstrack-verification-hook-script';
+      let existing = document.getElementById(scriptId);
+      if (existing) {
+        existing.remove();
+      }
+
+      // Remove existing widget root if already active to reinitialize
+      const root = document.getElementById('letstrack-widget-root');
+      if (root) {
+        root.remove();
+      }
+
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = 'http://localhost:5000/widget.js';
+      script.async = true;
+      script.onload = () => {
+        statusDiv.style.display = 'block';
+        statusDiv.style.color = '#10B981';
+        statusDiv.innerHTML = `🟢 LetsTrack Chat Widget loaded and listening! Active URL changes logged below.`;
+      };
+      script.onerror = () => {
+        statusDiv.style.display = 'block';
+        statusDiv.style.color = '#EF4444';
+        statusDiv.innerHTML = `🔴 Server connection failed. Ensure backend server.js is running on Port 5000.`;
+      };
+
+      document.head.appendChild(script);
+    }
+  </script>
+</body>
+</html>

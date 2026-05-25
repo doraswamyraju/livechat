@@ -1,0 +1,22 @@
+# Node modules
+**/node_modules/
+**/npm-debug.log
+.env
+.env.local
+
+# Vite / React build outputs
+**/dist/
+.vite/
+
+# Android build and local cache files
+**/build/
+.gradle/
+.idea/
+local.properties
+*.apk
+*.aar
+*.jar
+
+# System Files
+.DS_Store
+Thumbs.db

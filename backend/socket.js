@@ -1,0 +1,419 @@
+import { Server } from 'socket.io';
+import { Visitor, Conversation, Message, User, Tenant } from './models.js';
+
+// Simple mock Geo-IP lookup resolver for premium analytics
+const mockGeoIP = (ip) => {
+  const locations = [
+    { country: 'United States', city: 'New York' },
+    { country: 'Germany', city: 'Berlin' },
+    { country: 'Japan', city: 'Tokyo' },
+    { country: 'United Kingdom', city: 'London' },
+    { country: 'India', city: 'Mumbai' },
+    { country: 'France', city: 'Paris' },
+    { country: 'Canada', city: 'Toronto' },
+    { country: 'Australia', city: 'Sydney' }
+  ];
+  // Stable random selection based on IP characters
+  let index = 0;
+  if (ip && typeof ip === 'string') {
+    let sum = 0;
+    for (let i = 0; i < ip.length; i++) {
+      sum += ip.charCodeAt(i);
+    }
+    index = sum % locations.length;
+  } else {
+    index = Math.floor(Math.random() * locations.length);
+  }
+  return locations[index];
+};
+
+export const initializeSocket = (httpServer) => {
+  const io = new Server(httpServer, {
+    cors: {
+      origin: '*', // Allow connections from any host app
+      methods: ['GET', 'POST']
+    }
+  });
+
+  const visitorNamespace = io.of('/visitor');
+  const dashboardNamespace = io.of('/dashboard');
+
+  // Track active visitor socket connections to handle multi-tabbing or abrupt disconnect grace periods
+  const activeVisitorSockets = new Map(); // visitorId -> socketId
+  const disconnectTimers = new Map(); // visitorId -> Timeout ID
+
+  // ============================================
+  // VISITOR NAMESPACE (Widget Communication)
+  // ============================================
+  visitorNamespace.on('connection', (socket) => {
+    let currentVisitorId = null;
+    let currentTenantId = null;
+
+    socket.on('visitor-init', async (data) => {
+      const { apiKey, visitorId, currentUrl, referrer, name, email, browser, os, deviceType } = data;
+      
+      try {
+        // 1. Verify Tenant API Key
+        const tenant = await Tenant.findOne({ apiKey });
+        if (!tenant) {
+          socket.emit('error-msg', { message: 'Invalid API Key' });
+          return socket.disconnect();
+        }
+
+        currentVisitorId = visitorId;
+        currentTenantId = tenant._id.toString();
+
+        // Check if there is an active disconnect timer and clear it (seamless page transitions/refreshes)
+        if (disconnectTimers.has(currentVisitorId)) {
+          clearTimeout(disconnectTimers.get(currentVisitorId));
+          disconnectTimers.delete(currentVisitorId);
+        }
+
+        // Put visitor in a dedicated socket room
+        socket.join(`visitor_${currentVisitorId}`);
+        activeVisitorSockets.set(currentVisitorId, socket.id);
+
+        // Resolve location info using mockGeoIP
+        const ip = socket.handshake.address || '127.0.0.1';
+        const geo = mockGeoIP(ip);
+
+        // 2. Find or Create Visitor
+        let visitor = await Visitor.findById(currentVisitorId);
+        if (!visitor) {
+          visitor = new Visitor({
+            _id: currentVisitorId,
+            tenantId: currentTenantId,
+            name: name || `Visitor #${Math.floor(1000 + Math.random() * 9000)}`,
+            email: email || '',
+            ipAddress: ip,
+            country: geo.country,
+            city: geo.city,
+            deviceType: deviceType || 'Desktop',
+            browser: browser || 'Chrome',
+            os: os || 'Windows',
+            currentUrl: currentUrl || '',
+            referrer: referrer || 'Direct',
+            isOnline: true,
+            firstSeen: new Date(),
+            lastSeen: new Date()
+          });
+        } else {
+          visitor.isOnline = true;
+          visitor.currentUrl = currentUrl || visitor.currentUrl;
+          visitor.lastSeen = new Date();
+        }
+        await visitor.save();
+
+        // 3. Notify Agents on the Dashboard
+        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-connected', visitor);
+
+        // Send confirmation back to visitor
+        socket.emit('visitor-init-success', { visitorId: currentVisitorId, name: visitor.name });
+
+        // Retrieve message history if conversation already exists
+        const conversation = await Conversation.findOne({
+          tenantId: currentTenantId,
+          visitorId: currentVisitorId
+        });
+        if (conversation) {
+          const messages = await Message.find({ conversationId: conversation._id }).sort({ timestamp: 1 });
+          socket.emit('chat-history', {
+            conversationId: conversation._id,
+            status: conversation.status,
+            assignedAgentId: conversation.assignedAgentId,
+            messages
+          });
+        }
+
+      } catch (err) {
+        console.error('Error in visitor-init:', err);
+      }
+    });
+
+    // Handle Visitor Page Navigation
+    socket.on('page-view', async (data) => {
+      const { currentUrl } = data;
+      if (!currentVisitorId || !currentTenantId) return;
+
+      try {
+        await Visitor.findByIdAndUpdate(currentVisitorId, {
+          currentUrl,
+          lastSeen: new Date()
+        });
+
+        // Broadcast navigating event to Dashboard
+        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-navigated', {
+          visitorId: currentVisitorId,
+          currentUrl
+        });
+      } catch (err) {
+        console.error('Error in page-view:', err);
+      }
+    });
+
+    // Handle Visitor Message
+    socket.on('visitor-msg', async (data) => {
+      const { text } = data;
+      if (!currentVisitorId || !currentTenantId) return;
+
+      try {
+        // 1. Get or Create active conversation
+        let conversation = await Conversation.findOne({
+          tenantId: currentTenantId,
+          visitorId: currentVisitorId,
+          status: { $in: ['Unassigned', 'Active'] }
+        });
+
+        if (!conversation) {
+          conversation = new Conversation({
+            tenantId: currentTenantId,
+            visitorId: currentVisitorId,
+            status: 'Unassigned',
+            assignedAgentId: null
+          });
+          await conversation.save();
+        }
+
+        const visitor = await Visitor.findById(currentVisitorId);
+
+        // 2. Save Message
+        const message = new Message({
+          conversationId: conversation._id,
+          senderType: 'Visitor',
+          senderId: currentVisitorId,
+          senderName: visitor ? visitor.name : 'Visitor',
+          text,
+          timestamp: new Date()
+        });
+        await message.save();
+
+        // 3. Update Conversation updatedAt
+        conversation.updatedAt = new Date();
+        await conversation.save();
+
+        // 4. Emit to visitor room
+        visitorNamespace.to(`visitor_${currentVisitorId}`).emit('msg-received', message);
+
+        // 5. Emit to Dashboard agents room
+        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-msg', {
+          conversation,
+          message,
+          visitor
+        });
+
+      } catch (err) {
+        console.error('Error in visitor-msg:', err);
+      }
+    });
+
+    // Handle Visitor Typing Indicator
+    socket.on('visitor-typing', (data) => {
+      const { isTyping } = data;
+      if (!currentVisitorId || !currentTenantId) return;
+      dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-typing', {
+        visitorId: currentVisitorId,
+        isTyping
+      });
+    });
+
+    // Handle Visitor Disconnection with graceful page transition timer
+    socket.on('disconnect', () => {
+      if (!currentVisitorId || !currentTenantId) return;
+
+      activeVisitorSockets.delete(currentVisitorId);
+
+      // Start 5 second disconnect grace period
+      const timer = setTimeout(async () => {
+        try {
+          // If the visitor hasn't reconnected during this period, mark offline
+          if (!activeVisitorSockets.has(currentVisitorId)) {
+            await Visitor.findByIdAndUpdate(currentVisitorId, { isOnline: false });
+            dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-disconnected', { visitorId: currentVisitorId });
+          }
+          disconnectTimers.delete(currentVisitorId);
+        } catch (err) {
+          console.error('Error handling visitor disconnect timer:', err);
+        }
+      }, 5000);
+
+      disconnectTimers.set(currentVisitorId, timer);
+    });
+  });
+
+  // ============================================
+  // DASHBOARD NAMESPACE (Agent Communication)
+  // ============================================
+  dashboardNamespace.on('connection', (socket) => {
+    let currentAgentId = null;
+    let currentTenantId = null;
+
+    socket.on('agent-init', async (data) => {
+      const { tenantId, agentId } = data;
+      currentAgentId = agentId;
+      currentTenantId = tenantId;
+
+      try {
+        socket.join(`tenant_${currentTenantId}`);
+        socket.join(`agent_${currentAgentId}`);
+
+        // Update Agent status in database
+        await User.findByIdAndUpdate(currentAgentId, { status: 'Online' });
+
+        // Notify other agents that this employee is online
+        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-status-changed', {
+          agentId: currentAgentId,
+          status: 'Online'
+        });
+
+        // Send full active lists (visitors + conversations + agents) to this newly logged in agent
+        const visitors = await Visitor.find({ tenantId: currentTenantId });
+        const conversations = await Conversation.find({ tenantId: currentTenantId, status: { $ne: 'Closed' } }).populate('assignedAgentId', 'name email avatarUrl status');
+        const agents = await User.find({ tenantId: currentTenantId }).select('-passwordHash');
+
+        socket.emit('dashboard-sync', { visitors, conversations, agents });
+
+      } catch (err) {
+        console.error('Error in agent-init:', err);
+      }
+    });
+
+    // Handle Agent Status Change (Away, Online, Offline)
+    socket.on('agent-status-update', async (data) => {
+      const { status } = data;
+      if (!currentAgentId || !currentTenantId) return;
+
+      try {
+        await User.findByIdAndUpdate(currentAgentId, { status });
+        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-status-changed', {
+          agentId: currentAgentId,
+          status
+        });
+      } catch (err) {
+        console.error('Error in agent-status-update:', err);
+      }
+    });
+
+    // Handle Agent Sending Message to Visitor
+    socket.on('agent-msg', async (data) => {
+      const { conversationId, text, visitorId } = data;
+      if (!currentAgentId || !currentTenantId) return;
+
+      try {
+        const agent = await User.findById(currentAgentId);
+        if (!agent) return;
+
+        // Save Message
+        const message = new Message({
+          conversationId,
+          senderType: 'Agent',
+          senderId: currentAgentId,
+          senderName: agent.name,
+          text,
+          timestamp: new Date()
+        });
+        await message.save();
+
+        // Update Conversation
+        await Conversation.findByIdAndUpdate(conversationId, {
+          status: 'Active',
+          updatedAt: new Date()
+        });
+
+        // Broadcast to visitor
+        visitorNamespace.to(`visitor_${visitorId}`).emit('msg-received', message);
+
+        // Broadcast to all dashboard agents in tenant
+        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-msg-received', {
+          conversationId,
+          message
+        });
+
+      } catch (err) {
+        console.error('Error in agent-msg:', err);
+      }
+    });
+
+    // Handle Agent Assigning/Reassigning Chat to Employee
+    socket.on('assign-chat', async (data) => {
+      const { conversationId, assignedAgentId } = data; // If assignedAgentId is null, it unassigns
+      if (!currentAgentId || !currentTenantId) return;
+
+      try {
+        let agentName = 'Unassigned';
+        if (assignedAgentId) {
+          const targetAgent = await User.findById(assignedAgentId);
+          if (targetAgent) {
+            agentName = targetAgent.name;
+          }
+        }
+
+        const prevConv = await Conversation.findById(conversationId);
+        if (!prevConv) return;
+
+        // Update DB
+        const updatedConversation = await Conversation.findByIdAndUpdate(
+          conversationId,
+          {
+            assignedAgentId,
+            status: assignedAgentId ? 'Active' : 'Unassigned',
+            updatedAt: new Date()
+          },
+          { new: true }
+        ).populate('assignedAgentId', 'name email avatarUrl status');
+
+        // Create System Message log
+        const systemMessage = new Message({
+          conversationId,
+          senderType: 'System',
+          senderId: 'SYSTEM',
+          senderName: 'System',
+          text: assignedAgentId 
+            ? `Conversation assigned to ${agentName}` 
+            : `Conversation returned to general unassigned queue`,
+          timestamp: new Date()
+        });
+        await systemMessage.save();
+
+        // Broadcast update to visitor's widget (so they see the system log)
+        visitorNamespace.to(`visitor_${prevConv.visitorId}`).emit('msg-received', systemMessage);
+        visitorNamespace.to(`visitor_${prevConv.visitorId}`).emit('chat-assigned', {
+          conversationId,
+          assignedAgentId,
+          agentName
+        });
+
+        // Broadcast update to all dashboard agents
+        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('chat-assigned-update', {
+          conversation: updatedConversation,
+          systemMessage
+        });
+
+      } catch (err) {
+        console.error('Error in assign-chat:', err);
+      }
+    });
+
+    // Handle Agent Typing Indicator
+    socket.on('agent-typing', (data) => {
+      const { visitorId, isTyping } = data;
+      if (!currentAgentId || !currentTenantId) return;
+
+      visitorNamespace.to(`visitor_${visitorId}`).emit('agent-typing', { isTyping });
+    });
+
+    socket.on('disconnect', async () => {
+      if (!currentAgentId || !currentTenantId) return;
+
+      try {
+        // Optional: wait a moment or mark offline immediately. For simplicity we mark Offline.
+        await User.findByIdAndUpdate(currentAgentId, { status: 'Offline' });
+        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-status-changed', {
+          agentId: currentAgentId,
+          status: 'Offline'
+        });
+      } catch (err) {
+        console.error('Error in agent disconnect:', err);
+      }
+    });
+  });
+};
