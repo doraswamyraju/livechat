@@ -76,6 +76,8 @@ data class MessageDto(
     val timestamp: String
 )
 
+data class FcmTokenRequest(val fcmToken: String)
+
 // ============================================
 // RETROFIT API INTERFACES
 // ============================================
@@ -91,6 +93,12 @@ interface LetsTrackApi {
         @Header("Authorization") token: String,
         @Path("id") conversationId: String
     ): List<MessageDto>
+
+    @POST("/api/auth/fcm-token")
+    suspend fun registerFcmToken(
+        @Header("Authorization") token: String,
+        @Body request: FcmTokenRequest
+    ): retrofit2.Response<Unit>
 }
 
 // ============================================

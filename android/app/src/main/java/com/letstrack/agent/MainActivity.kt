@@ -3,6 +3,7 @@ package com.letstrack.agent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.google.firebase.messaging.FirebaseMessaging
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -170,6 +171,28 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                                     
                                     // Save credentials
                                     NetworkClient.setAuth(res.token, res.user, res.tenant)
+                                    
+                                    // Fetch and upload Firebase FCM Token for push notifications
+                                    try {
+                                        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                                            if (task.isSuccessful) {
+                                                val fcmToken = task.result
+                                                coroutineScope.launch {
+                                                    try {
+                                                        NetworkClient.api.registerFcmToken(
+                                                            NetworkClient.getAuthHeader(),
+                                                            com.letstrack.agent.network.FcmTokenRequest(fcmToken)
+                                                        )
+                                                    } catch (err: Exception) {
+                                                        err.printStackTrace()
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+
                                     isLoading = false
                                     onLoginSuccess()
                                 } catch (e: Exception) {

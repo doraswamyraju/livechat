@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import { Visitor, Conversation, Message, User, Tenant } from './models.js';
+import { sendPushNotification } from './firebase.js';
 
 // Simple mock Geo-IP lookup resolver for premium analytics
 const mockGeoIP = (ip) => {
@@ -200,6 +201,38 @@ export const initializeSocket = (httpServer) => {
           message,
           visitor
         });
+
+        // 6. Dispatch Real-Time Push Notifications via FCM
+        try {
+          const visitorName = visitor ? visitor.name : 'Visitor';
+          if (conversation.assignedAgentId) {
+            // Case A: Send private alert to the specific assigned agent
+            const agent = await User.findById(conversation.assignedAgentId);
+            if (agent && agent.fcmToken && agent.status !== 'Online') {
+              await sendPushNotification(
+                agent.fcmToken,
+                `Message from ${visitorName}`,
+                text,
+                { conversationId: conversation._id.toString(), visitorName }
+              );
+            }
+          } else {
+            // Case B: Send broadcast alert to all team members about unassigned queue
+            const staffList = await User.find({ tenantId: currentTenantId });
+            for (const staff of staffList) {
+              if (staff.fcmToken && staff.status !== 'Online') {
+                await sendPushNotification(
+                  staff.fcmToken,
+                  `New Chat Request!`,
+                  `${visitorName} started a live chat.`,
+                  { conversationId: conversation._id.toString(), visitorName }
+                );
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Error dispatching push notifications:', err);
+        }
 
       } catch (err) {
         console.error('Error in visitor-msg:', err);

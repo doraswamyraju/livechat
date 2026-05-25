@@ -17,6 +17,7 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, enum: ['Admin', 'Agent'], default: 'Agent' },
   status: { type: String, enum: ['Online', 'Away', 'Offline'], default: 'Offline' },
   avatarUrl: { type: String, default: '' },
+  fcmToken: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -20,3 +20,7 @@ local.properties
 # System Files
 .DS_Store
 Thumbs.db
+
+# Private Keys & Cloud Credentials
+**/firebase-key.json
+**/google-services.json

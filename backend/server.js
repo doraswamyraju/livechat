@@ -307,6 +307,20 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
   }
 });
 
+// 8. Register Agent FCM Token for push notifications
+app.post('/api/auth/fcm-token', authenticateToken, async (req, res) => {
+  const { fcmToken } = req.body;
+  if (!fcmToken) return res.status(400).json({ error: 'fcmToken required' });
+
+  try {
+    await User.findByIdAndUpdate(req.user.userId, { fcmToken });
+    res.status(200).json({ message: 'FCM Token registered successfully' });
+  } catch (err) {
+    console.error('Error saving FCM Token:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // ============================================
 // SERVE DEMO SITE STATICALLY (Allows correct HTTP Origin and PushState Routing)
 // ============================================
