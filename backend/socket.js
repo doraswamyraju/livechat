@@ -80,6 +80,7 @@ export const initializeSocket = (httpServer) => {
 
         // 2. Find or Create Visitor
         let visitor = await Visitor.findById(currentVisitorId);
+        const isNewVisitor = !visitor;
         if (!visitor) {
           visitor = new Visitor({
             _id: currentVisitorId,
@@ -104,6 +105,25 @@ export const initializeSocket = (httpServer) => {
           visitor.lastSeen = new Date();
         }
         await visitor.save();
+
+        // Send FCM push notification for new visitor to offline agents
+        if (isNewVisitor) {
+          try {
+            const staffList = await User.find({ tenantId: currentTenantId });
+            for (const staff of staffList) {
+              if (staff.fcmToken && staff.status !== 'Online') {
+                await sendPushNotification(
+                  staff.fcmToken,
+                  "New Visitor Online!",
+                  `${visitor.name} has just landed on your website.`,
+                  { type: "new-visitor", visitorId: currentVisitorId }
+                );
+              }
+            }
+          } catch (err) {
+            console.error('Error dispatching new visitor push notification:', err);
+          }
+        }
 
         // 3. Notify Agents on the Dashboard
         dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-connected', visitor);

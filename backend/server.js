@@ -173,6 +173,31 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// 2b. Reset Password
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  if (!email || !newPassword) {
+    return res.status(400).json({ error: 'Email and new password are required' });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: 'User with this email does not exist' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    user.passwordHash = passwordHash;
+    await user.save();
+
+    res.status(200).json({ message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('Error in password reset:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // 3. Register New Agent (Admin only)
 app.post('/api/auth/register-agent', authenticateToken, async (req, res) => {
   const { name, email, password } = req.body;

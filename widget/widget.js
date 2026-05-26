@@ -426,7 +426,7 @@
           margin-bottom: 0;
         }
         .lt-widget-btn {
-          display: none;
+          display: flex !important;
         }
         .lt-chat-window.open {
           display: flex;

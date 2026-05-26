@@ -103,6 +103,26 @@ function App() {
     }
   };
 
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (!email || !password) return showToast('Please enter email and new password', 'error');
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, newPassword: password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Password reset failed');
+
+      showToast('Password updated! You can now log in.');
+      setAuthMode('login');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
   const handleRegisterTenant = async (e) => {
     e.preventDefault();
     if (!tenantName || !domain || !name || !email || !password) {
@@ -525,10 +545,45 @@ function App() {
               </div>
               <button type="submit" className="auth-btn">Access Console</button>
               
-              <div className="auth-switch-text">
-                Need to register your website?{' '}
+              <div className="auth-switch-text" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px' }}>
                 <span className="auth-link" onClick={() => setAuthMode('register')}>
                   Create Tenant
+                </span>
+                <span className="auth-link" onClick={() => setAuthMode('reset')}>
+                  Forgot Password?
+                </span>
+              </div>
+            </form>
+          ) : authMode === 'reset' ? (
+            <form className="auth-form" onSubmit={handleResetPassword}>
+              <div className="form-group">
+                <label className="form-label">Email Address</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="name@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">New Password</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="At least 6 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <button type="submit" className="auth-btn">Reset Password</button>
+              
+              <div className="auth-switch-text">
+                Back to{' '}
+                <span className="auth-link" onClick={() => setAuthMode('login')}>
+                  Sign In
                 </span>
               </div>
             </form>
@@ -707,22 +762,22 @@ function App() {
           {activeTab === 'analytics' && (
             <div>
               <div className="analytics-stats-row">
-                <div className="stat-card glass-card">
+                <div className="stat-card glass-card" onClick={() => setActiveTab('monitor')} style={{ cursor: 'pointer' }}>
                   <div className="stat-title">Online Visitors</div>
                   <div className="stat-value">{analytics.onlineVisitors}</div>
                   <div className="stat-footer">Across all site subpaths</div>
                 </div>
-                <div className="stat-card glass-card">
+                <div className="stat-card glass-card" onClick={() => setActiveTab('chat')} style={{ cursor: 'pointer' }}>
                   <div className="stat-title">Active Conversations</div>
                   <div className="stat-value">{analytics.activeConversations}</div>
                   <div className="stat-footer">Assigned to employees</div>
                 </div>
-                <div className="stat-card glass-card">
+                <div className="stat-card glass-card" onClick={() => setActiveTab('chat')} style={{ cursor: 'pointer' }}>
                   <div className="stat-title">Pending Queue</div>
                   <div className="stat-value" style={{ color: 'var(--warning)' }}>{analytics.unassignedConversations}</div>
                   <div className="stat-footer">Chats waiting for agents</div>
                 </div>
-                <div className="stat-card glass-card">
+                <div className="stat-card glass-card" onClick={() => user.role === 'Admin' ? setActiveTab('agents') : showToast('Access restricted to Admins only', 'error')} style={{ cursor: 'pointer' }}>
                   <div className="stat-title">Total Staff</div>
                   <div className="stat-value">{analytics.totalAgents}</div>
                   <div className="stat-footer">{analytics.onlineAgents} employees currently active</div>
