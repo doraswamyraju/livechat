@@ -157,7 +157,6 @@ export const initializeSocket = (httpServer) => {
               conversationId: activeConv._id,
               message: systemMsg
             });
-            visitorNamespace.to(`visitor_${currentVisitorId}`).emit('msg-received', systemMsg);
           }
         }
 
@@ -170,7 +169,13 @@ export const initializeSocket = (httpServer) => {
           visitorId: currentVisitorId
         });
         if (conversation) {
-          const messages = await Message.find({ conversationId: conversation._id }).sort({ timestamp: 1 });
+          const messages = await Message.find({
+            conversationId: conversation._id,
+            $or: [
+              { senderType: { $ne: 'System' } },
+              { text: { $not: /^Visitor navigated to/ } }
+            ]
+          }).sort({ timestamp: 1 });
           socket.emit('chat-history', {
             conversationId: conversation._id,
             status: conversation.status,
@@ -222,7 +227,6 @@ export const initializeSocket = (httpServer) => {
             conversationId: conversation._id,
             message: systemMsg
           });
-          visitorNamespace.to(`visitor_${currentVisitorId}`).emit('msg-received', systemMsg);
         }
       } catch (err) {
         console.error('Error in page-view:', err);
