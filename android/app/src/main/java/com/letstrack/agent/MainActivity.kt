@@ -99,6 +99,32 @@ fun AppNavigator() {
         )
     }
     
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(currentScreen) {
+        if (currentScreen == "dashboard" && NetworkClient.currentUser != null) {
+            try {
+                FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        val fcmToken = task.result
+                        coroutineScope.launch {
+                            try {
+                                NetworkClient.api.registerFcmToken(
+                                    NetworkClient.getAuthHeader(),
+                                    com.letstrack.agent.network.FcmTokenRequest(fcmToken)
+                                )
+                            } catch (err: Exception) {
+                                err.printStackTrace()
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     // Chat parameters
     var activeConversationId by remember { mutableStateOf("") }
     var activeVisitorName by remember { mutableStateOf("") }
