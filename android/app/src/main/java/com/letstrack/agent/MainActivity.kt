@@ -5,14 +5,20 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.google.firebase.messaging.FirebaseMessaging
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -51,11 +57,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    primary = Color(0xFF8B5CF6),
+                    primary = Color(0xFFDC2626), // Netflix Red Accent
                     onPrimary = Color.White,
-                    surface = Color(0xFF1E293B),
+                    surface = Color(0xFF121212), // Dark Premium surface
                     onSurface = Color.White,
-                    background = Color(0xFF0F172A),
+                    background = Color(0xFF000000), // Pure Black background
                     onBackground = Color.White
                 )
             ) {
@@ -128,27 +134,44 @@ fun LoginView(onLoginSuccess: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color.Black)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // App Logo with premium border
+        Image(
+            painter = painterResource(id = R.drawable.app_logo),
+            contentDescription = "LetsTrack Logo",
+            modifier = Modifier
+                .size(110.dp)
+                .clip(CircleShape)
+                .border(2.dp, Color(0xFFDC2626), CircleShape),
+            contentScale = ContentScale.Crop
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+
         Text(
-            text = "LetsTrack Agent",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
+            text = "LetsTrack",
+            fontSize = 32.sp,
+            fontWeight = FontWeight.Black,
             color = Color.White
         )
         Text(
-            text = "Real-time mobile tracking console",
-            fontSize = 13.sp,
-            color = Color(0xFF94A3B8),
-            modifier = Modifier.padding(top = 4.dp, bottom = 32.dp)
+            text = "Real-time Mobile Tracking Console",
+            fontSize = 12.sp,
+            color = Color(0xFFEF4444), // Accent Red
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 2.dp, bottom = 32.dp)
         )
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
             shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color(0xFF262626), RoundedCornerShape(16.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -164,7 +187,11 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFFDC2626),
+                        unfocusedBorderColor = Color(0xFF262626),
+                        focusedLabelColor = Color(0xFFDC2626),
+                        cursorColor = Color(0xFFDC2626)
                     ),
                     singleLine = true
                 )
@@ -177,7 +204,11 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFFDC2626),
+                        unfocusedBorderColor = Color(0xFF262626),
+                        focusedLabelColor = Color(0xFFDC2626),
+                        cursorColor = Color(0xFFDC2626)
                     ),
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -187,7 +218,7 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
-                        color = Color.Red,
+                        color = Color(0xFFEF4444),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -242,7 +273,10 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                         .fillMaxWidth()
                         .height(50.dp),
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFDC2626),
+                        contentColor = Color.White
+                    ),
                     enabled = !isLoading
                 ) {
                     if (isLoading) {
@@ -263,7 +297,7 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                     onClick = { showResetDialog = true },
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
-                    Text("Forgot Password?", color = Color(0xFF94A3B8), fontWeight = FontWeight.SemiBold)
+                    Text("Forgot Password?", color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
                 }
 
                 if (showResetDialog) {
@@ -278,15 +312,29 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                             }
                         },
                         title = {
-                            Text("Reset Password", fontWeight = FontWeight.Bold, color = Color.White)
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.app_logo),
+                                        contentDescription = "Logo",
+                                        modifier = Modifier
+                                            .size(50.dp)
+                                            .clip(CircleShape)
+                                            .border(1.dp, Color(0xFFDC2626), CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text("Reset Password", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 20.sp)
+                                }
+                            }
                         },
-                        containerColor = Color(0xFF1E293B),
+                        containerColor = Color(0xFF121212),
+                        modifier = Modifier.border(1.dp, Color(0xFF262626), RoundedCornerShape(28.dp)),
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Text(
                                     "Enter your registered email address and your desired new password.",
                                     color = Color(0xFF94A3B8),
-                                    fontSize = 14.sp
+                                    fontSize = 13.sp
                                 )
 
                                 OutlinedTextField(
@@ -296,7 +344,11 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = Color(0xFFDC2626),
+                                        unfocusedBorderColor = Color(0xFF262626),
+                                        focusedLabelColor = Color(0xFFDC2626),
+                                        cursorColor = Color(0xFFDC2626)
                                     ),
                                     singleLine = true,
                                     enabled = !resetLoading && !isResetSuccess
@@ -309,7 +361,11 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = Color(0xFFDC2626),
+                                        unfocusedBorderColor = Color(0xFF262626),
+                                        focusedLabelColor = Color(0xFFDC2626),
+                                        cursorColor = Color(0xFFDC2626)
                                     ),
                                     visualTransformation = PasswordVisualTransformation(),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -320,7 +376,7 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                                 if (resetMessage.isNotEmpty()) {
                                     Text(
                                         text = resetMessage,
-                                        color = if (isResetSuccess) Color(0xFF10B981) else Color.Red,
+                                        color = if (isResetSuccess) Color(0xFF10B981) else Color(0xFFEF4444),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -354,7 +410,7 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                                             resetMessage = "Enter valid email and password (min 6 chars)."
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
                                     enabled = !resetLoading
                                 ) {
                                     if (resetLoading) {
@@ -372,7 +428,7 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                                         resetMessage = ""
                                         isResetSuccess = false
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
                                 ) {
                                     Text("Close")
                                 }

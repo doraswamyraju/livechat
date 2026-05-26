@@ -3,6 +3,8 @@ package com.letstrack.agent.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,10 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.letstrack.agent.network.*
+import com.letstrack.agent.R
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -176,18 +180,29 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(visitorName, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = if (isVisitorTyping) "typing..." else "Connected via Widget",
-                            fontSize = 11.sp,
-                            color = if (isVisitorTyping) MaterialTheme.colorScheme.primary else Color.Gray
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(id = R.drawable.app_logo),
+                            contentDescription = "Logo",
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, Color(0xFFDC2626), CircleShape)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(visitorName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(
+                                text = if (isVisitorTyping) "typing..." else "Connected via Widget",
+                                fontSize = 10.sp,
+                                color = if (isVisitorTyping) Color(0xFFEF4444) else Color.Gray
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
                 actions = {
@@ -204,7 +219,7 @@ fun ChatScreen(
                                     NetworkClient.getSocketInstance().emit("assign-chat", data)
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)
                         ) {
                             Text("Release", fontSize = 11.sp)
                         }
@@ -219,14 +234,14 @@ fun ChatScreen(
                                     NetworkClient.getSocketInstance().emit("assign-chat", data)
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)
                         ) {
                             Text("Claim Chat", fontSize = 11.sp)
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
+                    containerColor = Color(0xFF121212)
                 )
             )
         }
@@ -235,15 +250,16 @@ fun ChatScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFF0F172A))
+                .background(Color.Black)
         ) {
             // Expandable details panel
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
                 shape = RoundedCornerShape(0.dp, 0.dp, 12.dp, 12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { isDetailsExpanded = !isDetailsExpanded }
+                    .border(1.dp, Color(0xFF262626), RoundedCornerShape(0.dp, 0.dp, 12.dp, 12.dp))
             ) {
                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                     Row(
@@ -253,7 +269,7 @@ fun ChatScreen(
                     ) {
                         Text(
                             text = "Visitor Info & Navigation Options",
-                            color = Color(0xFF8B5CF6),
+                            color = Color(0xFFEF4444),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -266,7 +282,7 @@ fun ChatScreen(
 
                     if (isDetailsExpanded) {
                         Spacer(modifier = Modifier.height(8.dp))
-                        HorizontalDivider(color = Color(0xFF334155), thickness = 1.dp)
+                        HorizontalDivider(color = Color(0xFF262626), thickness = 1.dp)
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -294,7 +310,7 @@ fun ChatScreen(
                             Text("CURRENTLY VIEWING", color = Color(0xFF64748B), fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             Text(
                                 text = visitorUrl,
-                                color = Color(0xFF10B981),
+                                color = Color(0xFFEF4444),
                                 fontSize = 12.sp,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
@@ -326,11 +342,12 @@ fun ChatScreen(
                         ) {
                             Text(
                                 text = msg.text,
-                                color = Color(0xFFF59E0B),
+                                color = Color(0xFFEF4444),
                                 fontSize = 11.sp,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(20.dp))
-                                    .background(Color(0xFF2D2214))
+                                    .background(Color(0xFF2B0707))
+                                    .border(1.dp, Color(0xFF7F1D1D), RoundedCornerShape(20.dp))
                                     .padding(horizontal = 14.dp, vertical = 6.dp)
                             )
                         }
@@ -356,7 +373,17 @@ fun ChatScreen(
                                         )
                                     )
                                     .background(
-                                        if (isSelf) MaterialTheme.colorScheme.primary else Color(0xFF1E293B)
+                                        if (isSelf) Color(0xFFDC2626) else Color(0xFF1E1E1E)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isSelf) Color(0xFF7F1D1D) else Color(0xFF262626),
+                                        RoundedCornerShape(
+                                            topStart = 12.dp,
+                                            topEnd = 12.dp,
+                                            bottomStart = if (isSelf) 12.dp else 2.dp,
+                                            bottomEnd = if (isSelf) 2.dp else 12.dp
+                                        )
                                     )
                                     .padding(horizontal = 14.dp, vertical = 10.dp)
                             ) {
@@ -374,11 +401,12 @@ fun ChatScreen(
                 if (isVisitorTyping) {
                     item {
                         Column(horizontalAlignment = Alignment.Start) {
-                            Text("typing...", color = Color(0xFF8B5CF6), fontSize = 11.sp)
+                            Text("typing...", color = Color(0xFFEF4444), fontSize = 11.sp)
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF1E293B))
+                                    .background(Color(0xFF1E1E1E))
+                                    .border(1.dp, Color(0xFF262626), RoundedCornerShape(12.dp))
                                     .padding(horizontal = 14.dp, vertical = 10.dp)
                             ) {
                                 Text("•••", color = Color.White, fontSize = 14.sp)
@@ -392,8 +420,9 @@ fun ChatScreen(
             androidx.compose.foundation.lazy.LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF0F172A))
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                    .background(Color(0xFF121212))
+                    .border(1.dp, Color(0xFF262626), RoundedCornerShape(0.dp))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val replies = listOf(
@@ -407,9 +436,9 @@ fun ChatScreen(
                         onClick = { chatInput = reply },
                         label = { Text(reply, fontSize = 11.sp, color = Color.White) },
                         colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = Color(0xFF1E293B)
+                            containerColor = Color(0xFF1E1E1E)
                         ),
-                        border = BorderStroke(1.dp, Color(0xFF334155))
+                        border = BorderStroke(1.dp, Color(0xFF262626))
                     )
                 }
             }
@@ -418,20 +447,21 @@ fun ChatScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF1E293B))
+                    .background(Color(0xFF121212))
+                    .border(1.dp, Color(0xFF262626), RoundedCornerShape(0.dp))
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextField(
                     value = chatInput,
                     onValueChange = { chatInput = it },
-                    placeholder = { Text("Reply back to customer...", fontSize = 14.sp) },
+                    placeholder = { Text("Reply back to customer...", fontSize = 14.sp, color = Color.Gray) },
                     modifier = Modifier
                         .weight(1f)
                         .padding(end = 8.dp),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFF0F172A),
-                        unfocusedContainerColor = Color(0xFF0F172A),
+                        focusedContainerColor = Color.Black,
+                        unfocusedContainerColor = Color.Black,
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent,
                         focusedTextColor = Color.White,
@@ -456,7 +486,7 @@ fun ChatScreen(
                     },
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(Color(0xFFDC2626))
                 ) {
                     Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White)
                 }

@@ -3,6 +3,8 @@ package com.letstrack.agent.ui
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,11 +19,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.letstrack.agent.network.*
+import com.letstrack.agent.R
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -208,17 +213,29 @@ fun DashboardScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            text = NetworkClient.currentTenant?.name ?: "LetsTrack console",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(id = R.drawable.app_logo),
+                            contentDescription = "Logo",
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, Color(0xFFDC2626), CircleShape)
                         )
-                        Text(
-                            text = "Admin Employee Panel",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = NetworkClient.currentTenant?.name ?: "LetsTrack console",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Admin Employee Panel",
+                                fontSize = 10.sp,
+                                color = Color(0xFFEF4444) // Accent Red
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -226,11 +243,13 @@ fun DashboardScreen(
                     Button(
                         onClick = { showStatusDialog = true },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            containerColor = Color(0xFF1E1E1E),
+                            contentColor = Color.White
                         ),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.padding(end = 8.dp)
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .border(1.dp, Color(0xFF262626), RoundedCornerShape(20.dp))
                     ) {
                         Box(
                             modifier = Modifier
@@ -244,33 +263,57 @@ fun DashboardScreen(
 
                     // Sign Out
                     IconButton(onClick = onSignOut) {
-                        Icon(Icons.Default.ExitToApp, contentDescription = "Sign Out", tint = Color.Red)
+                        Icon(Icons.Default.ExitToApp, contentDescription = "Sign Out", tint = Color(0xFFDC2626))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
+                    containerColor = Color(0xFF121212)
                 )
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = Color(0xFF121212),
+                tonalElevation = 0.dp
+            ) {
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Star, contentDescription = "Metrics") },
                     label = { Text("Metrics") },
                     selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 }
+                    onClick = { selectedTab = 0 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = Color(0xFFEF4444),
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray,
+                        indicatorColor = Color(0xFFDC2626)
+                    )
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.LocationOn, contentDescription = "Traffic") },
                     label = { Text("Traffic") },
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 }
+                    onClick = { selectedTab = 1 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = Color(0xFFEF4444),
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray,
+                        indicatorColor = Color(0xFFDC2626)
+                    )
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Email, contentDescription = "Inbox") },
                     label = { Text("Inbox") },
                     selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 }
+                    onClick = { selectedTab = 2 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = Color(0xFFEF4444),
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray,
+                        indicatorColor = Color(0xFFDC2626)
+                    )
                 )
             }
         }
@@ -279,7 +322,7 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFF0F172A)) // Sleek slate dark background
+                .background(Color.Black) // Premium solid black background
         ) {
             when (selectedTab) {
                 0 -> MetricsTab(analytics, agentsList) { tabIndex ->
@@ -320,7 +363,9 @@ fun DashboardScreen(
         if (showStatusDialog) {
             AlertDialog(
                 onDismissRequest = { showStatusDialog = false },
-                title = { Text("Update Live Presence Status") },
+                title = { Text("Update Live Presence Status", color = Color.White) },
+                containerColor = Color(0xFF121212),
+                modifier = Modifier.border(1.dp, Color(0xFF262626), RoundedCornerShape(28.dp)),
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         StatusRow("Online", selfStatus) {
@@ -344,7 +389,7 @@ fun DashboardScreen(
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { showStatusDialog = false }) { Text("Dismiss") }
+                    TextButton(onClick = { showStatusDialog = false }) { Text("Dismiss", color = Color(0xFFDC2626)) }
                 }
             )
         }
@@ -371,11 +416,11 @@ fun StatusRow(status: String, current: String, onClick: () -> Unit) {
             text = status,
             fontSize = 15.sp,
             fontWeight = if (status == current) FontWeight.Bold else FontWeight.Normal,
-            color = if (status == current) MaterialTheme.colorScheme.primary else Color.Unspecified
+            color = if (status == current) Color(0xFFDC2626) else Color.White
         )
         if (status == current) {
             Spacer(modifier = Modifier.weight(1f))
-            Icon(Icons.Default.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
+            Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color(0xFFDC2626))
         }
     }
 }
@@ -403,16 +448,16 @@ fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>, onTabSe
                     modifier = Modifier.weight(1f),
                     title = "Online Guests",
                     value = (analytics?.onlineVisitors ?: 0).toString(),
-                    color1 = Color(0xFF6366F1),
-                    color2 = Color(0xFF4F46E5),
+                    color1 = Color(0xFFDC2626),
+                    color2 = Color(0xFF450A0A),
                     onClick = { onTabSelect(1) }
                 )
                 MetricItemCard(
                     modifier = Modifier.weight(1f),
                     title = "Active Chats",
                     value = (analytics?.activeConversations ?: 0).toString(),
-                    color1 = Color(0xFF10B981),
-                    color2 = Color(0xFF059669),
+                    color1 = Color(0xFFDC2626),
+                    color2 = Color(0xFF450A0A),
                     onClick = { onTabSelect(2) }
                 )
             }
@@ -427,16 +472,16 @@ fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>, onTabSe
                     modifier = Modifier.weight(1f),
                     title = "Queue Size",
                     value = (analytics?.unassignedConversations ?: 0).toString(),
-                    color1 = Color(0xFFF59E0B),
-                    color2 = Color(0xFFD97706),
+                    color1 = Color(0xFFDC2626),
+                    color2 = Color(0xFF450A0A),
                     onClick = { onTabSelect(2) }
                 )
                 MetricItemCard(
                     modifier = Modifier.weight(1f),
                     title = "Total Staff",
                     value = (analytics?.totalAgents ?: 0).toString(),
-                    color1 = Color(0xFF8B5CF6),
-                    color2 = Color(0xFF7C3AED),
+                    color1 = Color(0xFFDC2626),
+                    color2 = Color(0xFF450A0A),
                     onClick = {}
                 )
             }
@@ -449,8 +494,9 @@ fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>, onTabSe
 
         items(agents) { agent ->
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                shape = RoundedCornerShape(10.dp)
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.border(1.dp, Color(0xFF262626), RoundedCornerShape(10.dp))
             ) {
                 Row(
                     modifier = Modifier
@@ -462,7 +508,7 @@ fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>, onTabSe
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF475569)),
+                            .background(Color(0xFF262626)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(agent.name[0].toString(), color = Color.White, fontWeight = FontWeight.Bold)
@@ -470,13 +516,14 @@ fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>, onTabSe
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(agent.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text(agent.role, color = Color(0xFF94A3B8), fontSize = 11.sp)
+                        Text(agent.role, color = Color(0xFFEF4444), fontSize = 11.sp)
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF0F172A))
+                            .background(Color.Black)
+                            .border(1.dp, Color(0xFF262626), RoundedCornerShape(6.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Box(
@@ -505,7 +552,8 @@ fun MetricItemCard(
 ) {
     Card(
         modifier = modifier.clickable { onClick() },
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
     ) {
         Box(
             modifier = Modifier
@@ -546,9 +594,11 @@ fun TrafficTab(visitors: List<VisitorDto>, onOpenChat: (VisitorDto) -> Unit) {
 
         items(visitors) { visitor ->
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.clickable { onOpenChat(visitor) }
+                modifier = Modifier
+                    .clickable { onOpenChat(visitor) }
+                    .border(1.dp, Color(0xFF262626), RoundedCornerShape(12.dp))
             ) {
                 Row(
                     modifier = Modifier
@@ -573,7 +623,7 @@ fun TrafficTab(visitors: List<VisitorDto>, onOpenChat: (VisitorDto) -> Unit) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Url: ${visitor.currentUrl ?: "/"}",
-                            color = Color(0xFF8B5CF6),
+                            color = Color(0xFFEF4444),
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             fontSize = 11.sp,
                             maxLines = 1,
@@ -581,7 +631,7 @@ fun TrafficTab(visitors: List<VisitorDto>, onOpenChat: (VisitorDto) -> Unit) {
                         )
                     }
                     IconButton(onClick = { onOpenChat(visitor) }) {
-                        Icon(Icons.Default.Send, contentDescription = "Open Chat", tint = Color(0xFF8B5CF6))
+                        Icon(Icons.Default.Send, contentDescription = "Open Chat", tint = Color(0xFFDC2626))
                     }
                 }
             }
@@ -622,10 +672,12 @@ fun InboxTab(
 
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isUnassigned) Color(0xFF2D2214) else Color(0xFF1E293B) // highlight unassigned
+                    containerColor = if (isUnassigned) Color(0xFF2B0707) else Color(0xFF121212)
                 ),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.clickable { onSelectChat(conv) }
+                modifier = Modifier
+                    .clickable { onSelectChat(conv) }
+                    .border(1.dp, if (isUnassigned) Color(0xFF7F1D1D) else Color(0xFF262626), RoundedCornerShape(12.dp))
             ) {
                 Row(
                     modifier = Modifier
@@ -637,7 +689,7 @@ fun InboxTab(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (isUnassigned) Color(0xFFD97706) else Color(0xFF4F46E5)),
+                            .background(if (isUnassigned) Color(0xFFDC2626) else Color(0xFF262626)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -650,14 +702,14 @@ fun InboxTab(
                         Text(visitorName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(
                             text = if (isUnassigned) "Queued • Unassigned" else "In Progress • Active",
-                            color = if (isUnassigned) Color(0xFFF59E0B) else Color(0xFF94A3B8),
+                            color = if (isUnassigned) Color(0xFFEF4444) else Color(0xFF94A3B8),
                             fontSize = 11.sp
                         )
                     }
                     Icon(
                         Icons.Default.PlayArrow,
                         contentDescription = "Arrow",
-                        tint = if (isUnassigned) Color(0xFFF59E0B) else Color(0xFF94A3B8)
+                        tint = if (isUnassigned) Color(0xFFEF4444) else Color.Gray
                     )
                 }
             }
