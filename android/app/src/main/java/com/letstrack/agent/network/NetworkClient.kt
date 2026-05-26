@@ -78,12 +78,18 @@ data class MessageDto(
 
 data class FcmTokenRequest(val fcmToken: String)
 
+data class ResetPasswordRequest(val email: String, val newPassword: String)
+data class ResetPasswordResponse(val message: String)
+
 // ============================================
 // RETROFIT API INTERFACES
 // ============================================
 interface LetsTrackApi {
     @POST("/api/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
+
+    @POST("/api/auth/reset-password")
+    suspend fun resetPassword(@Body request: ResetPasswordRequest): ResetPasswordResponse
 
     @GET("/api/analytics/summary")
     suspend fun getAnalytics(@Header("Authorization") token: String): AnalyticsResponse

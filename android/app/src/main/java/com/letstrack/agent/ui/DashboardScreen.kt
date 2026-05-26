@@ -28,7 +28,7 @@ import org.json.JSONObject
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
-    onNavigateToChat: (String, String) -> Unit,
+    onNavigateToChat: (String, String, String, String?, String?, String?, String?) -> Unit,
     onSignOut: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(0) } // 0: Metrics, 1: Visitors, 2: Inbox
@@ -282,17 +282,36 @@ fun DashboardScreen(
                 .background(Color(0xFF0F172A)) // Sleek slate dark background
         ) {
             when (selectedTab) {
-                0 -> MetricsTab(analytics, agentsList)
+                0 -> MetricsTab(analytics, agentsList) { tabIndex ->
+                    selectedTab = tabIndex
+                }
                 1 -> TrafficTab(visitorsList) { visitor ->
-                    // Find existing conversation and navigate
                     val conv = conversationsList.find { it.visitorId == visitor._id }
                     if (conv != null) {
-                        onNavigateToChat(conv._id, visitor.name)
+                        onNavigateToChat(
+                            conv._id,
+                            visitor.name,
+                            visitor._id,
+                            visitor.country,
+                            visitor.city,
+                            visitor.deviceType,
+                            visitor.currentUrl
+                        )
                     }
                 }
                 2 -> InboxTab(conversationsList, visitorsList) { conv ->
-                    val visitorName = visitorsList.find { it._id == conv.visitorId }?.name ?: "Visitor"
-                    onNavigateToChat(conv._id, visitorName)
+                    val visitor = visitorsList.find { it._id == conv.visitorId }
+                    val visitorName = visitor?.name ?: "Visitor"
+                    val visitorId = visitor?._id ?: conv.visitorId
+                    onNavigateToChat(
+                        conv._id,
+                        visitorName,
+                        visitorId,
+                        visitor?.country,
+                        visitor?.city,
+                        visitor?.deviceType,
+                        visitor?.currentUrl
+                    )
                 }
             }
         }
@@ -365,7 +384,7 @@ fun StatusRow(status: String, current: String, onClick: () -> Unit) {
 // METRICS TAB
 // ------------------------------------------
 @Composable
-fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>) {
+fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>, onTabSelect: (Int) -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -385,14 +404,16 @@ fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>) {
                     title = "Online Guests",
                     value = (analytics?.onlineVisitors ?: 0).toString(),
                     color1 = Color(0xFF6366F1),
-                    color2 = Color(0xFF4F46E5)
+                    color2 = Color(0xFF4F46E5),
+                    onClick = { onTabSelect(1) }
                 )
                 MetricItemCard(
                     modifier = Modifier.weight(1f),
                     title = "Active Chats",
                     value = (analytics?.activeConversations ?: 0).toString(),
                     color1 = Color(0xFF10B981),
-                    color2 = Color(0xFF059669)
+                    color2 = Color(0xFF059669),
+                    onClick = { onTabSelect(2) }
                 )
             }
         }
@@ -407,14 +428,16 @@ fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>) {
                     title = "Queue Size",
                     value = (analytics?.unassignedConversations ?: 0).toString(),
                     color1 = Color(0xFFF59E0B),
-                    color2 = Color(0xFFD97706)
+                    color2 = Color(0xFFD97706),
+                    onClick = { onTabSelect(2) }
                 )
                 MetricItemCard(
                     modifier = Modifier.weight(1f),
                     title = "Total Staff",
                     value = (analytics?.totalAgents ?: 0).toString(),
                     color1 = Color(0xFF8B5CF6),
-                    color2 = Color(0xFF7C3AED)
+                    color2 = Color(0xFF7C3AED),
+                    onClick = {}
                 )
             }
         }
@@ -477,10 +500,11 @@ fun MetricItemCard(
     title: String,
     value: String,
     color1: Color,
-    color2: Color
+    color2: Color,
+    onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier.clickable { onClick() },
         shape = RoundedCornerShape(12.dp)
     ) {
         Box(
