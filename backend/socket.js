@@ -81,6 +81,7 @@ export const initializeSocket = (httpServer) => {
         // 2. Find or Create Visitor
         let visitor = await Visitor.findById(currentVisitorId);
         const isNewVisitor = !visitor;
+        const wasOffline = !visitor || !visitor.isOnline;
         if (!visitor) {
           visitor = new Visitor({
             _id: currentVisitorId,
@@ -106,22 +107,22 @@ export const initializeSocket = (httpServer) => {
         }
         await visitor.save();
 
-        // Send FCM push notification for new visitor to offline agents
-        if (isNewVisitor) {
+        // Send FCM push notification for visitor online to all agents
+        if (wasOffline) {
           try {
             const staffList = await User.find({ tenantId: currentTenantId });
             for (const staff of staffList) {
-              if (staff.fcmToken && staff.status !== 'Online') {
+              if (staff.fcmToken) {
                 await sendPushNotification(
                   staff.fcmToken,
-                  "New Visitor Online!",
+                  isNewVisitor ? "New Visitor Online!" : "Visitor Returned Online!",
                   `${visitor.name} has just landed on your website.`,
                   { type: "new-visitor", visitorId: currentVisitorId }
                 );
               }
             }
           } catch (err) {
-            console.error('Error dispatching new visitor push notification:', err);
+            console.error('Error dispatching visitor push notification:', err);
           }
         }
 
@@ -228,7 +229,7 @@ export const initializeSocket = (httpServer) => {
           if (conversation.assignedAgentId) {
             // Case A: Send private alert to the specific assigned agent
             const agent = await User.findById(conversation.assignedAgentId);
-            if (agent && agent.fcmToken && agent.status !== 'Online') {
+            if (agent && agent.fcmToken) {
               await sendPushNotification(
                 agent.fcmToken,
                 `Message from ${visitorName}`,
@@ -240,7 +241,7 @@ export const initializeSocket = (httpServer) => {
             // Case B: Send broadcast alert to all team members about unassigned queue
             const staffList = await User.find({ tenantId: currentTenantId });
             for (const staff of staffList) {
-              if (staff.fcmToken && staff.status !== 'Online') {
+              if (staff.fcmToken) {
                 await sendPushNotification(
                   staff.fcmToken,
                   `New Chat Request!`,

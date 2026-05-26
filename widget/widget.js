@@ -91,13 +91,18 @@
     })
     .catch(err => {
       console.warn("LetsTrack: falling back to default styling configuration.", err);
-      // default config
       const defaultSettings = {
         primaryColor: '#7C3AED',
         headingText: 'Chat with Us!',
         welcomeMessage: 'Hi there! How can we help you today?',
         preChatEnabled: false,
-        position: 'bottom-right'
+        position: 'bottom-right',
+        headerTextColor: '#ffffff',
+        gradientColor: '#312E81',
+        useGradient: true,
+        statusText: 'Typically replies instantly',
+        borderRadius: 16,
+        launcherText: 'Chat'
       };
       loadSocketScript().then(() => initWidget(defaultSettings));
     });
@@ -130,15 +135,17 @@
 
       /* Widget Button Trigger */
       .lt-widget-btn {
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
+        height: 50px;
+        border-radius: ${settings.launcherText ? '25px' : '50%'};
+        padding: ${settings.launcherText ? '0 20px' : '0'};
+        min-width: ${settings.launcherText ? 'auto' : '50px'};
         background-color: ${settings.primaryColor};
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
+        gap: 8px;
         transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s;
         border: none;
         outline: none;
@@ -148,8 +155,8 @@
         box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
       }
       .lt-widget-btn svg {
-        width: 28px;
-        height: 28px;
+        width: 24px;
+        height: 24px;
         fill: white;
         transition: transform 0.2s;
       }
@@ -161,7 +168,7 @@
       .lt-chat-window {
         width: 370px;
         height: 520px;
-        border-radius: 16px;
+        border-radius: ${settings.borderRadius ?? 16}px;
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
@@ -183,8 +190,10 @@
 
       /* Glassmorphism Header */
       .lt-header {
-        background: linear-gradient(135deg, ${settings.primaryColor}, ${lightenColor(settings.primaryColor, 30)});
-        color: white;
+        background: ${settings.useGradient !== false
+          ? `linear-gradient(135deg, ${settings.primaryColor}, ${settings.gradientColor || '#312E81'})`
+          : settings.primaryColor};
+        color: ${settings.headerTextColor || 'white'};
         padding: 20px 20px 24px 20px;
         display: flex;
         flex-direction: column;
@@ -453,7 +462,7 @@
     header.innerHTML = `
       <div class="lt-header-title">${settings.headingText}</div>
       <div class="lt-header-subtitle">
-        <span class="lt-status-dot"></span> Typically replies instantly
+        <span class="lt-status-dot"></span> ${settings.statusText || 'Typically replies instantly'}
       </div>
     `;
     chatWindow.appendChild(header);
@@ -489,11 +498,16 @@
     // 2. Trigger Floating Button
     const triggerBtn = document.createElement('button');
     triggerBtn.className = 'lt-widget-btn';
-    triggerBtn.innerHTML = `
+    
+    let btnHtml = `
       <svg viewBox="0 0 24 24">
         <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
       </svg>
     `;
+    if (settings.launcherText) {
+      btnHtml += `<span style="color: white; font-size: 14px; font-weight: 600; font-family: inherit;">${settings.launcherText}</span>`;
+    }
+    triggerBtn.innerHTML = btnHtml;
     widgetContainer.appendChild(triggerBtn);
 
     shadow.appendChild(style);
@@ -549,11 +563,17 @@
         chatWindow.offsetHeight; 
         chatWindow.classList.add('open');
         triggerBtn.classList.add('open');
-        triggerBtn.innerHTML = `
+        
+        let closeHtml = `
           <svg viewBox="0 0 24 24">
             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
           </svg>
         `;
+        if (settings.launcherText) {
+          closeHtml += `<span style="color: white; font-size: 14px; font-weight: 600; font-family: inherit;">Close</span>`;
+        }
+        triggerBtn.innerHTML = closeHtml;
+
         setTimeout(() => {
           textInput.focus();
           scrollToBottom();
@@ -561,11 +581,17 @@
       } else {
         chatWindow.classList.remove('open');
         triggerBtn.classList.remove('open');
-        triggerBtn.innerHTML = `
+        
+        let openHtml = `
           <svg viewBox="0 0 24 24">
             <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
           </svg>
         `;
+        if (settings.launcherText) {
+          openHtml += `<span style="color: white; font-size: 14px; font-weight: 600; font-family: inherit;">${settings.launcherText}</span>`;
+        }
+        triggerBtn.innerHTML = openHtml;
+
         setTimeout(() => {
           if (!chatWindow.classList.contains('open')) {
             chatWindow.style.display = 'none';

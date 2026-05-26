@@ -36,7 +36,13 @@ function App() {
     headingText: 'Chat with Us!',
     welcomeMessage: 'Hi there! How can we help you today?',
     preChatEnabled: false,
-    position: 'bottom-right'
+    position: 'bottom-right',
+    headerTextColor: '#ffffff',
+    gradientColor: '#312E81',
+    useGradient: true,
+    statusText: 'Typically replies instantly',
+    borderRadius: 16,
+    launcherText: 'Chat'
   });
 
   // Analytics summary state
@@ -251,6 +257,23 @@ function App() {
         }
         return [...prev, visitor];
       });
+      
+      // Play clean chime chime
+      try {
+        const audio = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audio.createOscillator();
+        const gain = audio.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, audio.currentTime); // C5
+        osc.frequency.setValueAtTime(659.25, audio.currentTime + 0.12); // E5
+        gain.gain.setValueAtTime(0.08, audio.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + 0.25);
+        osc.connect(gain);
+        gain.connect(audio.destination);
+        osc.start();
+        osc.stop(audio.currentTime + 0.3);
+      } catch (e) {}
+
       showToast(`New visitor online: ${visitor.name}`);
     });
 
@@ -1184,6 +1207,63 @@ function App() {
                 </div>
 
                 <div className="form-group">
+                  <label className="form-label">Header Text Color</label>
+                  <div className="color-picker-wrapper">
+                    <input
+                      type="color"
+                      className="color-preview-box"
+                      value={widgetSettings.headerTextColor || '#ffffff'}
+                      onChange={(e) => setWidgetSettings({ ...widgetSettings, headerTextColor: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ width: '120px' }}
+                      value={widgetSettings.headerTextColor || '#ffffff'}
+                      onChange={(e) => setWidgetSettings({ ...widgetSettings, headerTextColor: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Use Header Gradient</label>
+                  <div className="switch-wrapper">
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={widgetSettings.useGradient !== false}
+                        onChange={(e) => setWidgetSettings({ ...widgetSettings, useGradient: e.target.checked })}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      Apply visual gradient to the widget top header
+                    </span>
+                  </div>
+                </div>
+
+                {widgetSettings.useGradient !== false && (
+                  <div className="form-group">
+                    <label className="form-label">Gradient Color (Secondary HEX)</label>
+                    <div className="color-picker-wrapper">
+                      <input
+                        type="color"
+                        className="color-preview-box"
+                        value={widgetSettings.gradientColor || '#312E81'}
+                        onChange={(e) => setWidgetSettings({ ...widgetSettings, gradientColor: e.target.value })}
+                      />
+                      <input
+                        type="text"
+                        className="form-input"
+                        style={{ width: '120px' }}
+                        value={widgetSettings.gradientColor || '#312E81'}
+                        onChange={(e) => setWidgetSettings({ ...widgetSettings, gradientColor: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="form-group">
                   <label className="form-label">Header Title Message</label>
                   <input
                     type="text"
@@ -1194,12 +1274,47 @@ function App() {
                 </div>
 
                 <div className="form-group">
+                  <label className="form-label">Status Subtitle text</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={widgetSettings.statusText || 'Typically replies instantly'}
+                    onChange={(e) => setWidgetSettings({ ...widgetSettings, statusText: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
                   <label className="form-label">Welcome Message Text</label>
                   <input
                     type="text"
                     className="form-input"
                     value={widgetSettings.welcomeMessage}
                     onChange={(e) => setWidgetSettings({ ...widgetSettings, welcomeMessage: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Launcher Bubble Button Text (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Chat"
+                    value={widgetSettings.launcherText || ''}
+                    onChange={(e) => setWidgetSettings({ ...widgetSettings, launcherText: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Corner Border Radius: {widgetSettings.borderRadius ?? 16}px</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="28"
+                    step="2"
+                    className="form-input"
+                    style={{ padding: '0', cursor: 'pointer' }}
+                    value={widgetSettings.borderRadius ?? 16}
+                    onChange={(e) => setWidgetSettings({ ...widgetSettings, borderRadius: parseInt(e.target.value) })}
                   />
                 </div>
 
@@ -1247,7 +1362,7 @@ function App() {
                   <div style={{
                     width: '320px',
                     height: '420px',
-                    borderRadius: '12px',
+                    borderRadius: `${widgetSettings.borderRadius ?? 16}px`,
                     backgroundColor: '#1E293B',
                     border: '1px solid rgba(255,255,255,0.08)',
                     boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
@@ -1259,12 +1374,15 @@ function App() {
                     {/* Header */}
                     <div style={{
                       padding: '16px',
-                      background: `linear-gradient(135deg, ${widgetSettings.primaryColor}, #312E81)`,
-                      color: 'white'
+                      background: widgetSettings.useGradient !== false
+                        ? `linear-gradient(135deg, ${widgetSettings.primaryColor}, ${widgetSettings.gradientColor || '#312E81'})`
+                        : widgetSettings.primaryColor,
+                      color: widgetSettings.headerTextColor || 'white'
                     }}>
                       <div style={{ fontSize: '14px', fontWeight: '700' }}>{widgetSettings.headingText}</div>
-                      <div style={{ fontSize: '10px', marginTop: '2px', opacity: 0.9 }}>
-                        🟢 Typically replies instantly
+                      <div style={{ fontSize: '10px', marginTop: '2px', opacity: 0.9, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ display: 'inline-block', width: '6px', height: '6px', backgroundColor: '#10B981', borderRadius: '50%' }}></span>
+                        {widgetSettings.statusText || 'Typically replies instantly'}
                       </div>
                     </div>
                     {/* Body */}
@@ -1299,19 +1417,24 @@ function App() {
                     bottom: '20px',
                     right: widgetSettings.position === 'bottom-right' ? '20px' : 'auto',
                     left: widgetSettings.position === 'bottom-left' ? '20px' : 'auto',
-                    width: '48px',
                     height: '48px',
-                    borderRadius: '50%',
+                    borderRadius: widgetSettings.launcherText ? '24px' : '50%',
+                    padding: widgetSettings.launcherText ? '0 20px' : '0',
+                    minWidth: widgetSettings.launcherText ? 'auto' : '48px',
                     backgroundColor: widgetSettings.primaryColor,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    gap: '8px',
                     boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
                     color: 'white',
                     fontSize: '18px',
                     fontWeight: '700'
                   }}>
-                    💬
+                    <span>💬</span>
+                    {widgetSettings.launcherText && (
+                      <span style={{ fontSize: '14px', fontWeight: '600' }}>{widgetSettings.launcherText}</span>
+                    )}
                   </div>
 
                 </div>

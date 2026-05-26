@@ -67,7 +67,13 @@ const WidgetSettingsSchema = new mongoose.Schema({
   headingText: { type: String, default: 'Chat with Us!' },
   welcomeMessage: { type: String, default: 'Hi there! How can we help you today?' },
   preChatEnabled: { type: Boolean, default: false },
-  position: { type: String, enum: ['bottom-right', 'bottom-left'], default: 'bottom-right' }
+  position: { type: String, enum: ['bottom-right', 'bottom-left'], default: 'bottom-right' },
+  headerTextColor: { type: String, default: '#ffffff' },
+  gradientColor: { type: String, default: '#312E81' },
+  useGradient: { type: Boolean, default: true },
+  statusText: { type: String, default: 'Typically replies instantly' },
+  borderRadius: { type: Number, default: 16 },
+  launcherText: { type: String, default: 'Chat' }
 });
 
 export const Tenant = mongoose.model('Tenant', TenantSchema);

@@ -288,12 +288,12 @@ app.get('/api/settings/widget', async (req, res) => {
 
 // 5. Update Widget Settings (Admin only)
 app.put('/api/settings/widget', authenticateToken, async (req, res) => {
-  const { primaryColor, headingText, welcomeMessage, preChatEnabled, position } = req.body;
+  const { primaryColor, headingText, welcomeMessage, preChatEnabled, position, headerTextColor, gradientColor, useGradient, statusText, borderRadius, launcherText } = req.body;
 
   try {
     const settings = await WidgetSettings.findOneAndUpdate(
       { tenantId: req.user.tenantId },
-      { primaryColor, headingText, welcomeMessage, preChatEnabled, position },
+      { primaryColor, headingText, welcomeMessage, preChatEnabled, position, headerTextColor, gradientColor, useGradient, statusText, borderRadius, launcherText },
       { new: true, upsert: true }
     );
     res.status(200).json(settings);
