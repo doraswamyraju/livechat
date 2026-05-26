@@ -105,7 +105,7 @@ interface LetsTrackApi {
 // UNIFIED NETWORK CLIENT MANAGER
 // ============================================
 object NetworkClient {
-    private const val BASE_URL = "http://10.0.2.2:5000" // Standard loopback to host localhost for Android Emulator
+    private const val BASE_URL = "https://livechat.vrhere.in"
 
     private var authToken: String? = null
     var currentUser: UserProfile? = null
