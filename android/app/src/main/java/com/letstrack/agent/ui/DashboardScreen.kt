@@ -699,6 +699,9 @@ fun MetricItemCard(
 // ------------------------------------------
 @Composable
 fun TrafficTab(visitors: List<VisitorDto>, onOpenChat: (VisitorDto) -> Unit) {
+    val onlineVisitors = visitors.filter { it.isOnline }
+    val offlineVisitors = visitors.filter { !it.isOnline }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -716,48 +719,79 @@ fun TrafficTab(visitors: List<VisitorDto>, onOpenChat: (VisitorDto) -> Unit) {
             }
         }
 
-        items(visitors) { visitor ->
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
-                shape = RoundedCornerShape(12.dp),
+        if (onlineVisitors.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Active Online Visitors (${onlineVisitors.size})",
+                    color = Color(0xFF10B981),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                )
+            }
+            items(onlineVisitors) { visitor ->
+                VisitorCard(visitor, onOpenChat)
+            }
+        }
+
+        if (offlineVisitors.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Offline / Inactive Sessions (${offlineVisitors.size})",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                )
+            }
+            items(offlineVisitors) { visitor ->
+                VisitorCard(visitor, onOpenChat)
+            }
+        }
+    }
+}
+
+@Composable
+fun VisitorCard(visitor: VisitorDto, onOpenChat: (VisitorDto) -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .clickable { onOpenChat(visitor) }
+            .border(1.dp, Color(0xFF262626), RoundedCornerShape(12.dp))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
                 modifier = Modifier
-                    .clickable { onOpenChat(visitor) }
-                    .border(1.dp, Color(0xFF262626), RoundedCornerShape(12.dp))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(if (visitor.isOnline) Color(0xFF10B981) else Color(0xFF64748B))
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(visitor.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text(
-                            text = "📍 ${visitor.city}, ${visitor.country}",
-                            color = Color(0xFF94A3B8),
-                            fontSize = 11.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Url: ${visitor.currentUrl ?: "/"}",
-                            color = Color(0xFFEF4444),
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    IconButton(onClick = { onOpenChat(visitor) }) {
-                        Icon(Icons.Default.Send, contentDescription = "Open Chat", tint = Color(0xFFDC2626))
-                    }
-                }
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(if (visitor.isOnline) Color(0xFF10B981) else Color(0xFF64748B))
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(visitor.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    text = "📍 ${visitor.city}, ${visitor.country}",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Url: ${visitor.currentUrl ?: "/"}",
+                    color = Color(0xFFEF4444),
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(onClick = { onOpenChat(visitor) }) {
+                Icon(Icons.Default.Send, contentDescription = "Open Chat", tint = Color(0xFFDC2626))
             }
         }
     }
@@ -772,6 +806,12 @@ fun InboxTab(
     visitors: List<VisitorDto>,
     onSelectChat: (ConversationDto) -> Unit
 ) {
+    // Sort conversations descending by updatedAt to ensure latest chat/visitor shows on top
+    val sortedConversations = conversations.sortedByDescending { it.updatedAt }
+    
+    val unassignedChats = sortedConversations.filter { it.status == "Unassigned" }
+    val activeChats = sortedConversations.filter { it.status == "Active" }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -789,54 +829,89 @@ fun InboxTab(
             }
         }
 
-        items(conversations) { conv ->
-            val visitor = visitors.find { it._id == conv.visitorId }
-            val visitorName = visitor?.name ?: "VisitorSession"
-            val isUnassigned = conv.status == "Unassigned"
-
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isUnassigned) Color(0xFF2B0707) else Color(0xFF121212)
-                ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .clickable { onSelectChat(conv) }
-                    .border(1.dp, if (isUnassigned) Color(0xFF7F1D1D) else Color(0xFF262626), RoundedCornerShape(12.dp))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(if (isUnassigned) Color(0xFFDC2626) else Color(0xFF262626)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (isUnassigned) "❓" else "💬",
-                            fontSize = 16.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(visitorName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text(
-                            text = if (isUnassigned) "Queued • Unassigned" else "In Progress • Active",
-                            color = if (isUnassigned) Color(0xFFEF4444) else Color(0xFF94A3B8),
-                            fontSize = 11.sp
-                        )
-                    }
-                    Icon(
-                        Icons.Default.PlayArrow,
-                        contentDescription = "Arrow",
-                        tint = if (isUnassigned) Color(0xFFEF4444) else Color.Gray
-                    )
-                }
+        if (unassignedChats.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Pending Unassigned Queue (${unassignedChats.size})",
+                    color = Color(0xFFEF4444),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                )
             }
+            items(unassignedChats) { conv ->
+                ConversationCard(conv, visitors, onSelectChat)
+            }
+        }
+
+        if (activeChats.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Active Chats In Progress (${activeChats.size})",
+                    color = Color(0xFF10B981),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                )
+            }
+            items(activeChats) { conv ->
+                ConversationCard(conv, visitors, onSelectChat)
+            }
+        }
+    }
+}
+
+@Composable
+fun ConversationCard(
+    conv: ConversationDto,
+    visitors: List<VisitorDto>,
+    onSelectChat: (ConversationDto) -> Unit
+) {
+    val visitor = visitors.find { it._id == conv.visitorId }
+    val visitorName = visitor?.name ?: "VisitorSession"
+    val isUnassigned = conv.status == "Unassigned"
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isUnassigned) Color(0xFF2B0707) else Color(0xFF121212)
+        ),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .clickable { onSelectChat(conv) }
+            .border(1.dp, if (isUnassigned) Color(0xFF7F1D1D) else Color(0xFF262626), RoundedCornerShape(12.dp))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(if (isUnassigned) Color(0xFFDC2626) else Color(0xFF262626)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isUnassigned) "❓" else "💬",
+                    fontSize = 16.sp
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(visitorName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    text = if (isUnassigned) "Queued • Unassigned" else "In Progress • Active",
+                    color = if (isUnassigned) Color(0xFFEF4444) else Color(0xFF94A3B8),
+                    fontSize = 11.sp
+                )
+            }
+            Icon(
+                Icons.Default.PlayArrow,
+                contentDescription = "Arrow",
+                tint = if (isUnassigned) Color(0xFFEF4444) else Color.Gray
+            )
         }
     }
 }

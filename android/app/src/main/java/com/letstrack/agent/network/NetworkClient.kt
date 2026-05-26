@@ -177,6 +177,13 @@ object NetworkClient {
                 }
                 s.emit("agent-init", initData)
             }
+        } else {
+            // Already connected, immediately emit agent-init to ensure lists sync!
+            val initData = JSONObject().apply {
+                put("tenantId", currentTenant?.id)
+                put("agentId", currentUser?.id)
+            }
+            s.emit("agent-init", initData)
         }
     }
 
