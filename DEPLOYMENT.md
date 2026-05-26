@@ -17,16 +17,20 @@ Run these commands in order on the live VPS:
 
 ```bash
 # 1. Navigate to the project root directory
+# (Run `pm2 show livechat-backend` to check the directory if the path is different)
 cd /var/www/letstrack
 
 # 2. Pull the latest commits from GitHub
 git pull origin main
 
-# 3. Update dependencies in backend
-cd backend
+# 3. Build the Dashboard frontend
+cd dashboard
 npm install
+npm run build
 
-# 4. Restart the PM2 process to apply backend updates
+# 4. Update dependencies in backend and restart
+cd ../backend
+npm install
 pm2 restart livechat-backend --update-env
 
 # 5. Save the PM2 process list to persist across server reboots
