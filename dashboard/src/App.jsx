@@ -249,6 +249,29 @@ function App() {
     // 2. A new visitor connects to the widget
     socket.on('visitor-connected', (visitor) => {
       setVisitors(prev => {
+        const existing = prev.find(v => v._id === visitor._id);
+        const isAlreadyOnline = existing && existing.isOnline;
+
+        if (!isAlreadyOnline) {
+          // Play clean chime chime
+          try {
+            const audio = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audio.createOscillator();
+            const gain = audio.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(523.25, audio.currentTime); // C5
+            osc.frequency.setValueAtTime(659.25, audio.currentTime + 0.12); // E5
+            gain.gain.setValueAtTime(0.08, audio.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + 0.25);
+            osc.connect(gain);
+            gain.connect(audio.destination);
+            osc.start();
+            osc.stop(audio.currentTime + 0.3);
+          } catch (e) {}
+
+          showToast(`New visitor online: ${visitor.name}`);
+        }
+
         const index = prev.findIndex(v => v._id === visitor._id);
         if (index > -1) {
           const updated = [...prev];
@@ -257,24 +280,6 @@ function App() {
         }
         return [...prev, visitor];
       });
-      
-      // Play clean chime chime
-      try {
-        const audio = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = audio.createOscillator();
-        const gain = audio.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(523.25, audio.currentTime); // C5
-        osc.frequency.setValueAtTime(659.25, audio.currentTime + 0.12); // E5
-        gain.gain.setValueAtTime(0.08, audio.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + 0.25);
-        osc.connect(gain);
-        gain.connect(audio.destination);
-        osc.start();
-        osc.stop(audio.currentTime + 0.3);
-      } catch (e) {}
-
-      showToast(`New visitor online: ${visitor.name}`);
     });
 
     // 3. Visitor navigates pages on host website

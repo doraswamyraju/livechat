@@ -73,7 +73,31 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AppNavigator() {
-    var currentScreen by remember { mutableStateOf("login") } // login, dashboard, chat
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var currentScreen by remember {
+        mutableStateOf(
+            run {
+                val prefs = context.getSharedPreferences("letstrack_prefs", android.content.Context.MODE_PRIVATE)
+                val token = prefs.getString("auth_token", null)
+                val userJson = prefs.getString("user_profile", null)
+                val tenantJson = prefs.getString("tenant_details", null)
+                if (token != null && userJson != null && tenantJson != null) {
+                    try {
+                        val gson = com.google.gson.Gson()
+                        val user = gson.fromJson(userJson, com.letstrack.agent.network.UserProfile::class.java)
+                        val tenant = gson.fromJson(tenantJson, com.letstrack.agent.network.TenantDetails::class.java)
+                        NetworkClient.setAuth(token, user, tenant)
+                        "dashboard"
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        "login"
+                    }
+                } else {
+                    "login"
+                }
+            }
+        )
+    }
     
     // Chat parameters
     var activeConversationId by remember { mutableStateOf("") }
@@ -104,6 +128,12 @@ fun AppNavigator() {
                     currentScreen = "chat"
                 },
                 onSignOut = {
+                    val prefs = context.getSharedPreferences("letstrack_prefs", android.content.Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .remove("auth_token")
+                        .remove("user_profile")
+                        .remove("tenant_details")
+                        .apply()
                     NetworkClient.disconnectSocket()
                     currentScreen = "login"
                 }
@@ -125,6 +155,7 @@ fun AppNavigator() {
 
 @Composable
 fun LoginView(onLoginSuccess: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -235,8 +266,17 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                                     val req = LoginRequest(email.trim(), password.trim())
                                     val res = NetworkClient.api.login(req)
                                     
-                                    // Save credentials
+                                    // Save credentials in memory
                                     NetworkClient.setAuth(res.token, res.user, res.tenant)
+                                    
+                                    // Save credentials to SharedPreferences
+                                    val prefs = context.getSharedPreferences("letstrack_prefs", android.content.Context.MODE_PRIVATE)
+                                    val gson = com.google.gson.Gson()
+                                    prefs.edit()
+                                        .putString("auth_token", res.token)
+                                        .putString("user_profile", gson.toJson(res.user))
+                                        .putString("tenant_details", gson.toJson(res.tenant))
+                                        .apply()
                                     
                                     // Fetch and upload Firebase FCM Token for push notifications
                                     try {

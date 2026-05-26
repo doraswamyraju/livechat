@@ -82,6 +82,7 @@ export const initializeSocket = (httpServer) => {
         let visitor = await Visitor.findById(currentVisitorId);
         const isNewVisitor = !visitor;
         const wasOffline = !visitor || !visitor.isOnline;
+        const oldUrl = visitor ? visitor.currentUrl : '';
         if (!visitor) {
           visitor = new Visitor({
             _id: currentVisitorId,
@@ -128,6 +129,13 @@ export const initializeSocket = (httpServer) => {
 
         // 3. Notify Agents on the Dashboard
         dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-connected', visitor);
+
+        if (!wasOffline && oldUrl !== visitor.currentUrl) {
+          dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-navigated', {
+            visitorId: currentVisitorId,
+            currentUrl: visitor.currentUrl
+          });
+        }
 
         // Send confirmation back to visitor
         socket.emit('visitor-init-success', { visitorId: currentVisitorId, name: visitor.name });
