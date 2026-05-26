@@ -3,7 +3,7 @@
 This document contains standard instructions to deploy changes to the live VPS.
 
 ## VPS Environment Details
-- **App Directory**: `/var/www/letstrack`
+- **App Directory**: `/var/www/livechat.vrhere.in`
 - **PM2 Process Name**: `livechat-backend`
 - **Server Ports**:
   - Backend API: `5004` (mapped to SSL reverse proxy subdomain: `livechat.vrhere.in`)
@@ -18,7 +18,7 @@ Run these commands in order on the live VPS:
 ```bash
 # 1. Navigate to the project root directory
 # (Run `pm2 show livechat-backend` to check the directory if the path is different)
-cd /var/www/letstrack
+cd /var/www/livechat.vrhere.in
 
 # 2. Pull the latest commits from GitHub
 git pull origin main
