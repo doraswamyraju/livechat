@@ -33,10 +33,11 @@ import org.json.JSONObject
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
+    initialTab: Int = 0,
     onNavigateToChat: (String, String, String, String?, String?, String?, String?) -> Unit,
     onSignOut: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) } // 0: Metrics, 1: Visitors, 2: Inbox
+    var selectedTab by remember { mutableStateOf(initialTab) } // 0: Metrics, 1: Visitors, 2: Inbox
     val coroutineScope = rememberCoroutineScope()
 
     // State holdings updated from WS and REST
@@ -445,7 +446,12 @@ fun DashboardScreen(
                 .background(Color.Black) // Premium solid black background
         ) {
             when (selectedTab) {
-                0 -> MetricsTab(analytics, agentsList) { tabIndex ->
+                0 -> MetricsTab(
+                    onlineVisitorsCount = visitorsList.filter { it.isOnline }.size,
+                    activeChatsCount = conversationsList.filter { it.status == "Active" }.size,
+                    queueSizeCount = conversationsList.filter { it.status == "Unassigned" }.size,
+                    agents = agentsList
+                ) { tabIndex ->
                     selectedTab = tabIndex
                 }
                 1 -> TrafficTab(visitorsList) { visitor ->
@@ -553,7 +559,13 @@ fun StatusRow(status: String, current: String, onClick: () -> Unit) {
 // METRICS TAB
 // ------------------------------------------
 @Composable
-fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>, onTabSelect: (Int) -> Unit) {
+fun MetricsTab(
+    onlineVisitorsCount: Int,
+    activeChatsCount: Int,
+    queueSizeCount: Int,
+    agents: List<UserProfile>,
+    onTabSelect: (Int) -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -571,7 +583,7 @@ fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>, onTabSe
                 MetricItemCard(
                     modifier = Modifier.weight(1f),
                     title = "Online Guests",
-                    value = (analytics?.onlineVisitors ?: 0).toString(),
+                    value = onlineVisitorsCount.toString(),
                     color1 = Color(0xFFDC2626),
                     color2 = Color(0xFF450A0A),
                     onClick = { onTabSelect(1) }
@@ -579,7 +591,7 @@ fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>, onTabSe
                 MetricItemCard(
                     modifier = Modifier.weight(1f),
                     title = "Active Chats",
-                    value = (analytics?.activeConversations ?: 0).toString(),
+                    value = activeChatsCount.toString(),
                     color1 = Color(0xFFDC2626),
                     color2 = Color(0xFF450A0A),
                     onClick = { onTabSelect(2) }
@@ -595,7 +607,7 @@ fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>, onTabSe
                 MetricItemCard(
                     modifier = Modifier.weight(1f),
                     title = "Queue Size",
-                    value = (analytics?.unassignedConversations ?: 0).toString(),
+                    value = queueSizeCount.toString(),
                     color1 = Color(0xFFDC2626),
                     color2 = Color(0xFF450A0A),
                     onClick = { onTabSelect(2) }
@@ -603,7 +615,7 @@ fun MetricsTab(analytics: AnalyticsResponse?, agents: List<UserProfile>, onTabSe
                 MetricItemCard(
                     modifier = Modifier.weight(1f),
                     title = "Total Staff",
-                    value = (analytics?.totalAgents ?: 0).toString(),
+                    value = agents.size.toString(),
                     color1 = Color(0xFFDC2626),
                     color2 = Color(0xFF450A0A),
                     onClick = {}

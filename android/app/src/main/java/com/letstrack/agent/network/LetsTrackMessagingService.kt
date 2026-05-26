@@ -31,15 +31,26 @@ class LetsTrackMessagingService : FirebaseMessagingService() {
         val body = remoteMessage.notification?.body ?: remoteMessage.data["body"] ?: "You received a new message."
         val conversationId = remoteMessage.data["conversationId"] ?: ""
         val visitorName = remoteMessage.data["visitorName"] ?: ""
+        val visitorId = remoteMessage.data["visitorId"] ?: ""
+        val type = remoteMessage.data["type"] ?: ""
 
-        sendSystemNotification(title, body, conversationId, visitorName)
+        sendSystemNotification(title, body, conversationId, visitorName, visitorId, type)
     }
 
-    private fun sendSystemNotification(title: String, body: String, conversationId: String, visitorName: String) {
+    private fun sendSystemNotification(
+        title: String, 
+        body: String, 
+        conversationId: String, 
+        visitorName: String,
+        visitorId: String,
+        type: String
+    ) {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("conversationId", conversationId)
             putExtra("visitorName", visitorName)
+            putExtra("visitorId", visitorId)
+            putExtra("type", type)
         }
 
         val pendingIntent = PendingIntent.getActivity(

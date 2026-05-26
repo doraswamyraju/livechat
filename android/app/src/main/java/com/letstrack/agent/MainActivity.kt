@@ -40,8 +40,12 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { _ -> }
 
+    private val _intentFlow = kotlinx.coroutines.flow.MutableStateFlow<android.content.Intent?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        _intentFlow.value = intent
         
         // Prompt for notification permission on Android 13+ (Tiramisu API 33)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -65,14 +69,21 @@ class MainActivity : ComponentActivity() {
                     onBackground = Color.White
                 )
             ) {
-                AppNavigator()
+                val activeIntent by _intentFlow.collectAsState(initial = intent)
+                AppNavigator(activeIntent)
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        _intentFlow.value = intent
     }
 }
 
 @Composable
-fun AppNavigator() {
+fun AppNavigator(intent: android.content.Intent?) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var currentScreen by remember {
         mutableStateOf(
@@ -134,6 +145,29 @@ fun AppNavigator() {
     var activeVisitorDevice by remember { mutableStateOf("") }
     var activeVisitorUrl by remember { mutableStateOf("") }
 
+    var initialDashboardTab by remember { mutableStateOf(0) }
+
+    // Read intent parameters on startup or intent updates
+    LaunchedEffect(intent) {
+        intent?.let {
+            val convId = it.getStringExtra("conversationId")
+            val name = it.getStringExtra("visitorName")
+            val type = it.getStringExtra("type")
+            
+            if (currentScreen == "dashboard" || currentScreen == "chat") {
+                if (!convId.isNullOrEmpty()) {
+                    activeConversationId = convId
+                    activeVisitorName = name ?: "Visitor"
+                    activeVisitorId = it.getStringExtra("visitorId") ?: ""
+                    currentScreen = "chat"
+                } else if (type == "new-visitor") {
+                    initialDashboardTab = 1 // Navigate to Traffic logs
+                    currentScreen = "dashboard"
+                }
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -143,6 +177,7 @@ fun AppNavigator() {
             "login" -> LoginView(onLoginSuccess = { currentScreen = "dashboard" })
             
             "dashboard" -> DashboardScreen(
+                initialTab = initialDashboardTab,
                 onNavigateToChat = { convId, name, visId, country, city, device, url ->
                     activeConversationId = convId
                     activeVisitorName = name
