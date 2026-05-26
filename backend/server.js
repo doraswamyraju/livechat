@@ -367,7 +367,10 @@ app.get('/widget.js', (req, res) => {
     let code = fs.readFileSync(widgetFilePath, 'utf8');
 
     // Dynamic backend URL injection based on requested protocol and host
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    let protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    if (req.get('host') === 'livechat.vrhere.in') {
+      protocol = 'https';
+    }
     const backendUrl = `${protocol}://${req.get('host')}`;
     code = code.replace(/__BACKEND_URL__/g, backendUrl);
 
