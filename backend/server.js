@@ -225,13 +225,15 @@ app.get('/api/settings/widget', async (req, res) => {
 
   try {
     let settings = null;
+    let resolvedTenantId = null;
 
     if (apiKey) {
       const tenant = await Tenant.findOne({ apiKey });
       if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-      settings = await WidgetSettings.findOne({ tenantId: tenant._id });
+      resolvedTenantId = tenant._id;
+      settings = await WidgetSettings.findOne({ tenantId: resolvedTenantId });
     } else if (tenantId) {
-      let resolvedTenantId = tenantId;
+      resolvedTenantId = tenantId;
       if (!mongoose.Types.ObjectId.isValid(tenantId)) {
         const tenant = await Tenant.findOne({ apiKey: tenantId });
         if (tenant) {
@@ -245,7 +247,12 @@ app.get('/api/settings/widget', async (req, res) => {
       return res.status(400).json({ error: 'apiKey or tenantId required' });
     }
 
-    if (!settings) return res.status(404).json({ error: 'Settings not found' });
+    if (!settings && resolvedTenantId) {
+      settings = new WidgetSettings({
+        tenantId: resolvedTenantId
+      });
+      await settings.save();
+    }
     res.status(200).json(settings);
 
   } catch (err) {
