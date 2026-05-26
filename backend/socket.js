@@ -135,6 +135,30 @@ export const initializeSocket = (httpServer) => {
             visitorId: currentVisitorId,
             currentUrl: visitor.currentUrl
           });
+
+          // Also save system message for navigation in active conversation
+          const activeConv = await Conversation.findOne({
+            tenantId: currentTenantId,
+            visitorId: currentVisitorId,
+            status: { $in: ['Unassigned', 'Active'] }
+          });
+          if (activeConv) {
+            const systemMsg = new Message({
+              conversationId: activeConv._id,
+              senderType: 'System',
+              senderId: 'SYSTEM',
+              senderName: 'System',
+              text: `Visitor navigated to ${visitor.currentUrl}`,
+              timestamp: new Date()
+            });
+            await systemMsg.save();
+
+            dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-msg-received', {
+              conversationId: activeConv._id,
+              message: systemMsg
+            });
+            visitorNamespace.to(`visitor_${currentVisitorId}`).emit('msg-received', systemMsg);
+          }
         }
 
         // Send confirmation back to visitor
@@ -176,6 +200,30 @@ export const initializeSocket = (httpServer) => {
           visitorId: currentVisitorId,
           currentUrl
         });
+
+        // Also add system log message into the active conversation feed
+        const conversation = await Conversation.findOne({
+          tenantId: currentTenantId,
+          visitorId: currentVisitorId,
+          status: { $in: ['Unassigned', 'Active'] }
+        });
+        if (conversation) {
+          const systemMsg = new Message({
+            conversationId: conversation._id,
+            senderType: 'System',
+            senderId: 'SYSTEM',
+            senderName: 'System',
+            text: `Visitor navigated to ${currentUrl}`,
+            timestamp: new Date()
+          });
+          await systemMsg.save();
+
+          dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-msg-received', {
+            conversationId: conversation._id,
+            message: systemMsg
+          });
+          visitorNamespace.to(`visitor_${currentVisitorId}`).emit('msg-received', systemMsg);
+        }
       } catch (err) {
         console.error('Error in page-view:', err);
       }
@@ -455,13 +503,47 @@ export const initializeSocket = (httpServer) => {
       }
     });
 
-    // Handle Agent Typing Indicator
-    socket.on('agent-typing', (data) => {
-      const { visitorId, isTyping } = data;
-      if (!currentAgentId || !currentTenantId) return;
+     // Handle Agent Typing Indicator
+     socket.on('agent-typing', (data) => {
+       const { visitorId, isTyping } = data;
+       if (!currentAgentId || !currentTenantId) return;
+ 
+       visitorNamespace.to(`visitor_${visitorId}`).emit('agent-typing', { isTyping });
+     });
 
-      visitorNamespace.to(`visitor_${visitorId}`).emit('agent-typing', { isTyping });
-    });
+     // Handle Agent Proactively Starting/Finding Conversations
+     socket.on('start-conversation', async (data) => {
+       const { visitorId } = data;
+       if (!currentAgentId || !currentTenantId) return;
+
+       try {
+         let conversation = await Conversation.findOne({
+           tenantId: currentTenantId,
+           visitorId,
+           status: { $in: ['Unassigned', 'Active'] }
+         }).populate('assignedAgentId', 'name email avatarUrl status');
+
+         if (!conversation) {
+           conversation = new Conversation({
+             tenantId: currentTenantId,
+             visitorId,
+             status: 'Unassigned',
+             assignedAgentId: null
+           });
+           await conversation.save();
+
+           conversation = await Conversation.findById(conversation._id).populate('assignedAgentId', 'name email avatarUrl status');
+
+           // Broadcast newly created conversation to all agents
+           dashboardNamespace.to(`tenant_${currentTenantId}`).emit('conversation-created', conversation);
+         }
+
+         socket.emit('start-conversation-success', { conversation });
+
+       } catch (err) {
+         console.error('Error in start-conversation:', err);
+       }
+     });
 
     socket.on('disconnect', async () => {
       if (!currentAgentId || !currentTenantId) return;

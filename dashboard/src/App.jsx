@@ -366,6 +366,28 @@ function App() {
       }
     });
 
+    // 10. Listen to proactive conversation creation
+    socket.on('conversation-created', (conversation) => {
+      setConversations(prev => {
+        if (prev.some(c => c._id === conversation._id)) return prev;
+        return [...prev, conversation];
+      });
+    });
+
+    socket.on('start-conversation-success', (data) => {
+      const { conversation } = data;
+      setConversations(prev => {
+        const idx = prev.findIndex(c => c._id === conversation._id);
+        if (idx > -1) {
+          const updated = [...prev];
+          updated[idx] = conversation;
+          return updated;
+        }
+        return [...prev, conversation];
+      });
+      handleSelectConversation(conversation);
+    });
+
     return () => {
       socket.disconnect();
     };
@@ -973,8 +995,10 @@ function App() {
                         if (existing) {
                           handleSelectConversation(existing);
                         } else {
-                          // No active chat room exists yet, wait for them to text or force start one
-                          showToast("Waiting for visitor to type or initiate conversation...", "warning");
+                          // Proactively start a conversation for this visitor
+                          if (socketRef.current) {
+                            socketRef.current.emit('start-conversation', { visitorId: selectedVisitor._id });
+                          }
                         }
                       }}
                       className="claim-btn"

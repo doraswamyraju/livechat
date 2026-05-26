@@ -53,70 +53,91 @@ fun DashboardScreen(
 
         // 1. Full database state sync on connection
         socket.on("dashboard-sync") { args ->
-            val dataObj = args[0] as JSONObject
-            
-            // Extract visitors
-            val visArray = dataObj.getJSONArray("visitors")
-            val vList = mutableListOf<VisitorDto>()
-            for (i in 0 until visArray.length()) {
-                val obj = visArray.getJSONObject(i)
-                vList.add(
-                    VisitorDto(
-                        _id = obj.getString("_id"),
-                        name = obj.getString("name"),
-                        email = if (obj.has("email")) obj.getString("email") else null,
-                        country = obj.getString("country"),
-                        city = obj.getString("city"),
-                        deviceType = obj.getString("deviceType"),
-                        currentUrl = if (obj.has("currentUrl")) obj.getString("currentUrl") else null,
-                        isOnline = obj.getBoolean("isOnline")
-                    )
-                )
-            }
-            visitorsList = vList
+            try {
+                val dataObj = args[0] as JSONObject
+                
+                // Extract visitors
+                val visArray = dataObj.getJSONArray("visitors")
+                val vList = mutableListOf<VisitorDto>()
+                for (i in 0 until visArray.length()) {
+                    try {
+                        val obj = visArray.getJSONObject(i)
+                        vList.add(
+                            VisitorDto(
+                                _id = obj.getString("_id"),
+                                name = obj.getString("name"),
+                                email = if (obj.has("email") && !obj.isNull("email")) obj.getString("email") else null,
+                                country = if (obj.has("country")) obj.getString("country") else "Unknown",
+                                city = if (obj.has("city")) obj.getString("city") else "Unknown",
+                                deviceType = if (obj.has("deviceType")) obj.getString("deviceType") else "Desktop",
+                                currentUrl = if (obj.has("currentUrl") && !obj.isNull("currentUrl")) obj.getString("currentUrl") else null,
+                                isOnline = if (obj.has("isOnline")) obj.getBoolean("isOnline") else false
+                            )
+                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                visitorsList = vList
 
-            // Extract conversations
-            val convArray = dataObj.getJSONArray("conversations")
-            val cList = mutableListOf<ConversationDto>()
-            for (i in 0 until convArray.length()) {
-                val obj = convArray.getJSONObject(i)
-                val assignedId = if (obj.has("assignedAgentId") && !obj.isNull("assignedAgentId")) {
-                    val agentObj = obj.get("assignedAgentId")
-                    if (agentObj is JSONObject) agentObj.getString("_id") else agentObj.toString()
-                } else null
+                // Extract conversations
+                val convArray = dataObj.getJSONArray("conversations")
+                val cList = mutableListOf<ConversationDto>()
+                for (i in 0 until convArray.length()) {
+                    try {
+                        val obj = convArray.getJSONObject(i)
+                        val assignedId = if (obj.has("assignedAgentId") && !obj.isNull("assignedAgentId")) {
+                            val agentObj = obj.get("assignedAgentId")
+                            if (agentObj is JSONObject) agentObj.getString("_id") else agentObj.toString()
+                        } else null
 
-                cList.add(
-                    ConversationDto(
-                        _id = obj.getString("_id"),
-                        visitorId = if (obj.get("visitorId") is JSONObject) obj.getJSONObject("visitorId").getString("_id") else obj.getString("visitorId"),
-                        status = obj.getString("status"),
-                        assignedAgentId = assignedId,
-                        updatedAt = obj.getString("updatedAt")
-                    )
-                )
-            }
-            conversationsList = cList
+                        val vId = if (obj.has("visitorId") && !obj.isNull("visitorId")) {
+                            val visObj = obj.get("visitorId")
+                            if (visObj is JSONObject) visObj.getString("_id") else visObj.toString()
+                        } else ""
 
-            // Extract agents
-            val agentArray = dataObj.getJSONArray("agents")
-            val aList = mutableListOf<UserProfile>()
-            for (i in 0 until agentArray.length()) {
-                val obj = agentArray.getJSONObject(i)
-                aList.add(
-                    UserProfile(
-                        id = obj.getString("_id"),
-                        name = obj.getString("name"),
-                        email = obj.getString("email"),
-                        role = obj.getString("role"),
-                        status = obj.getString("status")
-                    )
-                )
-            }
-            agentsList = aList
+                        cList.add(
+                            ConversationDto(
+                                _id = obj.getString("_id"),
+                                visitorId = vId,
+                                status = if (obj.has("status")) obj.getString("status") else "Unassigned",
+                                assignedAgentId = assignedId,
+                                updatedAt = if (obj.has("updatedAt")) obj.getString("updatedAt") else ""
+                            )
+                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                conversationsList = cList
 
-            // Self sync status
-            aList.find { it.id == NetworkClient.currentUser?.id }?.let {
-                selfStatus = it.status
+                // Extract agents
+                val agentArray = dataObj.getJSONArray("agents")
+                val aList = mutableListOf<UserProfile>()
+                for (i in 0 until agentArray.length()) {
+                    try {
+                        val obj = agentArray.getJSONObject(i)
+                        aList.add(
+                            UserProfile(
+                                id = obj.getString("_id"),
+                                name = obj.getString("name"),
+                                email = obj.getString("email"),
+                                role = obj.getString("role"),
+                                status = obj.getString("status")
+                            )
+                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                agentsList = aList
+
+                // Self sync status
+                aList.find { it.id == NetworkClient.currentUser?.id }?.let {
+                    selfStatus = it.status
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
 
@@ -183,6 +204,102 @@ fun DashboardScreen(
             }
         }
 
+        // 7. Sync new visitor messages and queue updates
+        socket.on("visitor-msg") { args ->
+            try {
+                val data = args[0] as JSONObject
+                val convObj = data.getJSONObject("conversation")
+                val visitorObj = data.getJSONObject("visitor")
+
+                val visitor = VisitorDto(
+                    _id = visitorObj.getString("_id"),
+                    name = visitorObj.getString("name"),
+                    email = if (visitorObj.has("email") && !visitorObj.isNull("email")) visitorObj.getString("email") else null,
+                    country = visitorObj.getString("country"),
+                    city = visitorObj.getString("city"),
+                    deviceType = visitorObj.getString("deviceType"),
+                    currentUrl = if (visitorObj.has("currentUrl") && !visitorObj.isNull("currentUrl")) visitorObj.getString("currentUrl") else null,
+                    isOnline = visitorObj.getBoolean("isOnline")
+                )
+
+                val assignedId = if (convObj.has("assignedAgentId") && !convObj.isNull("assignedAgentId")) {
+                    val agentObj = convObj.get("assignedAgentId")
+                    if (agentObj is JSONObject) agentObj.getString("_id") else agentObj.toString()
+                } else null
+
+                val conversation = ConversationDto(
+                    _id = convObj.getString("_id"),
+                    visitorId = visitor._id,
+                    status = convObj.getString("status"),
+                    assignedAgentId = assignedId,
+                    updatedAt = convObj.getString("updatedAt")
+                )
+
+                visitorsList = visitorsList.filter { it._id != visitor._id } + visitor
+                conversationsList = conversationsList.filter { it._id != conversation._id } + conversation
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 8. Dynamic proactive conversation creation listener
+        socket.on("conversation-created") { args ->
+            try {
+                val obj = args[0] as JSONObject
+                val assignedId = if (obj.has("assignedAgentId") && !obj.isNull("assignedAgentId")) {
+                    val agentObj = obj.get("assignedAgentId")
+                    if (agentObj is JSONObject) agentObj.getString("_id") else agentObj.toString()
+                } else null
+
+                val newConv = ConversationDto(
+                    _id = obj.getString("_id"),
+                    visitorId = if (obj.get("visitorId") is JSONObject) obj.getJSONObject("visitorId").getString("_id") else obj.getString("visitorId"),
+                    status = obj.getString("status"),
+                    assignedAgentId = assignedId,
+                    updatedAt = obj.getString("updatedAt")
+                )
+                conversationsList = conversationsList.filter { it._id != newConv._id } + newConv
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 9. Navigation to proactively initiated conversation on success
+        socket.on("start-conversation-success") { args ->
+            try {
+                val dataObj = args[0] as JSONObject
+                val obj = dataObj.getJSONObject("conversation")
+                val assignedId = if (obj.has("assignedAgentId") && !obj.isNull("assignedAgentId")) {
+                    val agentObj = obj.get("assignedAgentId")
+                    if (agentObj is JSONObject) agentObj.getString("_id") else agentObj.toString()
+                } else null
+
+                val newConv = ConversationDto(
+                    _id = obj.getString("_id"),
+                    visitorId = if (obj.get("visitorId") is JSONObject) obj.getJSONObject("visitorId").getString("_id") else obj.getString("visitorId"),
+                    status = obj.getString("status"),
+                    assignedAgentId = assignedId,
+                    updatedAt = obj.getString("updatedAt")
+                )
+                conversationsList = conversationsList.filter { it._id != newConv._id } + newConv
+
+                val visitor = visitorsList.find { it._id == newConv.visitorId }
+                if (visitor != null) {
+                    onNavigateToChat(
+                        newConv._id,
+                        visitor.name,
+                        visitor._id,
+                        visitor.country,
+                        visitor.city,
+                        visitor.deviceType,
+                        visitor.currentUrl
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
         // Establish WS handshakes
         NetworkClient.connectSocket()
 
@@ -193,6 +310,9 @@ fun DashboardScreen(
             socket.off("visitor-disconnected")
             socket.off("chat-assigned-update")
             socket.off("agent-status-changed")
+            socket.off("visitor-msg")
+            socket.off("conversation-created")
+            socket.off("start-conversation-success")
         }
     }
 
@@ -340,6 +460,10 @@ fun DashboardScreen(
                             visitor.deviceType,
                             visitor.currentUrl
                         )
+                    } else {
+                        // Proactively start conversation for this visitor
+                        val data = JSONObject().put("visitorId", visitor._id)
+                        NetworkClient.getSocketInstance().emit("start-conversation", data)
                     }
                 }
                 2 -> InboxTab(conversationsList, visitorsList) { conv ->
