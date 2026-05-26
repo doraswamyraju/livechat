@@ -231,7 +231,16 @@ app.get('/api/settings/widget', async (req, res) => {
       if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
       settings = await WidgetSettings.findOne({ tenantId: tenant._id });
     } else if (tenantId) {
-      settings = await WidgetSettings.findOne({ tenantId });
+      let resolvedTenantId = tenantId;
+      if (!mongoose.Types.ObjectId.isValid(tenantId)) {
+        const tenant = await Tenant.findOne({ apiKey: tenantId });
+        if (tenant) {
+          resolvedTenantId = tenant._id;
+        } else {
+          return res.status(400).json({ error: 'Invalid tenantId format' });
+        }
+      }
+      settings = await WidgetSettings.findOne({ tenantId: resolvedTenantId });
     } else {
       return res.status(400).json({ error: 'apiKey or tenantId required' });
     }
@@ -267,17 +276,27 @@ app.get('/api/analytics/summary', authenticateToken, async (req, res) => {
   const { tenantId } = req.user;
 
   try {
-    const totalVisitors = await Visitor.countDocuments({ tenantId });
-    const onlineVisitors = await Visitor.countDocuments({ tenantId, isOnline: true });
-    const activeConversations = await Conversation.countDocuments({ tenantId, status: 'Active' });
-    const unassignedConversations = await Conversation.countDocuments({ tenantId, status: 'Unassigned' });
+    let resolvedTenantId = tenantId;
+    if (!mongoose.Types.ObjectId.isValid(tenantId)) {
+      const tenant = await Tenant.findOne({ apiKey: tenantId });
+      if (tenant) {
+        resolvedTenantId = tenant._id;
+      } else {
+        return res.status(400).json({ error: 'Invalid tenantId format' });
+      }
+    }
+
+    const totalVisitors = await Visitor.countDocuments({ tenantId: resolvedTenantId });
+    const onlineVisitors = await Visitor.countDocuments({ tenantId: resolvedTenantId, isOnline: true });
+    const activeConversations = await Conversation.countDocuments({ tenantId: resolvedTenantId, status: 'Active' });
+    const unassignedConversations = await Conversation.countDocuments({ tenantId: resolvedTenantId, status: 'Unassigned' });
     
     // Total historical chats
-    const totalChats = await Conversation.countDocuments({ tenantId });
+    const totalChats = await Conversation.countDocuments({ tenantId: resolvedTenantId });
 
     // Agent counts
-    const totalAgents = await User.countDocuments({ tenantId });
-    const onlineAgents = await User.countDocuments({ tenantId, status: 'Online' });
+    const totalAgents = await User.countDocuments({ tenantId: resolvedTenantId });
+    const onlineAgents = await User.countDocuments({ tenantId: resolvedTenantId, status: 'Online' });
 
     res.status(200).json({
       totalVisitors,
