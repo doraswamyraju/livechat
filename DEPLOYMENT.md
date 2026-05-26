@@ -6,8 +6,8 @@ This document contains standard instructions to deploy changes to the live VPS.
 - **App Directory**: `/var/www/letstrack`
 - **PM2 Process Name**: `livechat-backend`
 - **Server Ports**:
-  - Backend API: `5000` (mapped to SSL reverse proxy subdomain: `livechat.vrhere.in`)
-  - WebSockets Endpoint: `ws://localhost:5000` / `wss://livechat.vrhere.in`
+  - Backend API: `5004` (mapped to SSL reverse proxy subdomain: `livechat.vrhere.in`)
+  - WebSockets Endpoint: `ws://localhost:5004` / `wss://livechat.vrhere.in`
 
 ---
 
