@@ -421,6 +421,89 @@
         40% { transform: scale(1.0); }
       }
 
+      /* Unread badge style */
+      .lt-badge {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        background-color: #EF4444; /* Bright Red */
+        color: white;
+        font-size: 11px;
+        font-weight: 700;
+        min-width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        padding: 0 4px;
+        box-sizing: border-box;
+      }
+      .lt-widget-btn.open .lt-badge {
+        display: none !important;
+      }
+
+      /* Notification pop-up preview */
+      .lt-notification-popup {
+        position: absolute;
+        bottom: 70px;
+        ${settings.position === 'bottom-left' ? 'left: 0;' : 'right: 0;'}
+        width: 280px;
+        padding: 12px 16px;
+        border-radius: 12px;
+        background: white;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        border: 1px solid #E5E7EB;
+        display: none;
+        flex-direction: column;
+        gap: 4px;
+        cursor: pointer;
+        z-index: 999998;
+        animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+        font-family: sans-serif;
+      }
+      .lt-notification-popup:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .lt-notification-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: ${settings.primaryColor};
+        margin: 0;
+      }
+      .lt-notification-text {
+        font-size: 12px;
+        color: #4B5563;
+        margin: 0;
+        line-height: 1.4;
+      }
+      .lt-notification-close {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #9CA3AF;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .lt-notification-close:hover {
+        color: #4B5563;
+      }
+
+      @keyframes slideIn {
+        from { transform: translateY(15px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+
       /* Adaptive Mobile viewports */
       @media (max-width: 480px) {
         .lt-chat-window {
@@ -499,6 +582,13 @@
     const triggerBtn = document.createElement('button');
     triggerBtn.className = 'lt-widget-btn';
     
+    const triggerInner = document.createElement('div');
+    triggerInner.style.display = 'flex';
+    triggerInner.style.alignItems = 'center';
+    triggerInner.style.justifyContent = 'center';
+    triggerInner.style.gap = '8px';
+    triggerInner.style.height = '100%';
+    
     let btnHtml = `
       <svg viewBox="0 0 24 24">
         <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
@@ -507,8 +597,35 @@
     if (settings.launcherText) {
       btnHtml += `<span style="color: white; font-size: 14px; font-weight: 600; font-family: inherit;">${settings.launcherText}</span>`;
     }
-    triggerBtn.innerHTML = btnHtml;
+    triggerInner.innerHTML = btnHtml;
+    triggerBtn.appendChild(triggerInner);
     widgetContainer.appendChild(triggerBtn);
+
+    // Create unread badge inside trigger button
+    const badge = document.createElement('div');
+    badge.className = 'lt-badge';
+    triggerBtn.appendChild(badge);
+
+    // Create notification popup
+    const notificationPopup = document.createElement('div');
+    notificationPopup.className = 'lt-notification-popup';
+    notificationPopup.innerHTML = `
+      <div class="lt-notification-close">&times;</div>
+      <div class="lt-notification-title">${settings.headingText || 'Support Agent'}</div>
+      <div class="lt-notification-text"></div>
+    `;
+    widgetContainer.appendChild(notificationPopup);
+
+    const popupClose = notificationPopup.querySelector('.lt-notification-close');
+    popupClose.onclick = (e) => {
+      e.stopPropagation();
+      notificationPopup.style.display = 'none';
+    };
+    notificationPopup.onclick = (e) => {
+      if (e.target !== popupClose) {
+        toggleChat(true);
+      }
+    };
 
     shadow.appendChild(style);
     shadow.appendChild(widgetContainer);
@@ -519,6 +636,31 @@
     
     // Toggle Chat window Open / Close
     let isWindowOpen = false;
+    let unreadCount = 0;
+    let hasHistory = false;
+    let hasInteracted = false;
+    let welcomeTimeout = null;
+    let popupTimeout = null;
+
+    const showNotificationPopup = (title, text) => {
+      if (isWindowOpen) return;
+      const titleEl = notificationPopup.querySelector('.lt-notification-title');
+      const textEl = notificationPopup.querySelector('.lt-notification-text');
+      titleEl.textContent = title;
+      textEl.textContent = text;
+      notificationPopup.style.display = 'flex';
+      
+      if (popupTimeout) clearTimeout(popupTimeout);
+      popupTimeout = setTimeout(() => {
+        notificationPopup.style.display = 'none';
+      }, 6000);
+    };
+
+    welcomeTimeout = setTimeout(() => {
+      if (!isWindowOpen && !hasInteracted && !hasHistory) {
+        showNotificationPopup(settings.headingText || 'Support Agent', settings.welcomeMessage || 'Hi there! How can we help you today?');
+      }
+    }, 3000);
     
     // Mobile close trigger helper (add close button in header on mobile)
     const addMobileCloseBtn = () => {
@@ -558,6 +700,15 @@
       isWindowOpen = forceOpen !== undefined ? forceOpen : !isWindowOpen;
       
       if (isWindowOpen) {
+        // Reset unread counts and notifications
+        unreadCount = 0;
+        badge.textContent = '';
+        badge.style.display = 'none';
+        notificationPopup.style.display = 'none';
+        hasInteracted = true;
+        if (welcomeTimeout) clearTimeout(welcomeTimeout);
+        if (popupTimeout) clearTimeout(popupTimeout);
+
         chatWindow.style.display = 'flex';
         // Force layout calculations for transition smooth states
         chatWindow.offsetHeight; 
@@ -572,7 +723,7 @@
         if (settings.launcherText) {
           closeHtml += `<span style="color: white; font-size: 14px; font-weight: 600; font-family: inherit;">Close</span>`;
         }
-        triggerBtn.innerHTML = closeHtml;
+        triggerInner.innerHTML = closeHtml;
 
         setTimeout(() => {
           textInput.focus();
@@ -590,7 +741,7 @@
         if (settings.launcherText) {
           openHtml += `<span style="color: white; font-size: 14px; font-weight: 600; font-family: inherit;">${settings.launcherText}</span>`;
         }
-        triggerBtn.innerHTML = openHtml;
+        triggerInner.innerHTML = openHtml;
 
         setTimeout(() => {
           if (!chatWindow.classList.contains('open')) {
@@ -647,6 +798,10 @@
     // Handle incoming chat logs history
     socket.on('chat-history', (data) => {
       const { messages } = data;
+      if (messages && messages.length > 0) {
+        hasHistory = true;
+        if (welcomeTimeout) clearTimeout(welcomeTimeout);
+      }
       messages.forEach(msg => {
         appendMessage(msg.senderName, msg.senderType, msg.text, false);
       });
@@ -664,6 +819,14 @@
       // Play audio notification chime if window is minimized or not active
       if (!isWindowOpen || message.senderType === 'Agent') {
         playChime();
+      }
+
+      // Show outer notification popup and increment unread badge if window is closed
+      if (!isWindowOpen && message.senderType === 'Agent') {
+        unreadCount++;
+        badge.textContent = unreadCount;
+        badge.style.display = 'flex';
+        showNotificationPopup(message.senderName, message.text);
       }
     });
 
