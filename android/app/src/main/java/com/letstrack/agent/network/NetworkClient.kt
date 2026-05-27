@@ -96,6 +96,17 @@ data class UpdateProfileRequest(
     val password: String?
 )
 
+data class RegisterAgentRequest(
+    val name: String,
+    val email: String,
+    val password: String
+)
+
+data class RegisterAgentResponse(
+    val message: String,
+    val agent: UserProfile
+)
+
 // ============================================
 // RETROFIT API INTERFACES
 // ============================================
@@ -130,6 +141,12 @@ interface LetsTrackApi {
         @Body request: UpdateProfileRequest
     ): UserProfile
 
+    @POST("/api/auth/register-agent")
+    suspend fun registerAgent(
+        @Header("Authorization") token: String,
+        @Body request: RegisterAgentRequest
+    ): RegisterAgentResponse
+
     @PUT("/api/visitors/{id}")
     suspend fun updateVisitor(
         @Header("Authorization") token: String,
@@ -153,6 +170,7 @@ object NetworkClient {
     private var authToken: String? = null
     var currentUser: UserProfile? = null
     var currentTenant: TenantDetails? = null
+    var cachedAgents: List<UserProfile> = emptyList()
 
     val gson = Gson()
     

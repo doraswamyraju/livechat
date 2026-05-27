@@ -246,37 +246,111 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    // Actions drawer: claim or release chats
                     val selfId = NetworkClient.currentUser?.id
-                    if (assignedAgentId == selfId) {
-                        Button(
-                            onClick = {
-                                coroutineScope.launch {
-                                    val data = JSONObject().apply {
-                                        put("conversationId", conversationId)
-                                        put("assignedAgentId", JSONObject.NULL)
-                                    }
-                                    NetworkClient.getSocketInstance().emit("assign-chat", data)
+                    val isAdmin = NetworkClient.currentUser?.role == "Admin"
+                    var showAssignMenu by remember { mutableStateOf(false) }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (isAdmin) {
+                            Box {
+                                Button(
+                                    onClick = { showAssignMenu = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B), contentColor = Color.White)
+                                ) {
+                                    val currentAssignee = NetworkClient.cachedAgents.find { it.id == assignedAgentId }?.name ?: "Assign 👤"
+                                    Text(currentAssignee, fontSize = 11.sp)
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)
-                        ) {
-                            Text("Release", fontSize = 11.sp)
+
+                                DropdownMenu(
+                                    expanded = showAssignMenu,
+                                    onDismissRequest = { showAssignMenu = false },
+                                    modifier = Modifier.background(Color(0xFF1E293B))
+                                ) {
+                                    // General queue unassignment option
+                                    DropdownMenuItem(
+                                        text = { Text("General Queue (Unassigned)", color = Color.White, fontSize = 13.sp) },
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                val data = JSONObject().apply {
+                                                    put("conversationId", conversationId)
+                                                    put("assignedAgentId", JSONObject.NULL)
+                                                }
+                                                NetworkClient.getSocketInstance().emit("assign-chat", data)
+                                            }
+                                            showAssignMenu = false
+                                        }
+                                    )
+                                    // Map agents
+                                    NetworkClient.cachedAgents.forEach { agent ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(8.dp)
+                                                            .clip(CircleShape)
+                                                            .background(
+                                                                when (agent.status) {
+                                                                    "Online" -> Color(0xFF10B981)
+                                                                    "Away" -> Color(0xFFF59E0B)
+                                                                    else -> Color(0xFF64748B)
+                                                                }
+                                                            )
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text("${agent.name} (${agent.role})", color = Color.White, fontSize = 13.sp)
+                                                }
+                                            },
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    val data = JSONObject().apply {
+                                                        put("conversationId", conversationId)
+                                                        put("assignedAgentId", agent.id)
+                                                    }
+                                                    NetworkClient.getSocketInstance().emit("assign-chat", data)
+                                                }
+                                                showAssignMenu = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
-                    } else {
-                        Button(
-                            onClick = {
-                                coroutineScope.launch {
-                                    val data = JSONObject().apply {
-                                        put("conversationId", conversationId)
-                                        put("assignedAgentId", selfId)
+
+                        // Direct claim/release buttons
+                        if (assignedAgentId == selfId) {
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        val data = JSONObject().apply {
+                                            put("conversationId", conversationId)
+                                            put("assignedAgentId", JSONObject.NULL)
+                                        }
+                                        NetworkClient.getSocketInstance().emit("assign-chat", data)
                                     }
-                                    NetworkClient.getSocketInstance().emit("assign-chat", data)
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)
-                        ) {
-                            Text("Claim Chat", fontSize = 11.sp)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)
+                            ) {
+                                Text("Release", fontSize = 11.sp)
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        val data = JSONObject().apply {
+                                            put("conversationId", conversationId)
+                                            put("assignedAgentId", selfId)
+                                        }
+                                        NetworkClient.getSocketInstance().emit("assign-chat", data)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)
+                            ) {
+                                Text("Claim", fontSize = 11.sp)
+                            }
                         }
                     }
                 },

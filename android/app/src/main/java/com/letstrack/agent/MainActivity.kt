@@ -59,8 +59,23 @@ class MainActivity : ComponentActivity() {
         }
         
         setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme(
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val prefs = remember { context.getSharedPreferences("letstrack_prefs", android.content.Context.MODE_PRIVATE) }
+            var currentTheme by remember {
+                mutableStateOf(prefs.getString("theme_mode", "dark") ?: "dark")
+            }
+
+            val colorScheme = if (currentTheme == "light") {
+                lightColorScheme(
+                    primary = Color(0xFFDC2626), // Accent Red
+                    onPrimary = Color.White,
+                    surface = Color(0xFFF1F5F9), // Light Premium gray surface
+                    onSurface = Color(0xFF0F172A), // Dark slate text
+                    background = Color(0xFFFFFFFF), // Pure White background
+                    onBackground = Color(0xFF0F172A)
+                )
+            } else {
+                darkColorScheme(
                     primary = Color(0xFFDC2626), // Netflix Red Accent
                     onPrimary = Color.White,
                     surface = Color(0xFF121212), // Dark Premium surface
@@ -68,9 +83,18 @@ class MainActivity : ComponentActivity() {
                     background = Color(0xFF000000), // Pure Black background
                     onBackground = Color.White
                 )
-            ) {
+            }
+
+            MaterialTheme(colorScheme = colorScheme) {
                 val activeIntent by _intentFlow.collectAsState(initial = intent)
-                AppNavigator(activeIntent)
+                AppNavigator(
+                    intent = activeIntent,
+                    currentTheme = currentTheme,
+                    onThemeChange = { newTheme ->
+                        prefs.edit().putString("theme_mode", newTheme).apply()
+                        currentTheme = newTheme
+                    }
+                )
             }
         }
     }
@@ -83,7 +107,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppNavigator(intent: android.content.Intent?) {
+fun AppNavigator(
+    intent: android.content.Intent?,
+    currentTheme: String,
+    onThemeChange: (String) -> Unit
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var currentScreen by remember {
         mutableStateOf(
@@ -180,6 +208,8 @@ fun AppNavigator(intent: android.content.Intent?) {
             
             "dashboard" -> DashboardScreen(
                 initialTab = initialDashboardTab,
+                currentTheme = currentTheme,
+                onThemeChange = onThemeChange,
                 onNavigateToChat = { convId, name, visId, country, city, device, url, email, phone ->
                     activeConversationId = convId
                     activeVisitorName = name
