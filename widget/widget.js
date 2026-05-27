@@ -608,7 +608,8 @@
     const socket = window.io(`${BACKEND_URL}/visitor`);
     let visitorProfile = {
       name: localStorage.getItem('letstrack_visitor_name') || '',
-      email: localStorage.getItem('letstrack_visitor_email') || ''
+      email: localStorage.getItem('letstrack_visitor_email') || '',
+      phoneNumber: localStorage.getItem('letstrack_visitor_phone') || ''
     };
 
     // Helper to send visitor initialization state
@@ -621,6 +622,7 @@
         referrer: document.referrer || 'Direct',
         name: visitorProfile.name,
         email: visitorProfile.email,
+        phoneNumber: visitorProfile.phoneNumber,
         browser: browserInfo.browser,
         os: browserInfo.os,
         deviceType: browserInfo.deviceType
@@ -698,6 +700,7 @@
         <p class="pre-chat-text">${settings.welcomeMessage}</p>
         <input type="text" class="pre-chat-input" id="prechat-name" placeholder="Your Name" required />
         <input type="email" class="pre-chat-input" id="prechat-email" placeholder="Your Email (Optional)" />
+        <input type="tel" class="pre-chat-input" id="prechat-phone" placeholder="Phone Number (Optional)" />
         <button type="button" class="pre-chat-btn" id="prechat-submit">Start Live Chat</button>
       `;
       body.appendChild(formWrap);
@@ -705,10 +708,12 @@
       const submitBtn = formWrap.querySelector('#prechat-submit');
       const nameInput = formWrap.querySelector('#prechat-name');
       const emailInput = formWrap.querySelector('#prechat-email');
+      const phoneInput = formWrap.querySelector('#prechat-phone');
 
       submitBtn.onclick = () => {
         const nameVal = nameInput.value.trim();
         const emailVal = emailInput.value.trim();
+        const phoneVal = phoneInput.value.trim();
 
         if (!nameVal) {
           nameInput.focus();
@@ -717,10 +722,14 @@
 
         visitorProfile.name = nameVal;
         visitorProfile.email = emailVal;
+        visitorProfile.phoneNumber = phoneVal;
 
         localStorage.setItem('letstrack_visitor_name', nameVal);
         if (emailVal) {
           localStorage.setItem('letstrack_visitor_email', emailVal);
+        }
+        if (phoneVal) {
+          localStorage.setItem('letstrack_visitor_phone', phoneVal);
         }
 
         // Re-authenticate visitor with updated credentials

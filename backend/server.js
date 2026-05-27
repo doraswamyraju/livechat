@@ -10,7 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { Tenant, User, Visitor, Conversation, Message, WidgetSettings } from './models.js';
+import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply } from './models.js';
 import { initializeSocket } from './socket.js';
 
 dotenv.config();
@@ -369,6 +369,89 @@ app.post('/api/auth/fcm-token', authenticateToken, async (req, res) => {
     res.status(200).json({ message: 'FCM Token registered successfully' });
   } catch (err) {
     console.error('Error saving FCM Token:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 9. Update Visitor Details
+app.put('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
+  const { visitorId } = req.params;
+  const { name, email, phoneNumber } = req.body;
+
+  try {
+    const visitor = await Visitor.findOneAndUpdate(
+      { _id: visitorId, tenantId: req.user.tenantId },
+      { name, email, phoneNumber },
+      { new: true }
+    );
+    if (!visitor) return res.status(404).json({ error: 'Visitor not found' });
+    res.status(200).json(visitor);
+  } catch (err) {
+    console.error('Error updating visitor details:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 10. Get Quick Replies
+app.get('/api/quick-replies', authenticateToken, async (req, res) => {
+  try {
+    const quickReplies = await QuickReply.find({ tenantId: req.user.tenantId });
+    res.status(200).json(quickReplies);
+  } catch (err) {
+    console.error('Error retrieving quick replies:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 11. Add Quick Reply
+app.post('/api/quick-replies', authenticateToken, async (req, res) => {
+  const { shortcut, text } = req.body;
+  if (!shortcut || !text) return res.status(400).json({ error: 'Shortcut and text are required' });
+
+  try {
+    const quickReply = new QuickReply({
+      tenantId: req.user.tenantId,
+      shortcut: shortcut.startsWith('/') ? shortcut : `/${shortcut}`,
+      text
+    });
+    await quickReply.save();
+    res.status(201).json(quickReply);
+  } catch (err) {
+    console.error('Error saving quick reply:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 12. Delete Quick Reply
+app.delete('/api/quick-replies/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const deleted = await QuickReply.findOneAndDelete({ _id: id, tenantId: req.user.tenantId });
+    if (!deleted) return res.status(404).json({ error: 'Quick reply not found' });
+    res.status(200).json({ message: 'Quick reply deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting quick reply:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 13. Update Profile
+app.put('/api/auth/profile', authenticateToken, async (req, res) => {
+  const { name, avatarUrl, password } = req.body;
+  const updateData = {};
+  if (name) updateData.name = name;
+  if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
+
+  try {
+    if (password) {
+      updateData.passwordHash = await bcrypt.hash(password, 10);
+    }
+    const user = await User.findByIdAndUpdate(req.user.userId, updateData, { new: true }).select('-passwordHash');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.status(200).json(user);
+  } catch (err) {
+    console.error('Error updating profile:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

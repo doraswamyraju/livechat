@@ -51,7 +51,7 @@ export const initializeSocket = (httpServer) => {
     let currentTenantId = null;
 
     socket.on('visitor-init', async (data) => {
-      const { apiKey, visitorId, currentUrl, referrer, name, email, browser, os, deviceType } = data;
+      const { apiKey, visitorId, currentUrl, referrer, name, email, phoneNumber, browser, os, deviceType } = data;
       
       try {
         // 1. Verify Tenant API Key
@@ -75,7 +75,10 @@ export const initializeSocket = (httpServer) => {
         activeVisitorSockets.set(currentVisitorId, socket.id);
 
         // Resolve location info using mockGeoIP
-        const ip = socket.handshake.address || '127.0.0.1';
+        let ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.headers['x-real-ip'] || socket.handshake.address || '127.0.0.1';
+        if (ip && ip.includes(',')) {
+          ip = ip.split(',')[0].trim();
+        }
         const geo = mockGeoIP(ip);
 
         // 2. Find or Create Visitor
@@ -89,6 +92,7 @@ export const initializeSocket = (httpServer) => {
             tenantId: currentTenantId,
             name: name || `Visitor #${Math.floor(1000 + Math.random() * 9000)}`,
             email: email || '',
+            phoneNumber: phoneNumber || '',
             ipAddress: ip,
             country: geo.country,
             city: geo.city,
@@ -105,6 +109,9 @@ export const initializeSocket = (httpServer) => {
           visitor.isOnline = true;
           visitor.currentUrl = currentUrl || visitor.currentUrl;
           visitor.lastSeen = new Date();
+          if (name) visitor.name = name;
+          if (email) visitor.email = email;
+          if (phoneNumber) visitor.phoneNumber = phoneNumber;
         }
         await visitor.save();
 

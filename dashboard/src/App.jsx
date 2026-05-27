@@ -70,6 +70,21 @@ function App() {
   // UI Toast feedback
   const [toast, setToast] = useState(null);
 
+  // Quick Replies states
+  const [quickReplies, setQuickReplies] = useState([]);
+  const [newShortcut, setNewShortcut] = useState('');
+  const [newReplyText, setNewReplyText] = useState('');
+
+  // Editable Visitor info
+  const [editVisitorName, setEditVisitorName] = useState('');
+  const [editVisitorEmail, setEditVisitorEmail] = useState('');
+  const [editVisitorPhone, setEditVisitorPhone] = useState('');
+
+  // Profile editing states
+  const [profileName, setProfileName] = useState(user?.name || '');
+  const [profileAvatar, setProfileAvatar] = useState(user?.avatarUrl || '');
+  const [profilePassword, setProfilePassword] = useState('');
+
   // References
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -415,8 +430,33 @@ function App() {
       .then(res => res.json())
       .then(data => setAnalytics(data))
       .catch(err => console.error('Error fetching analytics:', err));
+
+    // Fetch Quick Replies
+    fetch(`${BACKEND_URL}/api/quick-replies`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => setQuickReplies(data))
+      .catch(err => console.error('Error fetching quick replies:', err));
       
   }, [token, activeTab]);
+
+  // Sync profile editing fields when user details load/change
+  useEffect(() => {
+    if (user) {
+      setProfileName(user.name || '');
+      setProfileAvatar(user.avatarUrl || '');
+    }
+  }, [user]);
+
+  // Sync editable visitor info when selectedVisitor changes
+  useEffect(() => {
+    if (selectedVisitor) {
+      setEditVisitorName(selectedVisitor.name || '');
+      setEditVisitorEmail(selectedVisitor.email || '');
+      setEditVisitorPhone(selectedVisitor.phoneNumber || '');
+    }
+  }, [selectedVisitor]);
 
   // ============================================
   // INTERACTIVE CONTROLLERS
@@ -551,6 +591,102 @@ function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save settings');
       showToast('Widget customizations synchronized successfully!');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleUpdateVisitor = async () => {
+    if (!selectedVisitor) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/visitors/${selectedVisitor._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editVisitorName,
+          email: editVisitorEmail,
+          phoneNumber: editVisitorPhone
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update visitor profile');
+      
+      // Update in visitors state
+      setVisitors(prev => prev.map(v => v._id === data._id ? data : v));
+      setSelectedVisitor(data);
+      showToast('Visitor profile saved successfully!');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleAddQuickReply = async (e) => {
+    e.preventDefault();
+    if (!newShortcut || !newReplyText) return showToast('Please enter both shortcut and text', 'error');
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/quick-replies`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ shortcut: newShortcut, text: newReplyText })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create quick reply');
+
+      setQuickReplies(prev => [...prev, data]);
+      setNewShortcut('');
+      setNewReplyText('');
+      showToast('Quick Reply registered successfully!');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleDeleteQuickReply = async (id) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/quick-replies/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to delete quick reply');
+
+      setQuickReplies(prev => prev.filter(qr => qr._id !== id));
+      showToast('Quick Reply deleted successfully');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    if (!profileName) return showToast('Name is required', 'error');
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: profileName,
+          avatarUrl: profileAvatar,
+          password: profilePassword || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Profile update failed');
+
+      localStorage.setItem('letstrack_user', JSON.stringify(data));
+      setUser(data);
+      setProfilePassword('');
+      showToast('Your profile has been updated!');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -748,6 +884,11 @@ function App() {
               Manage Employees
             </button>
           )}
+
+          <button className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
+            <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            Profile Settings
+          </button>
         </div>
 
         <div className="sidebar-footer">
@@ -768,6 +909,7 @@ function App() {
             {activeTab === 'chat' && 'Live Chat Dashboard'}
             {activeTab === 'customize' && 'Widget Configuration Center'}
             {activeTab === 'agents' && 'Employee Administration'}
+            {activeTab === 'profile' && 'Employee Profile Center'}
           </div>
 
           <div className="navbar-profile">
@@ -955,12 +1097,20 @@ function App() {
                 <h3 className="card-title">Visitor Footprint Details</h3>
                 {selectedVisitor ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ textAlign: 'center', padding: '16px 0', borderBottom: '1px solid var(--border-color)' }}>
-                      <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--bg-accent)', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center', fontSize: '24px', margin: '0 auto 10px auto' }}>
-                        👤
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '10px 0', borderBottom: '1px solid var(--border-color)' }}>
+                      <div className="form-group" style={{ marginBottom: '8px' }}>
+                        <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Full Name</label>
+                        <input type="text" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorName} onChange={(e) => setEditVisitorName(e.target.value)} />
                       </div>
-                      <h4 style={{ fontSize: '18px' }}>{selectedVisitor.name}</h4>
-                      <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{selectedVisitor.email || 'Email Capture Offline'}</p>
+                      <div className="form-group" style={{ marginBottom: '8px' }}>
+                        <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Email Address</label>
+                        <input type="email" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorEmail} onChange={(e) => setEditVisitorEmail(e.target.value)} />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '8px' }}>
+                        <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Phone Number</label>
+                        <input type="tel" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorPhone} onChange={(e) => setEditVisitorPhone(e.target.value)} placeholder="e.g. +1 234 567 890" />
+                      </div>
+                      <button className="claim-btn" style={{ padding: '6px 12px', fontSize: '12px', marginTop: '4px', backgroundColor: 'var(--primary)' }} onClick={handleUpdateVisitor}>Save Contact Info</button>
                     </div>
 
                     <div className="info-item">
@@ -1095,6 +1245,38 @@ function App() {
                       <div ref={messagesEndRef} />
                     </div>
 
+                    {/* Canned Quick Replies pills */}
+                    <div className="quick-replies-bar" style={{ display: 'flex', gap: '8px', padding: '8px 16px', overflowX: 'auto', borderTop: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                      {quickReplies.length > 0 ? (
+                        quickReplies.map(qr => (
+                          <button
+                            key={qr._id}
+                            className="quick-reply-pill"
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              border: '1px solid var(--primary)',
+                              backgroundColor: 'rgba(124, 58, 237, 0.05)',
+                              color: 'var(--primary)',
+                              fontSize: '11px',
+                              fontWeight: '500',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              transition: 'all 0.2s'
+                            }}
+                            title={qr.text}
+                            onClick={() => setChatInput(qr.text)}
+                          >
+                            <strong>{qr.shortcut}</strong>: {qr.text.substring(0, 20)}{qr.text.length > 20 ? '...' : ''}
+                          </button>
+                        ))
+                      ) : (
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          No quick replies configured. Add them in Profile Settings.
+                        </span>
+                      )}
+                    </div>
+
                     <div className="chat-input-bar">
                       <input
                         type="text"
@@ -1123,6 +1305,25 @@ function App() {
               <div className="pane-details">
                 {selectedConversation ? (
                   <>
+                    <div>
+                      <div className="detail-section-title">Visitor Contact Info</div>
+                      <div className="form-group" style={{ marginBottom: '8px', padding: '0 12px' }}>
+                        <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Full Name</label>
+                        <input type="text" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorName} onChange={(e) => setEditVisitorName(e.target.value)} />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '8px', padding: '0 12px' }}>
+                        <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Email Address</label>
+                        <input type="email" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorEmail} onChange={(e) => setEditVisitorEmail(e.target.value)} />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '8px', padding: '0 12px' }}>
+                        <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Phone Number</label>
+                        <input type="tel" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorPhone} onChange={(e) => setEditVisitorPhone(e.target.value)} placeholder="e.g. +1 234 567 890" />
+                      </div>
+                      <div style={{ padding: '0 12px', marginBottom: '12px' }}>
+                        <button className="claim-btn" style={{ padding: '6px 12px', fontSize: '12px', marginTop: '4px', width: '100%', backgroundColor: 'var(--primary)' }} onClick={handleUpdateVisitor}>Save Contact Info</button>
+                      </div>
+                    </div>
+
                     <div>
                       <div className="detail-section-title">Visitor Location</div>
                       <div className="info-item">
@@ -1559,6 +1760,128 @@ function App() {
                     Register Employee Account
                   </button>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* F. PROFILE & SETTINGS VIEW */}
+          {activeTab === 'profile' && (
+            <div className="monitor-grid">
+              {/* Profile details */}
+              <div className="glass-card" style={{ padding: '24px' }}>
+                <h3 className="card-title" style={{ marginBottom: '20px' }}>Your Profile Info</h3>
+                
+                <form className="auth-form" onSubmit={handleUpdateProfile}>
+                  <div className="form-group">
+                    <label className="form-label">Employee Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Email Address (Username)</label>
+                    <input
+                      type="email"
+                      className="form-input"
+                      value={user.email}
+                      disabled
+                      style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Avatar Image URL</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="https://example.com/avatar.png"
+                      value={profileAvatar}
+                      onChange={(e) => setProfileAvatar(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Change Password (leave empty to keep current)</label>
+                    <input
+                      type="password"
+                      className="form-input"
+                      placeholder="At least 6 characters"
+                      value={profilePassword}
+                      onChange={(e) => setProfilePassword(e.target.value)}
+                    />
+                  </div>
+
+                  <button type="submit" className="auth-btn" style={{ marginTop: '10px' }}>
+                    Save Profile Changes
+                  </button>
+                </form>
+              </div>
+
+              {/* Quick Replies management */}
+              <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <h3 className="card-title">Canned Quick Replies</h3>
+                
+                <form className="auth-form" onSubmit={handleAddQuickReply} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '20px' }}>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <label className="form-label">Shortcut</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. /hello"
+                        value={newShortcut}
+                        onChange={(e) => setNewShortcut(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ flex: 2 }}>
+                      <label className="form-label">Response Text</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Hello! How can I help you today?"
+                        value={newReplyText}
+                        onChange={(e) => setNewReplyText(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" className="auth-btn" style={{ marginTop: '10px' }}>
+                    Add Quick Reply
+                  </button>
+                </form>
+
+                <div style={{ flex: 1, overflowY: 'auto', maxHeight: '300px' }}>
+                  <h4 style={{ fontSize: '14px', marginBottom: '10px' }}>Configured Quick Replies</h4>
+                  {quickReplies.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {quickReplies.map(qr => (
+                        <div key={qr._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                          <div>
+                            <strong style={{ color: 'var(--primary)' }}>{qr.shortcut}</strong>
+                            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>{qr.text}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteQuickReply(qr._id)}
+                            style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '13px' }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
+                      No quick replies defined yet. Create one above!
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )}

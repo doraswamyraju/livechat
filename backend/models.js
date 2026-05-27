@@ -27,6 +27,7 @@ const VisitorSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
   name: { type: String, required: true },
   email: { type: String, default: '' },
+  phoneNumber: { type: String, default: '' },
   ipAddress: { type: String, default: '' },
   country: { type: String, default: 'Unknown' },
   city: { type: String, default: 'Unknown' },
@@ -76,9 +77,17 @@ const WidgetSettingsSchema = new mongoose.Schema({
   launcherText: { type: String, default: 'Chat' }
 });
 
+// 7. Quick Reply Model
+const QuickReplySchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
+  shortcut: { type: String, required: true },
+  text: { type: String, required: true }
+});
+
 export const Tenant = mongoose.model('Tenant', TenantSchema);
 export const User = mongoose.model('User', UserSchema);
 export const Visitor = mongoose.model('Visitor', VisitorSchema);
 export const Conversation = mongoose.model('Conversation', ConversationSchema);
 export const Message = mongoose.model('Message', MessageSchema);
 export const WidgetSettings = mongoose.model('WidgetSettings', WidgetSettingsSchema);
+export const QuickReply = mongoose.model('QuickReply', QuickReplySchema);
