@@ -51,6 +51,7 @@ data class VisitorDto(
     val _id: String,
     val name: String,
     val email: String?,
+    val phoneNumber: String? = null,
     val country: String,
     val city: String,
     val deviceType: String,
@@ -81,6 +82,19 @@ data class FcmTokenRequest(val fcmToken: String)
 data class ResetPasswordRequest(val email: String, val newPassword: String)
 data class ResetPasswordResponse(val message: String)
 
+data class QuickReplyDto(
+    val _id: String,
+    val tenantId: String,
+    val shortcut: String,
+    val text: String
+)
+
+data class UpdateProfileRequest(
+    val name: String?,
+    val avatarUrl: String?,
+    val password: String?
+)
+
 // ============================================
 // RETROFIT API INTERFACES
 // ============================================
@@ -105,6 +119,15 @@ interface LetsTrackApi {
         @Header("Authorization") token: String,
         @Body request: FcmTokenRequest
     ): retrofit2.Response<Unit>
+
+    @GET("/api/quick-replies")
+    suspend fun getQuickReplies(@Header("Authorization") token: String): List<QuickReplyDto>
+
+    @PUT("/api/auth/profile")
+    suspend fun updateProfile(
+        @Header("Authorization") token: String,
+        @Body request: UpdateProfileRequest
+    ): UserProfile
 }
 
 // ============================================

@@ -34,7 +34,7 @@ import org.json.JSONObject
 @Composable
 fun DashboardScreen(
     initialTab: Int = 0,
-    onNavigateToChat: (String, String, String, String?, String?, String?, String?) -> Unit,
+    onNavigateToChat: (String, String, String, String?, String?, String?, String?, String?, String?) -> Unit,
     onSignOut: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(initialTab) } // 0: Metrics, 1: Visitors, 2: Inbox
@@ -68,6 +68,7 @@ fun DashboardScreen(
                                 _id = obj.getString("_id"),
                                 name = obj.getString("name"),
                                 email = if (obj.has("email") && !obj.isNull("email")) obj.getString("email") else null,
+                                phoneNumber = if (obj.has("phoneNumber") && !obj.isNull("phoneNumber")) obj.getString("phoneNumber") else null,
                                 country = if (obj.has("country")) obj.getString("country") else "Unknown",
                                 city = if (obj.has("city")) obj.getString("city") else "Unknown",
                                 deviceType = if (obj.has("deviceType")) obj.getString("deviceType") else "Desktop",
@@ -148,7 +149,8 @@ fun DashboardScreen(
             val visitor = VisitorDto(
                 _id = obj.getString("_id"),
                 name = obj.getString("name"),
-                email = if (obj.has("email")) obj.getString("email") else null,
+                email = if (obj.has("email") && !obj.isNull("email")) obj.getString("email") else null,
+                phoneNumber = if (obj.has("phoneNumber") && !obj.isNull("phoneNumber")) obj.getString("phoneNumber") else null,
                 country = obj.getString("country"),
                 city = obj.getString("city"),
                 deviceType = obj.getString("deviceType"),
@@ -216,6 +218,7 @@ fun DashboardScreen(
                     _id = visitorObj.getString("_id"),
                     name = visitorObj.getString("name"),
                     email = if (visitorObj.has("email") && !visitorObj.isNull("email")) visitorObj.getString("email") else null,
+                    phoneNumber = if (visitorObj.has("phoneNumber") && !visitorObj.isNull("phoneNumber")) visitorObj.getString("phoneNumber") else null,
                     country = visitorObj.getString("country"),
                     city = visitorObj.getString("city"),
                     deviceType = visitorObj.getString("deviceType"),
@@ -293,7 +296,9 @@ fun DashboardScreen(
                         visitor.country,
                         visitor.city,
                         visitor.deviceType,
-                        visitor.currentUrl
+                        visitor.currentUrl,
+                        visitor.email,
+                        visitor.phoneNumber
                     )
                 }
             } catch (e: Exception) {
@@ -464,7 +469,9 @@ fun DashboardScreen(
                             visitor.country,
                             visitor.city,
                             visitor.deviceType,
-                            visitor.currentUrl
+                            visitor.currentUrl,
+                            visitor.email,
+                            visitor.phoneNumber
                         )
                     } else {
                         // Proactively start conversation for this visitor
@@ -483,7 +490,9 @@ fun DashboardScreen(
                         visitor?.country,
                         visitor?.city,
                         visitor?.deviceType,
-                        visitor?.currentUrl
+                        visitor?.currentUrl,
+                        visitor?.email,
+                        visitor?.phoneNumber
                     )
                 }
             }

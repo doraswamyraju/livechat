@@ -144,6 +144,8 @@ fun AppNavigator(intent: android.content.Intent?) {
     var activeVisitorCity by remember { mutableStateOf("") }
     var activeVisitorDevice by remember { mutableStateOf("") }
     var activeVisitorUrl by remember { mutableStateOf("") }
+    var activeVisitorEmail by remember { mutableStateOf("") }
+    var activeVisitorPhone by remember { mutableStateOf("") }
 
     var initialDashboardTab by remember { mutableStateOf(0) }
 
@@ -178,7 +180,7 @@ fun AppNavigator(intent: android.content.Intent?) {
             
             "dashboard" -> DashboardScreen(
                 initialTab = initialDashboardTab,
-                onNavigateToChat = { convId, name, visId, country, city, device, url ->
+                onNavigateToChat = { convId, name, visId, country, city, device, url, email, phone ->
                     activeConversationId = convId
                     activeVisitorName = name
                     activeVisitorId = visId
@@ -186,6 +188,8 @@ fun AppNavigator(intent: android.content.Intent?) {
                     activeVisitorCity = city ?: "Unknown"
                     activeVisitorDevice = device ?: "Desktop"
                     activeVisitorUrl = url ?: "/"
+                    activeVisitorEmail = email ?: ""
+                    activeVisitorPhone = phone ?: ""
                     currentScreen = "chat"
                 },
                 onSignOut = {
@@ -208,6 +212,8 @@ fun AppNavigator(intent: android.content.Intent?) {
                 initialCity = activeVisitorCity,
                 initialDevice = activeVisitorDevice,
                 initialUrl = activeVisitorUrl,
+                initialEmail = activeVisitorEmail,
+                initialPhone = activeVisitorPhone,
                 onNavigateBack = { currentScreen = "dashboard" }
             )
         }

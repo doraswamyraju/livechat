@@ -39,6 +39,8 @@ fun ChatScreen(
     initialCity: String?,
     initialDevice: String?,
     initialUrl: String?,
+    initialEmail: String? = null,
+    initialPhone: String? = null,
     onNavigateBack: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -59,7 +61,11 @@ fun ChatScreen(
     var visitorCity by remember { mutableStateOf(initialCity ?: "Unknown") }
     var visitorDevice by remember { mutableStateOf(initialDevice ?: "Desktop") }
     var visitorUrl by remember { mutableStateOf(initialUrl ?: "/") }
+    var visitorEmail by remember { mutableStateOf(initialEmail ?: "") }
+    var visitorPhone by remember { mutableStateOf(initialPhone ?: "") }
     var isDetailsExpanded by remember { mutableStateOf(false) }
+
+    var quickRepliesList by remember { mutableStateOf<List<QuickReplyDto>>(emptyList()) }
 
     // Proactive REST fetch for message history
     LaunchedEffect(conversationId) {
@@ -67,6 +73,14 @@ fun ChatScreen(
             try {
                 val list = NetworkClient.api.getMessages(NetworkClient.getAuthHeader(), conversationId)
                 messagesList = list
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        coroutineScope.launch {
+            try {
+                val replies = NetworkClient.api.getQuickReplies(NetworkClient.getAuthHeader())
+                quickRepliesList = replies
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -306,6 +320,20 @@ fun ChatScreen(
                             }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("EMAIL", color = Color(0xFF64748B), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(if (visitorEmail.isNotEmpty()) visitorEmail else "None", color = Color.White, fontSize = 13.sp)
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("PHONE", color = Color(0xFF64748B), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(if (visitorPhone.isNotEmpty()) visitorPhone else "None", color = Color.White, fontSize = 13.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                         Column {
                             Text("CURRENTLY VIEWING", color = Color(0xFF64748B), fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             Text(
@@ -425,21 +453,26 @@ fun ChatScreen(
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val replies = listOf(
-                    "Hello! How can I help you today?",
-                    "Could you please share your email/domain details?",
-                    "One moment please, I am verifying that for you.",
-                    "Thank you for contacting VR HERE! Have a great day!"
-                )
-                items(replies) { reply ->
-                    SuggestionChip(
-                        onClick = { chatInput = reply },
-                        label = { Text(reply, fontSize = 11.sp, color = Color.White) },
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = Color(0xFF1E1E1E)
-                        ),
-                        border = BorderStroke(1.dp, Color(0xFF262626))
-                    )
+                if (quickRepliesList.isNotEmpty()) {
+                    items(quickRepliesList) { qr ->
+                        SuggestionChip(
+                            onClick = { chatInput = qr.text },
+                            label = { Text("${qr.shortcut}: ${qr.text}", fontSize = 11.sp, color = Color.White) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = Color(0xFF1E1E1E)
+                            ),
+                            border = BorderStroke(1.dp, Color(0xFF262626))
+                        )
+                    }
+                } else {
+                    item {
+                        Text(
+                            text = "No quick replies configured.",
+                            fontSize = 11.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
 
