@@ -391,7 +391,7 @@ app.post('/api/auth/fcm-token', authenticateToken, async (req, res) => {
 // 9. Update Visitor Details
 app.put('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
   const { visitorId } = req.params;
-  const { name, email, phoneNumber } = req.body;
+  const { name, email, phoneNumber, isMuted } = req.body;
 
   try {
     const visitor = await Visitor.findOne({ _id: visitorId, tenantId: req.user.tenantId });
@@ -399,10 +399,24 @@ app.put('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
     if (name !== undefined) visitor.name = name;
     if (email !== undefined) visitor.email = email;
     if (phoneNumber !== undefined) visitor.phoneNumber = phoneNumber;
+    if (isMuted !== undefined) visitor.isMuted = isMuted;
     await visitor.save();
     res.status(200).json(visitor);
   } catch (err) {
     console.error('Error updating visitor details:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 9b. Get Single Visitor Details
+app.get('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
+  const { visitorId } = req.params;
+  try {
+    const visitor = await Visitor.findOne({ _id: visitorId, tenantId: req.user.tenantId });
+    if (!visitor) return res.status(404).json({ error: 'Visitor not found' });
+    res.status(200).json(visitor);
+  } catch (err) {
+    console.error('Error fetching visitor details:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

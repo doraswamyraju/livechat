@@ -79,6 +79,7 @@ function App() {
   const [editVisitorName, setEditVisitorName] = useState('');
   const [editVisitorEmail, setEditVisitorEmail] = useState('');
   const [editVisitorPhone, setEditVisitorPhone] = useState('');
+  const [editVisitorMuted, setEditVisitorMuted] = useState(false);
 
   // Profile editing states
   const [profileName, setProfileName] = useState(user?.name || '');
@@ -267,7 +268,7 @@ function App() {
         const existing = prev.find(v => v._id === visitor._id);
         const isAlreadyOnline = existing && existing.isOnline;
 
-        if (!isAlreadyOnline) {
+        if (!isAlreadyOnline && !visitor.isMuted) {
           // Play clean chime chime
           try {
             const audio = new (window.AudioContext || window.webkitAudioContext)();
@@ -327,8 +328,8 @@ function App() {
         return [...prev, { ...conversation, visitorId: visitor }];
       });
 
-      // Play ringing sound/notification for new message or unassigned queue
-      if (conversation.status === 'Unassigned') {
+      // Play ringing sound/notification for new message or unassigned queue (skip if visitor is muted)
+      if (conversation.status === 'Unassigned' && (!visitor || !visitor.isMuted)) {
         try {
           const audio = new AudioContext();
           const osc = audio.createOscillator();
@@ -455,6 +456,7 @@ function App() {
       setEditVisitorName(selectedVisitor.name || '');
       setEditVisitorEmail(selectedVisitor.email || '');
       setEditVisitorPhone(selectedVisitor.phoneNumber || '');
+      setEditVisitorMuted(!!selectedVisitor.isMuted);
     }
   }, [selectedVisitor]);
 
@@ -608,7 +610,8 @@ function App() {
         body: JSON.stringify({
           name: editVisitorName,
           email: editVisitorEmail,
-          phoneNumber: editVisitorPhone
+          phoneNumber: editVisitorPhone,
+          isMuted: editVisitorMuted
         })
       });
       const data = await res.json();
@@ -1073,7 +1076,10 @@ function App() {
                                 <span className={`v-pulse ${visitor.isOnline ? 'anim' : ''}`} style={{ backgroundColor: visitor.isOnline ? 'var(--success)' : 'var(--text-muted)' }}></span>
                                 <span className="v-pulse" style={{ backgroundColor: visitor.isOnline ? 'var(--success)' : 'var(--text-muted)' }}></span>
                               </div>
-                              <div className="visitor-meta-text">{visitor.name}</div>
+                              <div className="visitor-meta-text">
+                                {visitor.name}
+                                {visitor.isMuted && <span title="Muted" style={{ marginLeft: '4px', color: '#EF4444' }}>🔇</span>}
+                              </div>
                             </div>
                           </td>
                           <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
@@ -1109,6 +1115,10 @@ function App() {
                       <div className="form-group" style={{ marginBottom: '8px' }}>
                         <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Phone Number</label>
                         <input type="tel" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorPhone} onChange={(e) => setEditVisitorPhone(e.target.value)} placeholder="e.g. +1 234 567 890" />
+                      </div>
+                      <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <input type="checkbox" id="visitor-muted-check-1" checked={editVisitorMuted} onChange={(e) => setEditVisitorMuted(e.target.checked)} style={{ cursor: 'pointer' }} />
+                        <label htmlFor="visitor-muted-check-1" className="form-label" style={{ fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', margin: 0 }}>Mute & Suppress Alerts</label>
                       </div>
                       <button className="claim-btn" style={{ padding: '6px 12px', fontSize: '12px', marginTop: '4px', backgroundColor: 'var(--primary)' }} onClick={handleUpdateVisitor}>Save Contact Info</button>
                     </div>
@@ -1186,7 +1196,10 @@ function App() {
                         onClick={() => handleSelectConversation(conv)}
                       >
                         <div className="room-card-header">
-                          <span className="room-name">{vis?.name || 'VisitorSession'}</span>
+                          <span className="room-name">
+                            {vis?.name || 'VisitorSession'}
+                            {vis?.isMuted && <span title="Muted" style={{ marginLeft: '4px', color: '#EF4444' }}>🔇</span>}
+                          </span>
                           <span className="room-time">
                             {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
@@ -1318,6 +1331,10 @@ function App() {
                       <div className="form-group" style={{ marginBottom: '8px', padding: '0 12px' }}>
                         <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Phone Number</label>
                         <input type="tel" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorPhone} onChange={(e) => setEditVisitorPhone(e.target.value)} placeholder="e.g. +1 234 567 890" />
+                      </div>
+                      <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', padding: '0 12px' }}>
+                        <input type="checkbox" id="visitor-muted-check-2" checked={editVisitorMuted} onChange={(e) => setEditVisitorMuted(e.target.checked)} style={{ cursor: 'pointer' }} />
+                        <label htmlFor="visitor-muted-check-2" className="form-label" style={{ fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', margin: 0 }}>Mute & Suppress Alerts</label>
                       </div>
                       <div style={{ padding: '0 12px', marginBottom: '12px' }}>
                         <button className="claim-btn" style={{ padding: '6px 12px', fontSize: '12px', marginTop: '4px', width: '100%', backgroundColor: 'var(--primary)' }} onClick={handleUpdateVisitor}>Save Contact Info</button>

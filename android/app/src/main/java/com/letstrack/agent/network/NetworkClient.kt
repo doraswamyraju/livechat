@@ -56,7 +56,8 @@ data class VisitorDto(
     val city: String,
     val deviceType: String,
     val currentUrl: String?,
-    val isOnline: Boolean
+    val isOnline: Boolean,
+    val isMuted: Boolean? = false
 )
 
 data class ConversationDto(
@@ -128,6 +129,19 @@ interface LetsTrackApi {
         @Header("Authorization") token: String,
         @Body request: UpdateProfileRequest
     ): UserProfile
+
+    @PUT("/api/visitors/{id}")
+    suspend fun updateVisitor(
+        @Header("Authorization") token: String,
+        @Path("id") visitorId: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>
+    ): VisitorDto
+
+    @GET("/api/visitors/{id}")
+    suspend fun getVisitor(
+        @Header("Authorization") token: String,
+        @Path("id") visitorId: String
+    ): VisitorDto
 }
 
 // ============================================

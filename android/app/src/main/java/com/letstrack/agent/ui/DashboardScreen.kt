@@ -73,7 +73,8 @@ fun DashboardScreen(
                                 city = if (obj.has("city")) obj.getString("city") else "Unknown",
                                 deviceType = if (obj.has("deviceType")) obj.getString("deviceType") else "Desktop",
                                 currentUrl = if (obj.has("currentUrl") && !obj.isNull("currentUrl")) obj.getString("currentUrl") else null,
-                                isOnline = if (obj.has("isOnline")) obj.getBoolean("isOnline") else false
+                                isOnline = if (obj.has("isOnline")) obj.getBoolean("isOnline") else false,
+                                isMuted = if (obj.has("isMuted")) obj.getBoolean("isMuted") else false
                             )
                         )
                     } catch (e: Exception) {
@@ -155,7 +156,8 @@ fun DashboardScreen(
                 city = obj.getString("city"),
                 deviceType = obj.getString("deviceType"),
                 currentUrl = if (obj.has("currentUrl")) obj.getString("currentUrl") else null,
-                isOnline = obj.getBoolean("isOnline")
+                isOnline = obj.getBoolean("isOnline"),
+                isMuted = if (obj.has("isMuted")) obj.getBoolean("isMuted") else false
             )
             visitorsList = visitorsList.filter { it._id != visitor._id } + visitor
         }

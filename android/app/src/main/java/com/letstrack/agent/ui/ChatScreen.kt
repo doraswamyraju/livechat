@@ -67,7 +67,11 @@ fun ChatScreen(
 
     var quickRepliesList by remember { mutableStateOf<List<QuickReplyDto>>(emptyList()) }
 
-    // Proactive REST fetch for message history
+    var mutableVisitorName by remember { mutableStateOf(visitorName) }
+    var visitorMuted by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+
+    // Proactive REST fetch for message history and visitor details
     LaunchedEffect(conversationId) {
         coroutineScope.launch {
             try {
@@ -81,6 +85,20 @@ fun ChatScreen(
             try {
                 val replies = NetworkClient.api.getQuickReplies(NetworkClient.getAuthHeader())
                 quickRepliesList = replies
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        coroutineScope.launch {
+            try {
+                val visitor = NetworkClient.api.getVisitor(NetworkClient.getAuthHeader(), visitorId)
+                mutableVisitorName = visitor.name
+                visitorEmail = visitor.email ?: ""
+                visitorPhone = visitor.phoneNumber ?: ""
+                visitorCountry = visitor.country
+                visitorCity = visitor.city
+                visitorDevice = visitor.deviceType
+                visitorMuted = visitor.isMuted ?: false
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -194,7 +212,10 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { showEditDialog = true }
+                    ) {
                         Image(
                             painter = painterResource(id = R.drawable.app_logo),
                             contentDescription = "Logo",
@@ -205,9 +226,14 @@ fun ChatScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
-                            Text(visitorName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             Text(
-                                text = if (isVisitorTyping) "typing..." else "Connected via Widget",
+                                text = if (visitorMuted) "$mutableVisitorName 🔇" else mutableVisitorName,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = if (isVisitorTyping) "typing..." else "Connected via Widget (Tap to Edit)",
                                 fontSize = 10.sp,
                                 color = if (isVisitorTyping) Color(0xFFEF4444) else Color.Gray
                             )
@@ -525,5 +551,115 @@ fun ChatScreen(
                 }
             }
         }
+    }
+
+    if (showEditDialog) {
+        var tempName by remember { mutableStateOf(mutableVisitorName) }
+        var tempEmail by remember { mutableStateOf(visitorEmail) }
+        var tempPhone by remember { mutableStateOf(visitorPhone) }
+        var tempMuted by remember { mutableStateOf(visitorMuted) }
+
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Edit Visitor Details", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = tempName,
+                        onValueChange = { tempName = it },
+                        label = { Text("Full Name") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFFEF4444),
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color(0xFFEF4444),
+                            unfocusedLabelColor = Color.Gray
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = tempEmail,
+                        onValueChange = { tempEmail = it },
+                        label = { Text("Email Address") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFFEF4444),
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color(0xFFEF4444),
+                            unfocusedLabelColor = Color.Gray
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = tempPhone,
+                        onValueChange = { tempPhone = it },
+                        label = { Text("Phone Number") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFFEF4444),
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color(0xFFEF4444),
+                            unfocusedLabelColor = Color.Gray
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    ) {
+                        Text("Mute & Suppress Alerts", color = Color.White, fontSize = 14.sp)
+                        Switch(
+                            checked = tempMuted,
+                            onCheckedChange = { tempMuted = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFFEF4444)
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            try {
+                                val body = mapOf(
+                                    "name" to tempName,
+                                    "email" to tempEmail,
+                                    "phoneNumber" to tempPhone,
+                                    "isMuted" to tempMuted
+                                )
+                                val updated = NetworkClient.api.updateVisitor(
+                                    NetworkClient.getAuthHeader(),
+                                    visitorId,
+                                    body
+                                )
+                                mutableVisitorName = updated.name
+                                visitorEmail = updated.email ?: ""
+                                visitorPhone = updated.phoneNumber ?: ""
+                                visitorMuted = updated.isMuted ?: false
+                                showEditDialog = false
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444), contentColor = Color.White)
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) {
+                    Text("Cancel", color = Color.Gray)
+                }
+            },
+            containerColor = Color(0xFF1E293B)
+        )
     }
 }

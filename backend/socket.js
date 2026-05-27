@@ -2,8 +2,8 @@ import { Server } from 'socket.io';
 import { Visitor, Conversation, Message, User, Tenant } from './models.js';
 import { sendPushNotification } from './firebase.js';
 
-// Simple mock Geo-IP lookup resolver for premium analytics
-const mockGeoIP = (ip) => {
+// Real Geo-IP lookup resolver using ip-api.com with stable fallback
+const getGeoIP = async (ip) => {
   const locations = [
     { country: 'United States', city: 'New York' },
     { country: 'Germany', city: 'Berlin' },
@@ -14,18 +14,32 @@ const mockGeoIP = (ip) => {
     { country: 'Canada', city: 'Toronto' },
     { country: 'Australia', city: 'Sydney' }
   ];
-  // Stable random selection based on IP characters
-  let index = 0;
-  if (ip && typeof ip === 'string') {
-    let sum = 0;
-    for (let i = 0; i < ip.length; i++) {
-      sum += ip.charCodeAt(i);
-    }
-    index = sum % locations.length;
-  } else {
-    index = Math.floor(Math.random() * locations.length);
+
+  if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+    return locations[3]; // Fallback to London for local development
   }
-  return locations[index];
+
+  try {
+    const res = await fetch(`http://ip-api.com/json/${ip}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.status === 'success') {
+        return {
+          country: data.country || 'Unknown',
+          city: data.city || 'Unknown'
+        };
+      }
+    }
+  } catch (error) {
+    console.error("Geo-IP lookup error, using fallback:", error);
+  }
+
+  // Stable fallback hash
+  let sum = 0;
+  for (let i = 0; i < ip.length; i++) {
+    sum += ip.charCodeAt(i);
+  }
+  return locations[sum % locations.length];
 };
 
 export const initializeSocket = (httpServer) => {
@@ -74,12 +88,12 @@ export const initializeSocket = (httpServer) => {
         socket.join(`visitor_${currentVisitorId}`);
         activeVisitorSockets.set(currentVisitorId, socket.id);
 
-        // Resolve location info using mockGeoIP
+        // Resolve location info using getGeoIP
         let ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.headers['x-real-ip'] || socket.handshake.address || '127.0.0.1';
         if (ip && ip.includes(',')) {
           ip = ip.split(',')[0].trim();
         }
-        const geo = mockGeoIP(ip);
+        const geo = await getGeoIP(ip);
 
         // 2. Find or Create Visitor
         let visitor = await Visitor.findById(currentVisitorId);
@@ -292,10 +306,12 @@ export const initializeSocket = (httpServer) => {
           visitor
         });
 
-        // 6. Dispatch Real-Time Push Notifications via FCM
+        // 6. Dispatch Real-Time Push Notifications via FCM (skip if visitor is muted)
         try {
           const visitorName = visitor ? visitor.name : 'Visitor';
-          if (conversation.assignedAgentId) {
+          if (visitor && visitor.isMuted) {
+            // Muted, skip notifications
+          } else if (conversation.assignedAgentId) {
             // Case A: Send private alert to the specific assigned agent
             const agent = await User.findById(conversation.assignedAgentId);
             if (agent && agent.fcmToken) {

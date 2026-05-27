@@ -37,6 +37,7 @@ const VisitorSchema = new mongoose.Schema({
   currentUrl: { type: String, default: '' },
   referrer: { type: String, default: '' },
   isOnline: { type: Boolean, default: false },
+  isMuted: { type: Boolean, default: false },
   firstSeen: { type: Date, default: Date.now },
   lastSeen: { type: Date, default: Date.now }
 }, { _id: false }); // Disable automatic _id creation since we supply visitor _id as a custom UUID String.
