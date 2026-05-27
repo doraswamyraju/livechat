@@ -291,11 +291,22 @@ app.put('/api/settings/widget', authenticateToken, async (req, res) => {
   const { primaryColor, headingText, welcomeMessage, preChatEnabled, position, headerTextColor, gradientColor, useGradient, statusText, borderRadius, launcherText } = req.body;
 
   try {
-    const settings = await WidgetSettings.findOneAndUpdate(
-      { tenantId: req.user.tenantId },
-      { primaryColor, headingText, welcomeMessage, preChatEnabled, position, headerTextColor, gradientColor, useGradient, statusText, borderRadius, launcherText },
-      { new: true, upsert: true }
-    );
+    let settings = await WidgetSettings.findOne({ tenantId: req.user.tenantId });
+    if (!settings) {
+      settings = new WidgetSettings({ tenantId: req.user.tenantId });
+    }
+    if (primaryColor !== undefined) settings.primaryColor = primaryColor;
+    if (headingText !== undefined) settings.headingText = headingText;
+    if (welcomeMessage !== undefined) settings.welcomeMessage = welcomeMessage;
+    if (preChatEnabled !== undefined) settings.preChatEnabled = preChatEnabled;
+    if (position !== undefined) settings.position = position;
+    if (headerTextColor !== undefined) settings.headerTextColor = headerTextColor;
+    if (gradientColor !== undefined) settings.gradientColor = gradientColor;
+    if (useGradient !== undefined) settings.useGradient = useGradient;
+    if (statusText !== undefined) settings.statusText = statusText;
+    if (borderRadius !== undefined) settings.borderRadius = borderRadius;
+    if (launcherText !== undefined) settings.launcherText = launcherText;
+    await settings.save();
     res.status(200).json(settings);
   } catch (err) {
     console.error('Error updating settings:', err);
@@ -365,7 +376,11 @@ app.post('/api/auth/fcm-token', authenticateToken, async (req, res) => {
   if (!fcmToken) return res.status(400).json({ error: 'fcmToken required' });
 
   try {
-    await User.findByIdAndUpdate(req.user.userId, { fcmToken });
+    const user = await User.findById(req.user.userId);
+    if (user) {
+      user.fcmToken = fcmToken;
+      await user.save();
+    }
     res.status(200).json({ message: 'FCM Token registered successfully' });
   } catch (err) {
     console.error('Error saving FCM Token:', err);
@@ -379,12 +394,12 @@ app.put('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
   const { name, email, phoneNumber } = req.body;
 
   try {
-    const visitor = await Visitor.findOneAndUpdate(
-      { _id: visitorId, tenantId: req.user.tenantId },
-      { name, email, phoneNumber },
-      { new: true }
-    );
+    const visitor = await Visitor.findOne({ _id: visitorId, tenantId: req.user.tenantId });
     if (!visitor) return res.status(404).json({ error: 'Visitor not found' });
+    if (name !== undefined) visitor.name = name;
+    if (email !== undefined) visitor.email = email;
+    if (phoneNumber !== undefined) visitor.phoneNumber = phoneNumber;
+    await visitor.save();
     res.status(200).json(visitor);
   } catch (err) {
     console.error('Error updating visitor details:', err);
@@ -427,8 +442,9 @@ app.delete('/api/quick-replies/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const deleted = await QuickReply.findOneAndDelete({ _id: id, tenantId: req.user.tenantId });
+    const deleted = await QuickReply.findOne({ _id: id, tenantId: req.user.tenantId });
     if (!deleted) return res.status(404).json({ error: 'Quick reply not found' });
+    await deleted.deleteOne();
     res.status(200).json({ message: 'Quick reply deleted successfully' });
   } catch (err) {
     console.error('Error deleting quick reply:', err);
@@ -444,12 +460,27 @@ app.put('/api/auth/profile', authenticateToken, async (req, res) => {
   if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
 
   try {
-    if (password) {
-      updateData.passwordHash = await bcrypt.hash(password, 10);
-    }
-    const user = await User.findByIdAndUpdate(req.user.userId, updateData, { new: true }).select('-passwordHash');
+    const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.status(200).json(user);
+    if (name) user.name = name;
+    if (avatarUrl !== undefined) user.avatarUrl = avatarUrl;
+    if (password) {
+      user.passwordHash = await bcrypt.hash(password, 10);
+    }
+    await user.save();
+    
+    // Create clean user response without password hash
+    const cleanUser = {
+      _id: user._id,
+      tenantId: user.tenantId,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      avatarUrl: user.avatarUrl,
+      createdAt: user.createdAt
+    };
+    res.status(200).json(cleanUser);
   } catch (err) {
     console.error('Error updating profile:', err);
     res.status(500).json({ error: 'Internal Server Error' });

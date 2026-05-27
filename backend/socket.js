@@ -202,10 +202,12 @@ export const initializeSocket = (httpServer) => {
       if (!currentVisitorId || !currentTenantId) return;
 
       try {
-        await Visitor.findByIdAndUpdate(currentVisitorId, {
-          currentUrl,
-          lastSeen: new Date()
-        });
+        const visitor = await Visitor.findById(currentVisitorId);
+        if (visitor) {
+          visitor.currentUrl = currentUrl;
+          visitor.lastSeen = new Date();
+          await visitor.save();
+        }
 
         // Broadcast navigating event to Dashboard
         dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-navigated', {
@@ -348,7 +350,11 @@ export const initializeSocket = (httpServer) => {
         try {
           // If the visitor hasn't reconnected during this period, mark offline
           if (!activeVisitorSockets.has(currentVisitorId)) {
-            await Visitor.findByIdAndUpdate(currentVisitorId, { isOnline: false });
+            const visitor = await Visitor.findById(currentVisitorId);
+            if (visitor) {
+              visitor.isOnline = false;
+              await visitor.save();
+            }
             dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-disconnected', { visitorId: currentVisitorId });
           }
           disconnectTimers.delete(currentVisitorId);
@@ -378,7 +384,11 @@ export const initializeSocket = (httpServer) => {
         socket.join(`agent_${currentAgentId}`);
 
         // Update Agent status in database
-        await User.findByIdAndUpdate(currentAgentId, { status: 'Online' });
+        const agent = await User.findById(currentAgentId);
+        if (agent) {
+          agent.status = 'Online';
+          await agent.save();
+        }
 
         // Notify other agents that this employee is online
         dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-status-changed', {
@@ -404,7 +414,11 @@ export const initializeSocket = (httpServer) => {
       if (!currentAgentId || !currentTenantId) return;
 
       try {
-        await User.findByIdAndUpdate(currentAgentId, { status });
+        const agent = await User.findById(currentAgentId);
+        if (agent) {
+          agent.status = status;
+          await agent.save();
+        }
         dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-status-changed', {
           agentId: currentAgentId,
           status
@@ -435,10 +449,12 @@ export const initializeSocket = (httpServer) => {
         await message.save();
 
         // Update Conversation
-        await Conversation.findByIdAndUpdate(conversationId, {
-          status: 'Active',
-          updatedAt: new Date()
-        });
+        const conv = await Conversation.findById(conversationId);
+        if (conv) {
+          conv.status = 'Active';
+          conv.updatedAt = new Date();
+          await conv.save();
+        }
 
         // Broadcast to visitor
         visitorNamespace.to(`visitor_${visitorId}`).emit('msg-received', message);
@@ -472,15 +488,14 @@ export const initializeSocket = (httpServer) => {
         if (!prevConv) return;
 
         // Update DB
-        const updatedConversation = await Conversation.findByIdAndUpdate(
-          conversationId,
-          {
-            assignedAgentId,
-            status: assignedAgentId ? 'Active' : 'Unassigned',
-            updatedAt: new Date()
-          },
-          { new: true }
-        ).populate('assignedAgentId', 'name email avatarUrl status');
+        const conv = await Conversation.findById(conversationId);
+        if (conv) {
+          conv.assignedAgentId = assignedAgentId;
+          conv.status = assignedAgentId ? 'Active' : 'Unassigned';
+          conv.updatedAt = new Date();
+          await conv.save();
+        }
+        const updatedConversation = await Conversation.findById(conversationId).populate('assignedAgentId', 'name email avatarUrl status');
 
         // Create System Message log
         const systemMessage = new Message({
@@ -561,7 +576,11 @@ export const initializeSocket = (httpServer) => {
 
       try {
         // Optional: wait a moment or mark offline immediately. For simplicity we mark Offline.
-        await User.findByIdAndUpdate(currentAgentId, { status: 'Offline' });
+        const agent = await User.findById(currentAgentId);
+        if (agent) {
+          agent.status = 'Offline';
+          await agent.save();
+        }
         dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-status-changed', {
           agentId: currentAgentId,
           status: 'Offline'
