@@ -7,7 +7,7 @@ class SocketManager: ObservableObject {
     static let shared = SocketManager()
     
     private var manager: SocketIO.SocketManager?
-    private var socket: SocketIO.SocketClient?
+    private var socket: SocketIO.SocketIOClient?
     
     @Published var isConnected = false
     @Published var visitorsList: [VisitorDto] = []

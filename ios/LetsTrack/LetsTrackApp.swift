@@ -1,7 +1,75 @@
 import SwiftUI
+import FirebaseCore
+import FirebaseMessaging
+import UserNotifications
+
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        
+        // 1. Check if GoogleService-Info.plist exists before configuring Firebase to prevent crash
+        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+            Messaging.messaging().delegate = self
+            print("[Push Notification Debug] Firebase configured successfully.")
+        } else {
+            print("[Push Notification Debug] WARNING: GoogleService-Info.plist not found. FCM will not be initialized.")
+        }
+        
+        // 2. Request remote notification authorization
+        UNUserNotificationCenter.current().delegate = self
+        let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]
+        UNUserNotificationCenter.current().requestAuthorization(options: authOptions) { granted, error in
+            if let error = error {
+                print("[Push Notification Debug] Error requesting notification auth: \(error)")
+            } else {
+                print("[Push Notification Debug] Notification authorization granted: \(granted)")
+            }
+        }
+        
+        application.registerForRemoteNotifications()
+        return true
+    }
+    
+    // APNs registration succeeded
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        print("[Push Notification Debug] APNs Device Token: \(tokenString)")
+        // Pass APNs token to Firebase Messaging
+        Messaging.messaging().apnsToken = deviceToken
+    }
+    
+    // APNs registration failed
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("[Push Notification Debug] Failed to register for remote notifications: \(error)")
+    }
+    
+    // Receive FCM registration token
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        print("[Push Notification Debug] Firebase FCM Token: \(String(describing: fcmToken))")
+        if let fcmToken = fcmToken {
+            Task {
+                do {
+                    try await NetworkClient.shared.registerFcmToken(fcmToken: fcmToken)
+                    print("[Push Notification Debug] FCM Token registered successfully with backend.")
+                } catch {
+                    print("[Push Notification Debug] Failed to register FCM Token with backend: \(error)")
+                }
+            }
+        }
+    }
+    
+    // Handle foreground notifications
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([[.banner, .sound, .badge]])
+    }
+}
 
 @main
 struct LetsTrackApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var themeManager = ThemeManager()
     @StateObject private var networkClient = NetworkClient.shared
     

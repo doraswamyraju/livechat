@@ -179,7 +179,7 @@ struct TabBarItem: View {
                     .foregroundColor(selection == index ? .white : .gray)
                     .frame(height: 28)
                     .padding(.horizontal, 16)
-                    .background(selection == index ? theme.primaryColor.cornerRadius(12) : Color.clear)
+                    .background(theme.primaryColor.cornerRadius(12).opacity(selection == index ? 1 : 0))
                 
                 Text(label)
                     .font(.system(size: 10, weight: selection == index ? .bold : .regular))

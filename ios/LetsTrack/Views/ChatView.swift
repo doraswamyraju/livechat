@@ -601,7 +601,7 @@ struct EditVisitorSheet: View {
                     Button("Cancel") {
                         isPresented = false
                     }
-                    .font(.semibold)
+                    .fontWeight(.semibold)
                     .foregroundColor(.gray)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
