@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		13BE27FD2FEA7DEE00A2F449 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 13BE27FC2FEA7DEE00A2F449 /* FirebaseCore */; };
+		13BE27FF2FEA7DF500A2F449 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 13BE27FE2FEA7DF500A2F449 /* FirebaseMessaging */; };
 		5E0406212DA0CFF300C3B312 /* LetsTrackApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E0406012DA0CFF300C3B312 /* LetsTrackApp.swift */; };
 		5E0406222DA0CFF300C3B312 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E0406022DA0CFF300C3B312 /* ThemeManager.swift */; };
 		5E0406232DA0CFF300C3B312 /* SocketManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E0406032DA0CFF300C3B312 /* SocketManager.swift */; };
@@ -18,8 +20,6 @@
 		5E0406292DA0CFF300C3B312 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E0406092DA0CFF300C3B312 /* DashboardView.swift */; };
 		5E04062A2DA0CFF300C3B312 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E04060A2DA0CFF300C3B312 /* LoginView.swift */; };
 		5E0407032DA0CFF300C3B312 /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = 5E0407022DA0CFF300C3B312 /* SocketIO */; };
-		5E0407132DA0CFF300C3B312 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5E0407122DA0CFF300C3B312 /* FirebaseCore */; };
-		5E0407152DA0CFF300C3B312 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 5E0407142DA0CFF300C3B312 /* FirebaseMessaging */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,20 +42,28 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				13BE27FF2FEA7DF500A2F449 /* FirebaseMessaging in Frameworks */,
+				13BE27FD2FEA7DEE00A2F449 /* FirebaseCore in Frameworks */,
 				5E0407032DA0CFF300C3B312 /* SocketIO in Frameworks */,
-				5E0407132DA0CFF300C3B312 /* FirebaseCore in Frameworks */,
-				5E0407152DA0CFF300C3B312 /* FirebaseMessaging in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		13BE27FB2FEA7DEE00A2F449 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		5E0405A42DA0CFF300C3B312 = {
 			isa = PBXGroup;
 			children = (
 				5E0405C42DA0CFF300C3B312 /* LetsTrack */,
 				5E0405A32DA0CFF300C3B312 /* LetsTrack.app */,
+				13BE27FB2FEA7DEE00A2F449 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -103,8 +111,8 @@
 			name = LetsTrack;
 			packageProductDependencies = (
 				5E0407022DA0CFF300C3B312 /* SocketIO */,
-				5E0407122DA0CFF300C3B312 /* FirebaseCore */,
-				5E0407142DA0CFF300C3B312 /* FirebaseMessaging */,
+				13BE27FC2FEA7DEE00A2F449 /* FirebaseCore */,
+				13BE27FE2FEA7DF500A2F449 /* FirebaseMessaging */,
 			);
 			productName = LetsTrack;
 			productReference = 5E0405A32DA0CFF300C3B312 /* LetsTrack.app */;
@@ -118,7 +126,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					5E0405A22DA0CFF300C3B312 = {
 						CreatedOnToolsVersion = 15.0;
@@ -137,7 +145,7 @@
 			mainGroup = 5E0405A42DA0CFF300C3B312;
 			packageReferences = (
 				5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */,
-				5E0407112DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				13BE27FA2FEA7CC800A2F449 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			productRefGroup = 5E0405A42DA0CFF300C3B312;
 			projectDirPath = "";
@@ -187,12 +195,11 @@
 				CODE_SIGN_ENTITLEMENTS = LetsTrack/LetsTrack.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = UDYR7AUVZ7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -214,12 +221,11 @@
 				CODE_SIGN_ENTITLEMENTS = LetsTrack/LetsTrack.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = UDYR7AUVZ7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -265,10 +271,13 @@
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = UDYR7AUVZ7;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -281,6 +290,7 @@
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_ACTUAL = YES_AGGRESSIVE;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -288,6 +298,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -325,22 +336,27 @@
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = UDYR7AUVZ7;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_ACTUAL = YES_AGGRESSIVE;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 			};
@@ -370,6 +386,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		13BE27FA2FEA7CC800A2F449 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.15.0;
+			};
+		};
 		5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/socketio/socket.io-client-swift.git";
@@ -378,31 +402,23 @@
 				minimumVersion = 16.1.0;
 			};
 		};
-		5E0407112DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 10.0.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		13BE27FC2FEA7DEE00A2F449 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 13BE27FA2FEA7CC800A2F449 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		13BE27FE2FEA7DF500A2F449 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 13BE27FA2FEA7CC800A2F449 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
 		5E0407022DA0CFF300C3B312 /* SocketIO */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */;
 			productName = SocketIO;
-		};
-		5E0407122DA0CFF300C3B312 /* FirebaseCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5E0407112DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCore;
-		};
-		5E0407142DA0CFF300C3B312 /* FirebaseMessaging */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5E0407112DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
