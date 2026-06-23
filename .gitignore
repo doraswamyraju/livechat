@@ -28,4 +28,9 @@ Thumbs.db
 # Swift Package Manager & Xcode
 **/.build/
 **/.swiftpm/
+**/xcuserdata/
+**/*.mode1v3
+**/*.mode2v3
+**/*.perspectivev3
+
 

@@ -51,7 +51,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		5E0405A42DA0CFF300C3B312 /* CustomMainGroup */ = {
+		5E0405A42DA0CFF300C3B312 = {
 			isa = PBXGroup;
 			children = (
 				5E0405C42DA0CFF300C3B312 /* LetsTrack */,
@@ -101,14 +101,14 @@
 			dependencies = (
 			);
 			name = LetsTrack;
-			productName = LetsTrack;
-			productReference = 5E0405A32DA0CFF300C3B312 /* LetsTrack.app */;
-			productType = "com.apple.product-type.application";
 			packageProductDependencies = (
 				5E0407022DA0CFF300C3B312 /* SocketIO */,
 				5E0407122DA0CFF300C3B312 /* FirebaseCore */,
 				5E0407142DA0CFF300C3B312 /* FirebaseMessaging */,
 			);
+			productName = LetsTrack;
+			productReference = 5E0405A32DA0CFF300C3B312 /* LetsTrack.app */;
+			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
@@ -120,7 +120,7 @@
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
-					5E0405A22DA0CFF300C3B312 /* LetsTrack */ = {
+					5E0405A22DA0CFF300C3B312 = {
 						CreatedOnToolsVersion = 15.0;
 						LastSwiftMigration = 1500;
 					};
@@ -134,12 +134,12 @@
 				en,
 				Base,
 			);
-			mainGroup = 5E0405A42DA0CFF300C3B312 /* CustomMainGroup */;
+			mainGroup = 5E0405A42DA0CFF300C3B312;
 			packageReferences = (
 				5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */,
 				5E0407112DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
-			productRefGroup = 5E0405A42DA0CFF300C3B312 /* CustomMainGroup */;
+			productRefGroup = 5E0405A42DA0CFF300C3B312;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -178,43 +178,6 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/socketio/socket.io-client-swift.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 16.1.0;
-			};
-		};
-		5E0407112DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 10.0.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		5E0407022DA0CFF300C3B312 /* SocketIO */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */;
-			productName = SocketIO;
-		};
-		5E0407122DA0CFF300C3B312 /* FirebaseCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5E0407112DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCore;
-		};
-		5E0407142DA0CFF300C3B312 /* FirebaseMessaging */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5E0407112DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseMessaging;
-		};
-/* End XCSwiftPackageProductDependency section */
-
 /* Begin XCBuildConfiguration section */
 		5E0405AC2DA0CFF300C3B312 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -224,13 +187,11 @@
 				CODE_SIGN_ENTITLEMENTS = LetsTrack/LetsTrack.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = UDYR7AUVZ7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UIBackgroundModes = (
-					"remote-notification",
-				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -253,13 +214,11 @@
 				CODE_SIGN_ENTITLEMENTS = LetsTrack/LetsTrack.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = UDYR7AUVZ7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UIBackgroundModes = (
-					"remote-notification",
-				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -409,6 +368,43 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/socketio/socket.io-client-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 16.1.0;
+			};
+		};
+		5E0407112DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 10.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5E0407022DA0CFF300C3B312 /* SocketIO */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */;
+			productName = SocketIO;
+		};
+		5E0407122DA0CFF300C3B312 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5E0407112DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		5E0407142DA0CFF300C3B312 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5E0407112DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 5E0405A12DA0CFF300C3B312 /* Project object */;
 }
