@@ -36,8 +36,7 @@ export const sendPushNotification = async (fcmToken, title, body, data = {}) => 
   const message = {
     notification: { 
       title, 
-      body,
-      sound: 'default'
+      body
     },
     apns: {
       payload: {
