@@ -39,6 +39,9 @@ export const sendPushNotification = async (fcmToken, title, body, data = {}) => 
       body
     },
     apns: {
+      headers: {
+        'apns-priority': '10'
+      },
       payload: {
         aps: {
           sound: 'default'
@@ -46,6 +49,7 @@ export const sendPushNotification = async (fcmToken, title, body, data = {}) => 
       }
     },
     android: {
+      priority: 'high',
       notification: {
         sound: 'default'
       }
