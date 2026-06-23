@@ -180,6 +180,7 @@ export const initializeSocket = (httpServer) => {
           });
         };
         const lastSeenFormatted = previousLastSeen ? formatDateTime(previousLastSeen) : 'Never';
+        const displayUrl = (visitor.currentUrl === '/' || !visitor.currentUrl) ? 'home' : visitor.currentUrl;
 
         // Send FCM push notification for visitor online to all agents
         if (wasOffline) {
@@ -190,7 +191,7 @@ export const initializeSocket = (httpServer) => {
                 const title = isNewVisitor ? "🟢 New Visitor Online!" : "⚡️ Visitor Returned Online!";
                 const body = isNewVisitor 
                   ? `👤 ${visitor.name} has just landed on your website.`
-                  : `👤 ${visitor.name} returned. Last seen: ${lastSeenFormatted} on URL: ${visitor.currentUrl}`;
+                  : `👤 ${visitor.name} returned. Last seen: ${lastSeenFormatted} on URL: ${displayUrl}`;
                 await sendPushNotification(
                   staff.fcmToken,
                   title,
@@ -216,7 +217,7 @@ export const initializeSocket = (httpServer) => {
                 senderType: 'System',
                 senderId: 'SYSTEM',
                 senderName: 'System',
-                text: `Visitor returned online. Last seen: ${lastSeenFormatted} on ${visitor.currentUrl}`,
+                text: `Visitor returned online. Last seen: ${lastSeenFormatted} on URL: ${displayUrl}`,
                 timestamp: new Date()
               });
               await systemMsg.save();
