@@ -26,8 +26,8 @@ struct UserProfile: Codable, Identifiable, Hashable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
         email = try container.decode(String.self, forKey: .email)
-        role = try container.decode(String.self, forKey: .role)
-        status = try container.decode(String.self, forKey: .status)
+        role = (try? container.decode(String.self, forKey: .role)) ?? "Agent"
+        status = (try? container.decode(String.self, forKey: .status)) ?? "Offline"
         
         if let decodedId = try? container.decode(String.self, forKey: .id) {
             id = decodedId
@@ -64,8 +64,8 @@ struct TenantDetails: Codable, Hashable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
-        domain = try container.decode(String.self, forKey: .domain)
-        apiKey = try container.decode(String.self, forKey: .apiKey)
+        domain = (try? container.decode(String.self, forKey: .domain)) ?? ""
+        apiKey = (try? container.decode(String.self, forKey: .apiKey)) ?? ""
         
         if let decodedId = try? container.decode(String.self, forKey: .id) {
             id = decodedId

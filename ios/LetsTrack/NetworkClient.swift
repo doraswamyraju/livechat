@@ -39,7 +39,7 @@ class NetworkClient: ObservableObject {
                     }
                 }
             } catch {
-                print("Failed to decode saved profile sessions: \(error)")
+                print("[Session Decode Debug] Failed to decode saved profile sessions with error: \(error)")
                 clearAuth()
             }
         }

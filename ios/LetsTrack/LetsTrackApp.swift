@@ -73,6 +73,30 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([[.banner, .sound, .badge]])
     }
+    
+    // Handle notification click/tap
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        let userInfo = response.notification.request.content.userInfo
+        print("[Push Notification Debug] Notification tapped with userInfo: \(userInfo)")
+        
+        if let conversationId = userInfo["conversationId"] as? String {
+            let visitorName = userInfo["visitorName"] as? String ?? "Visitor"
+            let visitorId = userInfo["visitorId"] as? String ?? ""
+            
+            DispatchQueue.main.async {
+                SocketManager.shared.pendingDeepLink = DeepLinkTarget(
+                    conversationId: conversationId,
+                    visitorName: visitorName,
+                    visitorId: visitorId
+                )
+                print("[Push Notification Debug] Set pending deep link: \(conversationId) for \(visitorName)")
+            }
+        }
+        
+        completionHandler()
+    }
 }
 
 @main

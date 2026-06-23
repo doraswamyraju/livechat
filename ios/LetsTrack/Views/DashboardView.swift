@@ -79,6 +79,12 @@ struct DashboardView: View {
                     visitorId: conversation.visitorId
                 )
             }
+            .onAppear {
+                checkForPendingDeepLink()
+            }
+            .onChange(of: socketManager.pendingDeepLink) { _ in
+                checkForPendingDeepLink()
+            }
         }
     }
     
@@ -160,6 +166,22 @@ struct DashboardView: View {
         self.activeVisitorName = visitorName
         self.activeVisitorId = visitorId
         self.navigationToChat = true
+    }
+    
+    private func checkForPendingDeepLink() {
+        guard let deepLink = socketManager.pendingDeepLink else { return }
+        
+        print("[Push Notification Debug] Found pending deep link to conversation: \(deepLink.conversationId)")
+        
+        // Navigate to the chat screen
+        navigateToChatScreen(
+            conversationId: deepLink.conversationId,
+            visitorName: deepLink.visitorName,
+            visitorId: deepLink.visitorId
+        )
+        
+        // Clear it so it doesn't trigger again
+        socketManager.pendingDeepLink = nil
     }
 }
 

@@ -137,8 +137,8 @@ export const initializeSocket = (httpServer) => {
               if (staff.fcmToken) {
                 await sendPushNotification(
                   staff.fcmToken,
-                  isNewVisitor ? "New Visitor Online!" : "Visitor Returned Online!",
-                  `${visitor.name} has just landed on your website.`,
+                  isNewVisitor ? "🟢 New Visitor Online!" : "⚡️ Visitor Returned Online!",
+                  `👤 ${visitor.name} has just landed on your website.`,
                   { type: "new-visitor", visitorId: currentVisitorId }
                 );
               }
@@ -317,8 +317,8 @@ export const initializeSocket = (httpServer) => {
             if (agent && agent.fcmToken) {
               await sendPushNotification(
                 agent.fcmToken,
-                `Message from ${visitorName}`,
-                text,
+                `💬 Message from ${visitorName}`,
+                `“${text}”`,
                 { conversationId: conversation._id.toString(), visitorName }
               );
             }
@@ -329,8 +329,8 @@ export const initializeSocket = (httpServer) => {
               if (staff.fcmToken) {
                 await sendPushNotification(
                   staff.fcmToken,
-                  `New Chat Request!`,
-                  `${visitorName} started a live chat.`,
+                  `⚡️ New Chat Request!`,
+                  `👤 ${visitorName} is waiting for assistance.`,
                   { conversationId: conversation._id.toString(), visitorName }
                 );
               }

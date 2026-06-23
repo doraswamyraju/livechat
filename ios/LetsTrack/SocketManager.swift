@@ -3,6 +3,12 @@ import SocketIO
 import Combine
 import SwiftUI
 
+struct DeepLinkTarget: Equatable {
+    let conversationId: String
+    let visitorName: String
+    let visitorId: String
+}
+
 class SocketManager: ObservableObject {
     static let shared = SocketManager()
     
@@ -10,6 +16,7 @@ class SocketManager: ObservableObject {
     private var socket: SocketIO.SocketIOClient?
     
     @Published var isConnected = false
+    @Published var pendingDeepLink: DeepLinkTarget? = nil
     @Published var visitorsList: [VisitorDto] = []
     @Published var conversationsList: [ConversationDto] = []
     @Published var agentsList: [UserProfile] = []
