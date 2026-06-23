@@ -590,6 +590,7 @@ struct InboxTab: View {
                         }
                     }
                 }
+            }
             .padding(.horizontal)
         }
     }
