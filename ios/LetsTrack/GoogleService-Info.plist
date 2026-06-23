@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>letstrack.newversion.myapp</string>
+	<string>com.doraswamyraju.LetsTrack</string>
 	<key>PROJECT_ID</key>
 	<string>letstrack-b3440</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:555140790013:ios:610530993e26445e1c3094</string>
+	<string>1:555140790013:ios:85f432426c8e9da41c3094</string>
 </dict>
 </plist>
