@@ -48,13 +48,21 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
         print("[Push Notification Debug] Firebase FCM Token: \(String(describing: fcmToken))")
         if let fcmToken = fcmToken {
-            Task {
-                do {
-                    try await NetworkClient.shared.registerFcmToken(fcmToken: fcmToken)
-                    print("[Push Notification Debug] FCM Token registered successfully with backend.")
-                } catch {
-                    print("[Push Notification Debug] Failed to register FCM Token with backend: \(error)")
+            // Save token to UserDefaults for persistence across authentication states
+            UserDefaults.standard.set(fcmToken, forKey: "fcm_token")
+            
+            // Only try to register if we are already authenticated
+            if NetworkClient.shared.isAuthenticated {
+                Task {
+                    do {
+                        try await NetworkClient.shared.registerFcmToken(fcmToken: fcmToken)
+                        print("[Push Notification Debug] FCM Token registered successfully with backend.")
+                    } catch {
+                        print("[Push Notification Debug] Failed to register FCM Token with backend: \(error)")
+                    }
                 }
+            } else {
+                print("[Push Notification Debug] User is not authenticated yet. Saved FCM token locally.")
             }
         }
     }

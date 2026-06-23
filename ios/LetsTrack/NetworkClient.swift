@@ -26,6 +26,18 @@ class NetworkClient: ObservableObject {
                 self.authToken = token
                 self.currentUser = user
                 self.currentTenant = tenant
+                
+                // Re-register FCM token on startup if we have it saved
+                if let fcmToken = userDefaults.string(forKey: "fcm_token") {
+                    Task {
+                        do {
+                            try await self.registerFcmToken(fcmToken: fcmToken)
+                            print("[Push Notification Debug] FCM Token re-registered successfully on launch.")
+                        } catch {
+                            print("[Push Notification Debug] Failed to re-register FCM Token on launch: \(error)")
+                        }
+                    }
+                }
             } catch {
                 print("Failed to decode saved profile sessions: \(error)")
                 clearAuth()
@@ -48,6 +60,18 @@ class NetworkClient: ObservableObject {
         }
         if let tenantJson = try? encoder.encode(tenant) {
             userDefaults.set(tenantJson, forKey: "tenant_details")
+        }
+        
+        // Register saved FCM token if available
+        if let fcmToken = userDefaults.string(forKey: "fcm_token") {
+            Task {
+                do {
+                    try await self.registerFcmToken(fcmToken: fcmToken)
+                    print("[Push Notification Debug] FCM Token registered successfully with backend on login.")
+                } catch {
+                    print("[Push Notification Debug] Failed to register FCM Token with backend on login: \(error)")
+                }
+            }
         }
     }
     
