@@ -21,6 +21,7 @@ function App() {
   const [selectedVisitor, setSelectedVisitor] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [inboxFilter, setInboxFilter] = useState('all'); // all, mine, unassigned, agent-<id>
   
   // Status Selector
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
@@ -1181,38 +1182,109 @@ function App() {
             <div className="inbox-container">
               {/* 1. Chats Rooms List */}
               <div className="pane-rooms">
-                <div className="rooms-filter-tabs">
-                  <button className="filter-tab active">All Queues</button>
+                <div className="rooms-filter-tabs" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button 
+                      className={`filter-tab ${inboxFilter === 'all' ? 'active' : ''}`} 
+                      onClick={() => setInboxFilter('all')}
+                      style={{ flex: 1, padding: '8px 4px' }}
+                    >
+                      All
+                    </button>
+                    <button 
+                      className={`filter-tab ${inboxFilter === 'mine' ? 'active' : ''}`} 
+                      onClick={() => setInboxFilter('mine')}
+                      style={{ flex: 1, padding: '8px 4px' }}
+                    >
+                      Mine
+                    </button>
+                    <button 
+                      className={`filter-tab ${inboxFilter === 'unassigned' ? 'active' : ''}`} 
+                      onClick={() => setInboxFilter('unassigned')}
+                      style={{ flex: 1, padding: '8px 4px' }}
+                    >
+                      Queue
+                    </button>
+                  </div>
+                  
+                  <select
+                    value={inboxFilter.startsWith('agent-') ? inboxFilter : ''}
+                    onChange={(e) => setInboxFilter(e.target.value || 'all')}
+                    style={{
+                      background: 'var(--bg-tertiary)',
+                      color: 'var(--text-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      width: '100%'
+                    }}
+                  >
+                    <option value="">Filter by Employee...</option>
+                    {agents.map(a => (
+                      <option key={a._id} value={`agent-${a._id}`}>
+                        👤 {a.name} ({a.role})
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="rooms-list">
-                  {conversations.map(conv => {
-                    const vis = typeof conv.visitorId === 'object' ? conv.visitorId : visitors.find(v => v._id === conv.visitorId);
-                    const agentName = conv.assignedAgentId ? conv.assignedAgentId.name : 'Unassigned';
+                  {(() => {
+                    let filtered = [...conversations];
+                    if (inboxFilter === 'mine') {
+                      filtered = filtered.filter(c => c.assignedAgentId && (c.assignedAgentId._id === user.id || c.assignedAgentId === user.id));
+                    } else if (inboxFilter === 'unassigned') {
+                      filtered = filtered.filter(c => c.status === 'Unassigned');
+                    } else if (inboxFilter.startsWith('agent-')) {
+                      const agentId = inboxFilter.split('agent-')[1];
+                      filtered = filtered.filter(c => c.assignedAgentId && (c.assignedAgentId._id === agentId || c.assignedAgentId === agentId));
+                    }
                     
-                    return (
-                      <div
-                        key={conv._id}
-                        className={`room-card ${selectedConversation?._id === conv._id ? 'active' : ''}`}
-                        onClick={() => handleSelectConversation(conv)}
-                      >
-                        <div className="room-card-header">
-                          <span className="room-name">
-                            {vis?.name || 'VisitorSession'}
-                            {vis?.isMuted && <span title="Muted" style={{ marginLeft: '4px', color: '#EF4444' }}>🔇</span>}
-                          </span>
-                          <span className="room-time">
-                            {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    const sorted = filtered.sort((a, b) => {
+                      const getStatusWeight = (status) => {
+                        if (status === 'Active') return 3;
+                        if (status === 'Unassigned') return 2;
+                        return 1;
+                      };
+                      const weightA = getStatusWeight(a.status);
+                      const weightB = getStatusWeight(b.status);
+                      if (weightA !== weightB) {
+                        return weightB - weightA;
+                      }
+                      return new Date(b.updatedAt) - new Date(a.updatedAt);
+                    });
+
+                    return sorted.map(conv => {
+                      const vis = typeof conv.visitorId === 'object' ? conv.visitorId : visitors.find(v => v._id === conv.visitorId);
+                      const agentName = conv.assignedAgentId ? conv.assignedAgentId.name : 'Unassigned';
+                      
+                      return (
+                        <div
+                          key={conv._id}
+                          className={`room-card ${selectedConversation?._id === conv._id ? 'active' : ''}`}
+                          onClick={() => handleSelectConversation(conv)}
+                        >
+                          <div className="room-card-header">
+                            <span className="room-name">
+                              {vis?.name || 'VisitorSession'}
+                              {vis?.isMuted && <span title="Muted" style={{ marginLeft: '4px', color: '#EF4444' }}>🔇</span>}
+                            </span>
+                            <span className="room-time">
+                              {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="room-preview">
+                            {conv.status === 'Unassigned' ? 'Waiting for agent...' : 'Active chat in progress'}
+                          </div>
+                          <span className="room-assignee" style={{ borderLeft: `2px solid ${conv.assignedAgentId ? 'var(--primary)' : 'var(--warning)'}` }}>
+                            👤 {agentName}
                           </span>
                         </div>
-                        <div className="room-preview">
-                          {conv.status === 'Unassigned' ? 'Waiting for agent...' : 'Active chat in progress'}
-                        </div>
-                        <span className="room-assignee" style={{ borderLeft: `2px solid ${conv.assignedAgentId ? 'var(--primary)' : 'var(--warning)'}` }}>
-                          👤 {agentName}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               </div>
 
@@ -1698,37 +1770,43 @@ function App() {
                 </div>
                 <div className="card-body-scroll">
                   <table className="visitor-list-table">
-                    <thead>
-                      <tr>
-                        <th>Employee Name</th>
-                        <th>Email Username</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {agents.map(agent => (
-                        <tr key={agent._id}>
-                          <td>
-                            <div className="visitor-badge-info">
-                              <div className="agent-avatar" style={{ width: '28px', height: '28px', fontSize: '11px' }}>{agent.name[0]}</div>
-                              <div style={{ fontWeight: '600' }}>{agent.name} {agent._id === user.id ? '(You)' : ''}</div>
-                            </div>
-                          </td>
-                          <td style={{ color: 'var(--text-secondary)' }}>{agent.email}</td>
-                          <td>
-                            <span className="path-tag" style={{ color: agent.role === 'Admin' ? '#EC4899' : 'var(--primary)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                              {agent.role}
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`status-dot ${agent.status.toLowerCase()}`} style={{ marginRight: '6px' }}></span>
-                            {agent.status}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                     <thead>
+                       <tr>
+                         <th>Employee Name</th>
+                         <th>Email Username</th>
+                         <th>Role</th>
+                         <th>Active Chats Handled</th>
+                         <th>Status</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       {agents.map(agent => (
+                         <tr key={agent._id}>
+                           <td>
+                             <div className="visitor-badge-info">
+                               <div className="agent-avatar" style={{ width: '28px', height: '28px', fontSize: '11px' }}>{agent.name[0]}</div>
+                               <div style={{ fontWeight: '600' }}>{agent.name} {agent._id === user.id ? '(You)' : ''}</div>
+                             </div>
+                           </td>
+                           <td style={{ color: 'var(--text-secondary)' }}>{agent.email}</td>
+                           <td>
+                             <span className="path-tag" style={{ color: agent.role === 'Admin' ? '#EC4899' : 'var(--primary)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                               {agent.role}
+                             </span>
+                           </td>
+                           <td>
+                             <span className="path-tag" style={{ color: '#10B981', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '2px 8px', borderRadius: '4px' }}>
+                               {conversations.filter(c => c.assignedAgentId && (c.assignedAgentId._id === agent._id || c.assignedAgentId === agent._id)).length} active
+                             </span>
+                           </td>
+                           <td>
+                             <span className={`status-dot ${agent.status.toLowerCase()}`} style={{ marginRight: '6px' }}></span>
+                             {agent.status}
+                           </td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
                 </div>
               </div>
 

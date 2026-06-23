@@ -569,28 +569,27 @@ struct InboxTab: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 80)
                 } else {
-                    if !unassignedChats.isEmpty {
-                        Text("Pending Unassigned Queue (\(unassignedChats.count))")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(theme.secondaryColor)
-                        
-                        ForEach(unassignedChats) { conv in
-                            conversationCard(conv: conv)
-                        }
-                    }
-                    
                     if !activeChats.isEmpty {
                         Text("Active Chats In Progress (\(activeChats.count))")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(theme.statusOnlineColor)
-                            .padding(.top, 8)
                         
                         ForEach(activeChats) { conv in
                             conversationCard(conv: conv)
                         }
                     }
+                    
+                    if !unassignedChats.isEmpty {
+                        Text("Pending Unassigned Queue (\(unassignedChats.count))")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(theme.secondaryColor)
+                            .padding(.top, 8)
+                        
+                        ForEach(unassignedChats) { conv in
+                            conversationCard(conv: conv)
+                        }
+                    }
                 }
-            }
             .padding(.horizontal)
         }
     }

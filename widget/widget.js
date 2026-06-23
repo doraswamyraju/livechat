@@ -9,9 +9,10 @@
   const BACKEND_URL = '__BACKEND_URL__'; // Dynamically replaced by server at runtime
   
   // Generate or retrieve persistent visitor UUID
-  let visitorId = localStorage.getItem('letstrack_visitor_uuid');
-  if (!visitorId) {
-    visitorId = 'v_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const savedVisitorId = localStorage.getItem('letstrack_visitor_uuid');
+  const isRevisit = !!savedVisitorId;
+  const visitorId = savedVisitorId || ('v_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15));
+  if (!savedVisitorId) {
     localStorage.setItem('letstrack_visitor_uuid', visitorId);
   }
 
@@ -763,8 +764,29 @@
       phoneNumber: localStorage.getItem('letstrack_visitor_phone') || ''
     };
 
+    // Helper utility: Requests HTML5 coordinates
+    const getPreciseLocation = () => {
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          return resolve(null);
+        }
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude
+            });
+          },
+          () => {
+            resolve(null);
+          },
+          { timeout: 5000 }
+        );
+      });
+    };
+
     // Helper to send visitor initialization state
-    const sendVisitorInit = () => {
+    const sendVisitorInit = (coords = null) => {
       const browserInfo = getBrowserInfo();
       socket.emit('visitor-init', {
         apiKey: API_KEY,
@@ -776,22 +798,32 @@
         phoneNumber: visitorProfile.phoneNumber,
         browser: browserInfo.browser,
         os: browserInfo.os,
-        deviceType: browserInfo.deviceType
+        deviceType: browserInfo.deviceType,
+        latitude: coords ? coords.latitude : null,
+        longitude: coords ? coords.longitude : null
       });
     };
 
-    socket.on('connect', () => {
-      sendVisitorInit();
+    socket.on('connect', async () => {
+      const coords = await getPreciseLocation();
+      sendVisitorInit(coords);
     });
 
     socket.on('visitor-init-success', (data) => {
       visitorProfile.name = data.name;
       
-      // If prechat form is complete or disabled, render chat directly
-      if (!settings.preChatEnabled || (visitorProfile.name && !visitorProfile.name.startsWith('Visitor #'))) {
+      // On revisit, if they are missing real contact details, show the form
+      const hasRealName = visitorProfile.name && !visitorProfile.name.startsWith('Visitor #');
+      const hasEmail = visitorProfile.email && visitorProfile.email.trim().length > 0;
+      const hasPhone = visitorProfile.phoneNumber && visitorProfile.phoneNumber.trim().length > 0;
+      const needsLeadCapture = !hasRealName || !hasEmail || !hasPhone;
+
+      if (isRevisit && needsLeadCapture) {
+        renderPreChatForm(true);
+      } else if (!settings.preChatEnabled || hasRealName) {
         renderChatUI();
       } else {
-        renderPreChatForm();
+        renderPreChatForm(false);
       }
     });
 
@@ -853,22 +885,34 @@
     // ------------------------------------------
     // RENDER INTERACTION PANELS
     // ------------------------------------------
-    function renderPreChatForm() {
+    function renderPreChatForm(isRevisitForm = false) {
       // Clear body
       body.innerHTML = '';
       
       const formWrap = document.createElement('div');
       formWrap.className = 'pre-chat-form';
+      
+      const welcomeText = isRevisitForm 
+        ? "Welcome back! Please update or confirm your contact details to connect with us:" 
+        : settings.welcomeMessage;
+        
+      let skipBtnHtml = '';
+      if (isRevisitForm) {
+        skipBtnHtml = `<button type="button" class="pre-chat-btn" id="prechat-skip" style="background-color: #6B7280; margin-top: 8px;">Skip & Chat</button>`;
+      }
+
       formWrap.innerHTML = `
-        <p class="pre-chat-text">${settings.welcomeMessage}</p>
-        <input type="text" class="pre-chat-input" id="prechat-name" placeholder="Your Name" required />
-        <input type="email" class="pre-chat-input" id="prechat-email" placeholder="Your Email (Optional)" />
-        <input type="tel" class="pre-chat-input" id="prechat-phone" placeholder="Phone Number (Optional)" />
-        <button type="button" class="pre-chat-btn" id="prechat-submit">Start Live Chat</button>
+        <p class="pre-chat-text">${welcomeText}</p>
+        <input type="text" class="pre-chat-input" id="prechat-name" placeholder="Your Name" value="${visitorProfile.name && !visitorProfile.name.startsWith('Visitor #') ? visitorProfile.name : ''}" required />
+        <input type="email" class="pre-chat-input" id="prechat-email" placeholder="Your Email" value="${visitorProfile.email || ''}" />
+        <input type="tel" class="pre-chat-input" id="prechat-phone" placeholder="Phone Number" value="${visitorProfile.phoneNumber || ''}" />
+        <button type="button" class="pre-chat-btn" id="prechat-submit">Submit Details</button>
+        ${skipBtnHtml}
       `;
       body.appendChild(formWrap);
 
       const submitBtn = formWrap.querySelector('#prechat-submit');
+      const skipBtn = formWrap.querySelector('#prechat-skip');
       const nameInput = formWrap.querySelector('#prechat-name');
       const emailInput = formWrap.querySelector('#prechat-email');
       const phoneInput = formWrap.querySelector('#prechat-phone');
@@ -888,17 +932,19 @@
         visitorProfile.phoneNumber = phoneVal;
 
         localStorage.setItem('letstrack_visitor_name', nameVal);
-        if (emailVal) {
-          localStorage.setItem('letstrack_visitor_email', emailVal);
-        }
-        if (phoneVal) {
-          localStorage.setItem('letstrack_visitor_phone', phoneVal);
-        }
+        localStorage.setItem('letstrack_visitor_email', emailVal);
+        localStorage.setItem('letstrack_visitor_phone', phoneVal);
 
         // Re-authenticate visitor with updated credentials
         sendVisitorInit();
         renderChatUI();
       };
+
+      if (skipBtn) {
+        skipBtn.onclick = () => {
+          renderChatUI();
+        };
+      }
     }
 
     function renderChatUI() {

@@ -42,6 +42,29 @@ const getGeoIP = async (ip) => {
   return locations[sum % locations.length];
 };
 
+// Precise HTML5 reverse-geocoding using OpenStreetMap Nominatim API
+const reverseGeocode = async (lat, lon) => {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'LetsTrack-LiveChat-Agent/1.0'
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.address) {
+        const city = data.address.city || data.address.town || data.address.village || data.address.suburb || 'Unknown';
+        const country = data.address.country || 'Unknown';
+        return { city, country };
+      }
+    }
+  } catch (error) {
+    console.error("OSM reverse geocoding lookup failed:", error);
+  }
+  return null;
+};
+
 export const initializeSocket = (httpServer) => {
   const io = new Server(httpServer, {
     cors: {
@@ -65,7 +88,7 @@ export const initializeSocket = (httpServer) => {
     let currentTenantId = null;
 
     socket.on('visitor-init', async (data) => {
-      const { apiKey, visitorId, currentUrl, referrer, name, email, phoneNumber, browser, os, deviceType } = data;
+      const { apiKey, visitorId, currentUrl, referrer, name, email, phoneNumber, browser, os, deviceType, latitude, longitude } = data;
       
       try {
         // 1. Verify Tenant API Key
@@ -88,18 +111,30 @@ export const initializeSocket = (httpServer) => {
         socket.join(`visitor_${currentVisitorId}`);
         activeVisitorSockets.set(currentVisitorId, socket.id);
 
-        // Resolve location info using getGeoIP
-        let ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.headers['x-real-ip'] || socket.handshake.address || '127.0.0.1';
-        if (ip && ip.includes(',')) {
-          ip = ip.split(',')[0].trim();
+        // Resolve location info using Geolocation or getGeoIP fallback
+        let geo = { country: 'Unknown', city: 'Unknown' };
+        if (latitude && longitude) {
+          const rev = await reverseGeocode(latitude, longitude);
+          if (rev) {
+            geo = rev;
+          } else {
+            let ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.headers['x-real-ip'] || socket.handshake.address || '127.0.0.1';
+            if (ip && ip.includes(',')) ip = ip.split(',')[0].trim();
+            geo = await getGeoIP(ip);
+          }
+        } else {
+          let ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.headers['x-real-ip'] || socket.handshake.address || '127.0.0.1';
+          if (ip && ip.includes(',')) ip = ip.split(',')[0].trim();
+          geo = await getGeoIP(ip);
         }
-        const geo = await getGeoIP(ip);
 
         // 2. Find or Create Visitor
         let visitor = await Visitor.findById(currentVisitorId);
         const isNewVisitor = !visitor;
         const wasOffline = !visitor || !visitor.isOnline;
         const oldUrl = visitor ? visitor.currentUrl : '';
+        const previousLastSeen = visitor ? visitor.lastSeen : null;
+
         if (!visitor) {
           visitor = new Visitor({
             _id: currentVisitorId,
@@ -107,7 +142,7 @@ export const initializeSocket = (httpServer) => {
             name: name || `Visitor #${Math.floor(1000 + Math.random() * 9000)}`,
             email: email || '',
             phoneNumber: phoneNumber || '',
-            ipAddress: ip,
+            ipAddress: socket.handshake.address || '127.0.0.1',
             country: geo.country,
             city: geo.city,
             deviceType: deviceType || 'Desktop',
@@ -123,11 +158,28 @@ export const initializeSocket = (httpServer) => {
           visitor.isOnline = true;
           visitor.currentUrl = currentUrl || visitor.currentUrl;
           visitor.lastSeen = new Date();
+          visitor.city = geo.city;
+          visitor.country = geo.country;
           if (name) visitor.name = name;
           if (email) visitor.email = email;
           if (phoneNumber) visitor.phoneNumber = phoneNumber;
         }
         await visitor.save();
+
+        // Helper to format date-time human-readably
+        const formatDateTime = (date) => {
+          if (!date) return 'Never';
+          const d = new Date(date);
+          return d.toLocaleString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric', 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true
+          });
+        };
+        const lastSeenFormatted = previousLastSeen ? formatDateTime(previousLastSeen) : 'Never';
 
         // Send FCM push notification for visitor online to all agents
         if (wasOffline) {
@@ -135,16 +187,45 @@ export const initializeSocket = (httpServer) => {
             const staffList = await User.find({ tenantId: currentTenantId });
             for (const staff of staffList) {
               if (staff.fcmToken) {
+                const title = isNewVisitor ? "🟢 New Visitor Online!" : "⚡️ Visitor Returned Online!";
+                const body = isNewVisitor 
+                  ? `👤 ${visitor.name} has just landed on your website.`
+                  : `👤 ${visitor.name} returned. Last seen: ${lastSeenFormatted} on URL: ${visitor.currentUrl}`;
                 await sendPushNotification(
                   staff.fcmToken,
-                  isNewVisitor ? "🟢 New Visitor Online!" : "⚡️ Visitor Returned Online!",
-                  `👤 ${visitor.name} has just landed on your website.`,
+                  title,
+                  body,
                   { type: "new-visitor", visitorId: currentVisitorId }
                 );
               }
             }
           } catch (err) {
             console.error('Error dispatching visitor push notification:', err);
+          }
+
+          // Also save system message for revisit in the latest conversation
+          if (!isNewVisitor) {
+            const lastConv = await Conversation.findOne({
+              tenantId: currentTenantId,
+              visitorId: currentVisitorId
+            }).sort({ updatedAt: -1 });
+
+            if (lastConv) {
+              const systemMsg = new Message({
+                conversationId: lastConv._id,
+                senderType: 'System',
+                senderId: 'SYSTEM',
+                senderName: 'System',
+                text: `Visitor returned online. Last seen: ${lastSeenFormatted} on ${visitor.currentUrl}`,
+                timestamp: new Date()
+              });
+              await systemMsg.save();
+
+              dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-msg-received', {
+                conversationId: lastConv._id,
+                message: systemMsg
+              });
+            }
           }
         }
 

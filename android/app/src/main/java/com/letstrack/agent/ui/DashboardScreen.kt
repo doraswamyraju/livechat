@@ -912,21 +912,6 @@ fun InboxTab(
             }
         }
 
-        if (unassignedChats.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Pending Unassigned Queue (${unassignedChats.size})",
-                    color = Color(0xFFEF4444),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                )
-            }
-            items(unassignedChats) { conv ->
-                ConversationCard(conv, visitors, onSelectChat)
-            }
-        }
-
         if (activeChats.isNotEmpty()) {
             item {
                 Text(
@@ -934,10 +919,25 @@ fun InboxTab(
                     color = Color(0xFF10B981),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                 )
             }
             items(activeChats) { conv ->
+                ConversationCard(conv, visitors, onSelectChat)
+            }
+        }
+
+        if (unassignedChats.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Pending Unassigned Queue (${unassignedChats.size})",
+                    color = Color(0xFFEF4444),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                )
+            }
+            items(unassignedChats) { conv ->
                 ConversationCard(conv, visitors, onSelectChat)
             }
         }
