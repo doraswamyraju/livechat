@@ -276,7 +276,12 @@ export const initializeSocket = (httpServer) => {
             conversationId: conversation._id,
             $or: [
               { senderType: { $ne: 'System' } },
-              { text: { $not: /^Visitor navigated to/ } }
+              {
+                $and: [
+                  { text: { $not: /^Visitor navigated to/ } },
+                  { text: { $not: /URL:/ } }
+                ]
+              }
             ]
           }).sort({ timestamp: 1 });
           socket.emit('chat-history', {
