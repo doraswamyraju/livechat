@@ -176,22 +176,23 @@ fun AppNavigator(
     var activeVisitorPhone by remember { mutableStateOf("") }
 
     var initialDashboardTab by remember { mutableStateOf(0) }
+    var pendingVisitorIdNotification by remember { mutableStateOf("") }
 
     // Read intent parameters on startup or intent updates
     LaunchedEffect(intent) {
         intent?.let {
             val convId = it.getStringExtra("conversationId")
             val name = it.getStringExtra("visitorName")
-            val type = it.getStringExtra("type")
+            val visitorId = it.getStringExtra("visitorId")
             
             if (currentScreen == "dashboard" || currentScreen == "chat") {
                 if (!convId.isNullOrEmpty()) {
                     activeConversationId = convId
                     activeVisitorName = name ?: "Visitor"
-                    activeVisitorId = it.getStringExtra("visitorId") ?: ""
+                    activeVisitorId = visitorId ?: ""
                     currentScreen = "chat"
-                } else if (type == "new-visitor") {
-                    initialDashboardTab = 1 // Navigate to Traffic logs
+                } else if (!visitorId.isNullOrEmpty()) {
+                    pendingVisitorIdNotification = visitorId
                     currentScreen = "dashboard"
                 }
             }
@@ -210,6 +211,8 @@ fun AppNavigator(
                 initialTab = initialDashboardTab,
                 currentTheme = currentTheme,
                 onThemeChange = onThemeChange,
+                pendingVisitorIdNotification = pendingVisitorIdNotification,
+                onClearPendingVisitorNotification = { pendingVisitorIdNotification = "" },
                 onNavigateToChat = { convId, name, visId, country, city, device, url, email, phone ->
                     activeConversationId = convId
                     activeVisitorName = name

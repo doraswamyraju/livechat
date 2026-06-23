@@ -2,21 +2,21 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-primary: #080B11;
-  --bg-secondary: #0E131F;
-  --bg-tertiary: #171E30;
-  --bg-accent: #1D263B;
+  --bg-primary: #000000;
+  --bg-secondary: #121212;
+  --bg-tertiary: #1A1A1A;
+  --bg-accent: #262626;
   
-  --primary: #8B5CF6;
-  --primary-hover: #7C3AED;
-  --primary-glow: rgba(139, 92, 246, 0.35);
+  --primary: #DC2626;
+  --primary-hover: #B91C1C;
+  --primary-glow: rgba(220, 38, 38, 0.35);
   
   --text-primary: #F9FAFB;
   --text-secondary: #9CA3AF;
   --text-muted: #6B7280;
   
-  --border-color: rgba(255, 255, 255, 0.06);
-  --border-focus: rgba(139, 92, 246, 0.5);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(220, 38, 38, 0.5);
   
   --success: #10B981;
   --success-glow: rgba(16, 185, 129, 0.2);
@@ -108,7 +108,7 @@ h1, h2, h3, h4, h5, h6 {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--primary), #EC4899);
+  background: linear-gradient(135deg, var(--primary), var(--danger));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -310,6 +310,17 @@ h1, h2, h3, h4, h5, h6 {
   padding: 32px;
   overflow-y: auto;
   background-color: var(--bg-primary);
+}
+
+.viewport-content.chat-viewport {
+  padding: 0;
+  overflow: hidden;
+}
+
+.viewport-content.chat-viewport .inbox-container {
+  border-radius: 0;
+  border: none;
+  height: 100%;
 }
 
 /* Phase 3 View 1: Active Monitor List */

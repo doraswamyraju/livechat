@@ -81,17 +81,18 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let userInfo = response.notification.request.content.userInfo
         print("[Push Notification Debug] Notification tapped with userInfo: \(userInfo)")
         
-        if let conversationId = userInfo["conversationId"] as? String {
-            let visitorName = userInfo["visitorName"] as? String ?? "Visitor"
-            let visitorId = userInfo["visitorId"] as? String ?? ""
-            
+        let conversationId = userInfo["conversationId"] as? String ?? ""
+        let visitorId = userInfo["visitorId"] as? String ?? ""
+        let visitorName = userInfo["visitorName"] as? String ?? "Visitor"
+        
+        if !conversationId.isEmpty || !visitorId.isEmpty {
             DispatchQueue.main.async {
                 SocketManager.shared.pendingDeepLink = DeepLinkTarget(
                     conversationId: conversationId,
                     visitorName: visitorName,
                     visitorId: visitorId
                 )
-                print("[Push Notification Debug] Set pending deep link: \(conversationId) for \(visitorName)")
+                print("[Push Notification Debug] Set pending deep link: conversationId=\(conversationId), visitorId=\(visitorId), name=\(visitorName)")
             }
         }
         

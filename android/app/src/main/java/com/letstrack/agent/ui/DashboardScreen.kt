@@ -36,6 +36,8 @@ fun DashboardScreen(
     initialTab: Int = 0,
     currentTheme: String,
     onThemeChange: (String) -> Unit,
+    pendingVisitorIdNotification: String = "",
+    onClearPendingVisitorNotification: () -> Unit = {},
     onNavigateToChat: (String, String, String, String?, String?, String?, String?, String?, String?) -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -329,6 +331,34 @@ fun DashboardScreen(
             socket.off("visitor-msg")
             socket.off("conversation-created")
             socket.off("start-conversation-success")
+        }
+    }
+
+    // Handle pending visitor deep link notification clicks
+    LaunchedEffect(conversationsList, pendingVisitorIdNotification) {
+        if (pendingVisitorIdNotification.isNotEmpty()) {
+            val conv = conversationsList.find { it.visitorId == pendingVisitorIdNotification }
+            if (conv != null) {
+                val visitor = visitorsList.find { it._id == pendingVisitorIdNotification }
+                onNavigateToChat(
+                    conv._id,
+                    visitor?.name ?: "Visitor",
+                    pendingVisitorIdNotification,
+                    visitor?.country,
+                    visitor?.city,
+                    visitor?.deviceType,
+                    visitor?.currentUrl,
+                    visitor?.email,
+                    visitor?.phoneNumber
+                )
+                onClearPendingVisitorNotification()
+            } else {
+                if (visitorsList.isNotEmpty()) {
+                    val data = JSONObject().put("visitorId", pendingVisitorIdNotification)
+                    NetworkClient.getSocketInstance().emit("start-conversation", data)
+                    onClearPendingVisitorNotification()
+                }
+            }
         }
     }
 

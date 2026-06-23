@@ -17,6 +17,16 @@ function App() {
   // DB & WebSockets State Arrays
   const [visitors, setVisitors] = useState([]);
   const [conversations, setConversations] = useState([]);
+  
+  const conversationsRef = useRef(conversations);
+  const visitorsRef = useRef(visitors);
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+  useEffect(() => {
+    visitorsRef.current = visitors;
+  }, [visitors]);
+
   const [agents, setAgents] = useState([]);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
@@ -33,13 +43,13 @@ function App() {
 
   // Widget settings configuration
   const [widgetSettings, setWidgetSettings] = useState({
-    primaryColor: '#7C3AED',
+    primaryColor: '#DC2626',
     headingText: 'Chat with Us!',
     welcomeMessage: 'Hi there! How can we help you today?',
     preChatEnabled: false,
     position: 'bottom-right',
     headerTextColor: '#ffffff',
-    gradientColor: '#312E81',
+    gradientColor: '#450A0A',
     useGradient: true,
     statusText: 'Typically replies instantly',
     borderRadius: 16,
@@ -242,6 +252,11 @@ function App() {
   useEffect(() => {
     if (!token || !tenant || !user) return;
 
+    // Request native notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
     // Connect to dashboard namespace
     const socket = io(`${BACKEND_URL}/dashboard`);
     socketRef.current = socket;
@@ -287,6 +302,34 @@ function App() {
           } catch (e) {}
 
           showToast(`New visitor online: ${visitor.name}`);
+
+          if ('Notification' in window && Notification.permission === 'granted') {
+            const isNew = !existing;
+            const title = isNew ? "🟢 New Visitor Online!" : "⚡️ Visitor Returned Online!";
+            const body = isNew 
+              ? `👤 ${visitor.name} has just landed on your website.`
+              : `👤 ${visitor.name} has returned online.`;
+            const notification = new Notification(title, {
+              body: body,
+              tag: `visitor-${visitor._id}`
+            });
+            notification.onclick = () => {
+              window.focus();
+              setActiveTab('chat');
+              // Open this visitor's chat thread
+              const existingConv = conversationsRef.current.find(c => {
+                const vId = c.visitorId?._id || c.visitorId;
+                return vId === visitor._id;
+              });
+              if (existingConv) {
+                handleSelectConversation(existingConv);
+              } else {
+                if (socketRef.current) {
+                  socketRef.current.emit('start-conversation', { visitorId: visitor._id });
+                }
+              }
+            };
+          }
         }
 
         const index = prev.findIndex(v => v._id === visitor._id);
@@ -328,6 +371,34 @@ function App() {
         }
         return [...prev, { ...conversation, visitorId: visitor }];
       });
+
+      // Show native notification if page is backgrounded or not actively viewing this conversation
+      const isWindowActive = document.hasFocus() && activeTab === 'chat' && selectedConversation && selectedConversation._id === conversation._id;
+      const shouldNotify = !isWindowActive && (!visitor || !visitor.isMuted) && 
+        (conversation.status === 'Unassigned' || 
+         (conversation.assignedAgentId && (conversation.assignedAgentId === user.id || conversation.assignedAgentId._id === user.id)));
+
+      if (shouldNotify && 'Notification' in window && Notification.permission === 'granted') {
+        const isUnassigned = conversation.status === 'Unassigned';
+        const title = isUnassigned ? `⚡️ New Chat Request!` : `💬 Message from ${visitor?.name || 'Visitor'}`;
+        const body = isUnassigned 
+          ? `👤 ${visitor?.name || 'Visitor'} is waiting for assistance.`
+          : message.text;
+        const notification = new Notification(title, {
+          body: body,
+          tag: `conversation-${conversation._id}`
+        });
+        notification.onclick = () => {
+          window.focus();
+          setActiveTab('chat');
+          const existingConv = conversationsRef.current.find(c => c._id === conversation._id);
+          if (existingConv) {
+            handleSelectConversation(existingConv);
+          } else {
+            handleSelectConversation({ ...conversation, visitorId: visitor });
+          }
+        };
+      }
 
       // Play ringing sound/notification for new message or unassigned queue (skip if visitor is muted)
       if (conversation.status === 'Unassigned' && (!visitor || !visitor.isMuted)) {
@@ -952,7 +1023,7 @@ function App() {
         </div>
 
         {/* Dynamic Viewport */}
-        <div className="viewport-content">
+        <div className={`viewport-content ${activeTab === 'chat' ? 'chat-viewport' : ''}`}>
           
           {/* A. ANALYTICS VIEW */}
           {activeTab === 'analytics' && (
@@ -1790,7 +1861,7 @@ function App() {
                            </td>
                            <td style={{ color: 'var(--text-secondary)' }}>{agent.email}</td>
                            <td>
-                             <span className="path-tag" style={{ color: agent.role === 'Admin' ? '#EC4899' : 'var(--primary)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                             <span className="path-tag" style={{ color: agent.role === 'Admin' ? '#EF4444' : 'var(--primary)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
                                {agent.role}
                              </span>
                            </td>

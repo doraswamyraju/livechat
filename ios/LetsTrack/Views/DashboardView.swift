@@ -85,6 +85,12 @@ struct DashboardView: View {
             .onChange(of: socketManager.pendingDeepLink) { _ in
                 checkForPendingDeepLink()
             }
+            .onChange(of: socketManager.isConnected) { _ in
+                checkForPendingDeepLink()
+            }
+            .onChange(of: socketManager.conversationsList) { _ in
+                checkForPendingDeepLink()
+            }
         }
     }
     
@@ -171,17 +177,40 @@ struct DashboardView: View {
     private func checkForPendingDeepLink() {
         guard let deepLink = socketManager.pendingDeepLink else { return }
         
-        print("[Push Notification Debug] Found pending deep link to conversation: \(deepLink.conversationId)")
+        // If not connected yet, wait for connection and sync to complete
+        guard socketManager.isConnected else {
+            print("[Push Notification Debug] Socket not connected yet, deferring deep link check.")
+            return
+        }
         
-        // Navigate to the chat screen
-        navigateToChatScreen(
-            conversationId: deepLink.conversationId,
-            visitorName: deepLink.visitorName,
-            visitorId: deepLink.visitorId
-        )
+        print("[Push Notification Debug] Found pending deep link: conversationId=\(deepLink.conversationId), visitorId=\(deepLink.visitorId)")
         
-        // Clear it so it doesn't trigger again
-        socketManager.pendingDeepLink = nil
+        if deepLink.conversationId.isEmpty {
+            // Check if we have an existing conversation in conversationsList matching visitorId
+            if let existing = socketManager.conversationsList.first(where: { $0.visitorId == deepLink.visitorId }) {
+                navigateToChatScreen(
+                    conversationId: existing.id,
+                    visitorName: deepLink.visitorName.isEmpty ? (socketManager.visitorsList.first(where: { $0.id == deepLink.visitorId })?.name ?? "Visitor") : deepLink.visitorName,
+                    visitorId: deepLink.visitorId
+                )
+                socketManager.pendingDeepLink = nil
+            } else {
+                // If the dashboard visitorsList is loaded (meaning we've synced), proactively start conversation
+                if !socketManager.visitorsList.isEmpty {
+                    socketManager.startConversation(visitorId: deepLink.visitorId)
+                    socketManager.pendingDeepLink = nil
+                } else {
+                    print("[Push Notification Debug] Deferring visitor deep link check: lists not synced yet.")
+                }
+            }
+        } else {
+            navigateToChatScreen(
+                conversationId: deepLink.conversationId,
+                visitorName: deepLink.visitorName,
+                visitorId: deepLink.visitorId
+            )
+            socketManager.pendingDeepLink = nil
+        }
     }
 }
 
