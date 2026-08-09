@@ -107,10 +107,23 @@ export async function initializeWhatsAppClient(tenantId) {
 
     // Sync existing WhatsApp chats
     try {
-      const chats = await client.getChats();
-      console.log(`Syncing ${chats.length} existing chats for tenant ${tId}...`);
+      let chats = [];
+      // Poll getChats until at least one direct chat is loaded (wait up to 24 seconds)
+      for (let attempt = 1; attempt <= 6; attempt++) {
+        chats = await client.getChats();
+        const directChats = chats.filter(c => !c.isGroup && c.id._serialized !== 'status@broadcast');
+        if (directChats.length > 0) {
+          console.log(`WhatsApp Web chats loaded successfully on attempt ${attempt}. Found ${directChats.length} direct chats.`);
+          break;
+        }
+        console.log(`Attempt ${attempt}: Waiting for WhatsApp Web to load chats from phone...`);
+        await new Promise(resolve => setTimeout(resolve, 4000));
+      }
+
+      console.log(`Syncing ${chats.length} total chats for tenant ${tId}...`);
       for (const chat of chats) {
         if (chat.isGroup) continue;
+        if (chat.id._serialized === 'status@broadcast') continue;
 
         const fromJid = chat.id._serialized;
         const phoneNo = fromJid.split('@')[0];
