@@ -115,6 +115,9 @@ function App() {
   const [newChatInitialMessage, setNewChatInitialMessage] = useState('');
   const [newChatLoading, setNewChatLoading] = useState(false);
 
+  // Channel Category Tab Filter
+  const [channelFilter, setChannelFilter] = useState('all'); // 'all', 'webchat', 'whatsapp-web', 'whatsapp-api', 'social'
+
   const fetchIntegrations = async () => {
     if (!token) return;
     try {
@@ -1468,6 +1471,108 @@ function App() {
                     💬 + New Chat
                   </button>
                   
+                  {/* Channel categories tabs */}
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(5, 1fr)', 
+                    gap: '4px',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    borderRadius: '8px',
+                    padding: '3px',
+                    border: '1px solid var(--border-color)'
+                  }}>
+                    <button
+                      onClick={() => setChannelFilter('all')}
+                      style={{
+                        padding: '6px 2px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: channelFilter === 'all' ? 'var(--bg-secondary)' : 'transparent',
+                        color: channelFilter === 'all' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        fontSize: '10.5px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.2s'
+                      }}
+                      title="All Channels"
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setChannelFilter('webchat')}
+                      style={{
+                        padding: '6px 2px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: channelFilter === 'webchat' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                        color: channelFilter === 'webchat' ? '#818CF8' : 'var(--text-secondary)',
+                        fontSize: '10.5px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Web Chat"
+                    >
+                      Web
+                    </button>
+                    <button
+                      onClick={() => setChannelFilter('whatsapp-web')}
+                      style={{
+                        padding: '6px 2px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: channelFilter === 'whatsapp-web' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                        color: channelFilter === 'whatsapp-web' ? '#34D399' : 'var(--text-secondary)',
+                        fontSize: '10.5px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.2s'
+                      }}
+                      title="WhatsApp Linked"
+                    >
+                      WA
+                    </button>
+                    <button
+                      onClick={() => setChannelFilter('whatsapp-api')}
+                      style={{
+                        padding: '6px 2px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: channelFilter === 'whatsapp-api' ? 'rgba(20, 184, 166, 0.15)' : 'transparent',
+                        color: channelFilter === 'whatsapp-api' ? '#2DD4BF' : 'var(--text-secondary)',
+                        fontSize: '10.5px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.2s'
+                      }}
+                      title="WhatsApp Official API"
+                    >
+                      API
+                    </button>
+                    <button
+                      onClick={() => setChannelFilter('social')}
+                      style={{
+                        padding: '6px 2px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: channelFilter === 'social' ? 'rgba(236, 72, 153, 0.15)' : 'transparent',
+                        color: channelFilter === 'social' ? '#F472B6' : 'var(--text-secondary)',
+                        fontSize: '10.5px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Messenger & Instagram"
+                    >
+                      Social
+                    </button>
+                  </div>
+                  
                   <div style={{ display: 'flex', gap: '4px' }}>
                     <button 
                       className={`filter-tab ${inboxFilter === 'all' ? 'active' : ''}`} 
@@ -1518,6 +1623,18 @@ function App() {
                 <div className="rooms-list">
                   {(() => {
                     let filtered = [...conversations];
+                    
+                    // Filter by Channel Type
+                    if (channelFilter === 'webchat') {
+                      filtered = filtered.filter(c => !c.source || c.source === 'webchat');
+                    } else if (channelFilter === 'whatsapp-web') {
+                      filtered = filtered.filter(c => c.source === 'whatsapp-web');
+                    } else if (channelFilter === 'whatsapp-api') {
+                      filtered = filtered.filter(c => c.source === 'whatsapp-api');
+                    } else if (channelFilter === 'social') {
+                      filtered = filtered.filter(c => c.source === 'facebook' || c.source === 'instagram');
+                    }
+
                     if (inboxFilter === 'mine') {
                       filtered = filtered.filter(c => c.assignedAgentId && (c.assignedAgentId._id === user.id || c.assignedAgentId === user.id));
                     } else if (inboxFilter === 'unassigned') {

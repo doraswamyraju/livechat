@@ -706,6 +706,40 @@ app.post('/api/conversations/start-external', authenticateToken, async (req, res
   }
 });
 
+// 9. Debug Conversations & Database State
+app.get('/api/conversations/debug', authenticateToken, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    
+    const conversations = await Conversation.find({ tenantId });
+    const visitors = await Visitor.find({ tenantId });
+    const messages = await Message.find({});
+    
+    const stats = {
+      totalConversations: conversations.length,
+      totalVisitors: visitors.length,
+      totalMessages: messages.length,
+      groupedBySource: conversations.reduce((acc, c) => {
+        const src = c.source || 'webchat';
+        acc[src] = (acc[src] || 0) + 1;
+        return acc;
+      }, {}),
+      conversationsList: conversations.map(c => ({
+        id: c._id,
+        source: c.source || 'webchat',
+        status: c.status,
+        visitorId: c.visitorId,
+        updatedAt: c.updatedAt
+      }))
+    };
+    
+    res.status(200).json(stats);
+  } catch (err) {
+    console.error('Debug endpoint failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============================================
 // SERVE DEMO SITE STATICALLY (Allows correct HTTP Origin and PushState Routing)
 // ============================================
