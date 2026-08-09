@@ -98,16 +98,100 @@ export async function initializeWhatsAppClient(tenantId) {
     }
   });
 
-  client.on('ready', () => {
+  client.on('ready', async () => {
     clientData.status = 'CONNECTED';
     clientData.qr = null;
     console.log(`WhatsApp Web client is ready for tenant ${tId}`);
 
-    if (dashboardNamespace) {
-      dashboardNamespace.to(`tenant_${tId}`).emit('whatsapp-web-status', {
-        status: 'CONNECTED',
-        qr: null
-      });
+    // Sync existing WhatsApp chats
+    try {
+      const chats = await client.getChats();
+      console.log(`Syncing ${chats.length} existing chats for tenant ${tId}...`);
+      for (const chat of chats) {
+        if (chat.isGroup) continue;
+
+        const fromJid = chat.id._serialized;
+        const phoneNo = fromJid.split('@')[0];
+        const contactName = chat.name || `WhatsApp Contact (+${phoneNo})`;
+
+        // 1. Find or create Visitor
+        const visitorId = `whatsapp-web:${fromJid}`;
+        let visitor = await Visitor.findById(visitorId);
+        if (!visitor) {
+          visitor = new Visitor({
+            _id: visitorId,
+            tenantId: tId,
+            name: contactName,
+            phoneNumber: phoneNo,
+            source: 'whatsapp-web',
+            isOnline: true
+          });
+          await visitor.save();
+        }
+
+        // 2. Find or create Conversation
+        let conversation = await Conversation.findOne({
+          tenantId: tId,
+          visitorId: visitorId,
+          status: { $ne: 'Closed' }
+        });
+
+        if (!conversation) {
+          conversation = new Conversation({
+            tenantId: tId,
+            visitorId: visitorId,
+            status: 'Unassigned',
+            source: 'whatsapp-web',
+            assignedAgentId: null,
+            updatedAt: chat.timestamp ? new Date(chat.timestamp * 1000) : new Date()
+          });
+          await conversation.save();
+        }
+
+        // 3. Sync last message if any
+        const lastMsgs = await chat.fetchMessages({ limit: 1 });
+        if (lastMsgs && lastMsgs.length > 0) {
+          const lastMsg = lastMsgs[0];
+          const textContent = lastMsg.body || '[Media/Non-text message]';
+          const timestamp = new Date(lastMsg.timestamp * 1000);
+
+          const messageExists = await Message.findOne({ 
+            conversationId: conversation._id, 
+            text: textContent, 
+            timestamp: timestamp 
+          });
+
+          if (!messageExists) {
+            const message = new Message({
+              conversationId: conversation._id,
+              senderType: lastMsg.fromMe ? 'Agent' : 'Visitor',
+              senderId: lastMsg.fromMe ? 'AGENT' : visitorId,
+              senderName: lastMsg.fromMe ? 'Agent' : contactName,
+              text: textContent,
+              timestamp: timestamp
+            });
+            await message.save();
+          }
+        }
+      }
+
+      // Sync active lists (visitors + conversations + agents) to all agents in tenant
+      const visitors = await Visitor.find({ tenantId: tId });
+      const conversations = await Conversation.find({ tenantId: tId, status: { $ne: 'Closed' } }).populate('assignedAgentId', 'name email avatarUrl status');
+      
+      if (dashboardNamespace) {
+        // Emit updated lists to dashboard agents
+        dashboardNamespace.to(`tenant_${tId}`).emit('whatsapp-web-status', {
+          status: 'CONNECTED',
+          qr: null
+        });
+        
+        // Push full updates
+        dashboardNamespace.to(`tenant_${tId}`).emit('whatsapp-sync-complete', { visitors, conversations });
+      }
+
+    } catch (syncErr) {
+      console.error(`Error syncing chats for tenant ${tId}:`, syncErr);
     }
   });
 

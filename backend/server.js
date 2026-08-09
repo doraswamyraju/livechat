@@ -16,10 +16,11 @@ import {
   initializeWhatsAppClient, 
   disconnectWhatsAppClient, 
   getWhatsAppClientStatus,
-  autoStartWhatsAppWebClients 
+  autoStartWhatsAppWebClients,
+  sendWhatsAppWebMessage
 } from './whatsapp-web-service.js';
-import { handleWhatsAppApiWebhook } from './whatsapp-api-service.js';
-import { handleMetaWebhook } from './meta-api-service.js';
+import { handleWhatsAppApiWebhook, sendWhatsAppApiMessage } from './whatsapp-api-service.js';
+import { handleMetaWebhook, sendMetaMessage } from './meta-api-service.js';
 
 dotenv.config();
 
@@ -605,6 +606,105 @@ app.post('/api/webhooks/whatsapp-api', handleWhatsAppApiWebhook);
 // 7. Public Webhook - Meta Messenger & Instagram
 app.get('/api/webhooks/meta', handleMetaWebhook);
 app.post('/api/webhooks/meta', handleMetaWebhook);
+
+// 8. Proactively Start an External Chat (WhatsApp Web or WhatsApp API)
+app.post('/api/conversations/start-external', authenticateToken, async (req, res) => {
+  const { channel, phoneNumber, name, text } = req.body;
+  const tenantId = req.user.tenantId;
+
+  if (!channel || !phoneNumber || !text) {
+    return res.status(400).json({ error: 'Channel, Phone Number, and initial message text are required' });
+  }
+
+  // Clean phone number (keep digits only)
+  const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+
+  try {
+    let visitorId;
+    if (channel === 'whatsapp-web') {
+      visitorId = `whatsapp-web:${cleanPhone}@c.us`;
+    } else if (channel === 'whatsapp-api') {
+      visitorId = `whatsapp-api:${cleanPhone}`;
+    } else {
+      return res.status(400).json({ error: 'Invalid channel specified' });
+    }
+
+    // 1. Find or create Visitor
+    let visitor = await Visitor.findById(visitorId);
+    if (!visitor) {
+      visitor = new Visitor({
+        _id: visitorId,
+        tenantId,
+        name: name || `WhatsApp Contact (+${cleanPhone})`,
+        phoneNumber: cleanPhone,
+        source: channel,
+        isOnline: true
+      });
+      await visitor.save();
+    }
+
+    // 2. Find or create active Conversation
+    let conversation = await Conversation.findOne({
+      tenantId,
+      visitorId,
+      status: { $ne: 'Closed' }
+    });
+
+    if (!conversation) {
+      conversation = new Conversation({
+        tenantId,
+        visitorId,
+        status: 'Active',
+        source: channel,
+        assignedAgentId: req.user.userId
+      });
+      await conversation.save();
+    }
+
+    // 3. Send message via the proper channel
+    if (channel === 'whatsapp-web') {
+      await sendWhatsAppWebMessage(tenantId, visitorId, text);
+    } else if (channel === 'whatsapp-api') {
+      const integration = await Integration.findOne({ tenantId });
+      if (integration && integration.whatsappApi?.enabled) {
+        await sendWhatsAppApiMessage(integration, cleanPhone, text);
+      } else {
+        return res.status(400).json({ error: 'WhatsApp API integration is not enabled or configured' });
+      }
+    }
+
+    // 4. Save Message in DB
+    const agent = await User.findById(req.user.userId);
+    const message = new Message({
+      conversationId: conversation._id,
+      senderType: 'Agent',
+      senderId: req.user.userId,
+      senderName: agent ? agent.name : 'Agent',
+      text,
+      timestamp: new Date()
+    });
+    await message.save();
+
+    // 5. Update Conversation updatedAt
+    conversation.updatedAt = new Date();
+    await conversation.save();
+
+    // 6. Broadcast to dashboard agents
+    const populatedConv = await Conversation.findById(conversation._id).populate('assignedAgentId', 'name email avatarUrl status');
+    if (dashboardNamespace) {
+      dashboardNamespace.to(`tenant_${tenantId}`).emit('conversation-created', populatedConv);
+      dashboardNamespace.to(`tenant_${tenantId}`).emit('agent-msg-received', {
+        conversationId: conversation._id,
+        message
+      });
+    }
+
+    res.status(201).json({ conversation: populatedConv, message });
+  } catch (err) {
+    console.error('Error starting external conversation:', err);
+    res.status(500).json({ error: err.message || 'Internal Server Error' });
+  }
+});
 
 // ============================================
 // SERVE DEMO SITE STATICALLY (Allows correct HTTP Origin and PushState Routing)

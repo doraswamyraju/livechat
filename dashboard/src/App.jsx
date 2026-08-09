@@ -107,6 +107,14 @@ function App() {
   const [waWebQr, setWaWebQr] = useState(null);
   const [waWebLoading, setWaWebLoading] = useState(false);
 
+  // Proactive New Chat modal states
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [newChatPhone, setNewChatPhone] = useState('');
+  const [newChatName, setNewChatName] = useState('');
+  const [newChatChannel, setNewChatChannel] = useState('whatsapp-web');
+  const [newChatInitialMessage, setNewChatInitialMessage] = useState('');
+  const [newChatLoading, setNewChatLoading] = useState(false);
+
   const fetchIntegrations = async () => {
     if (!token) return;
     try {
@@ -205,6 +213,51 @@ function App() {
       showToast('Error disconnecting WhatsApp Web', 'error');
     } finally {
       setWaWebLoading(false);
+    }
+  };
+
+  const handleStartNewExternalChat = async (e) => {
+    e.preventDefault();
+    if (!newChatPhone || !newChatInitialMessage) {
+      showToast('Phone number and initial message are required', 'error');
+      return;
+    }
+    setNewChatLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/conversations/start-external`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          channel: newChatChannel,
+          phoneNumber: newChatPhone,
+          name: newChatName,
+          text: newChatInitialMessage
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to start chat');
+
+      showToast('Conversation started successfully!');
+      setShowNewChatModal(false);
+      setNewChatPhone('');
+      setNewChatName('');
+      setNewChatInitialMessage('');
+      
+      setConversations(prev => {
+        const exists = prev.some(c => c._id === data.conversation._id);
+        if (exists) return prev;
+        return [data.conversation, ...prev];
+      });
+      setSelectedConversation(data.conversation);
+      setMessages([data.message]);
+
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setNewChatLoading(false);
     }
   };
 
@@ -392,6 +445,12 @@ function App() {
     socket.on('whatsapp-web-status', (data) => {
       setWaWebStatus(data.status);
       setWaWebQr(data.qr);
+    });
+
+    socket.on('whatsapp-sync-complete', (data) => {
+      setVisitors(data.visitors);
+      setConversations(data.conversations);
+      showToast('WhatsApp conversations synced successfully!');
     });
 
     // 2. A new visitor connects to the widget
@@ -1384,6 +1443,31 @@ function App() {
               {/* 1. Chats Rooms List */}
               <div className="pane-rooms">
                 <div className="rooms-filter-tabs" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', borderBottom: '1px solid var(--border-color)' }}>
+                  <button 
+                    onClick={() => setShowNewChatModal(true)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      backgroundColor: 'var(--primary)',
+                      color: 'white',
+                      border: 'none',
+                      fontSize: '12.5px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      boxShadow: '0 0 10px rgba(139, 92, 246, 0.2)',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
+                    onMouseOut={(e) => e.currentTarget.style.filter = 'none'}
+                  >
+                    💬 + New Chat
+                  </button>
+                  
                   <div style={{ display: 'flex', gap: '4px' }}>
                     <button 
                       className={`filter-tab ${inboxFilter === 'all' ? 'active' : ''}`} 
@@ -2590,6 +2674,99 @@ function App() {
         </div>
       </div>
       
+      {/* New Chat Modal */}
+      {showNewChatModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div className="glass-card" style={{ padding: '24px', width: '400px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '18px', fontWeight: '700' }}>Proactive New WhatsApp Chat</h3>
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '12.5px' }}>
+              Initiate a 1-to-1 conversation by entering the customer's phone number.
+            </p>
+            
+            <form onSubmit={handleStartNewExternalChat} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px' }}>Channel Source</label>
+                <select
+                  className="form-input"
+                  value={newChatChannel}
+                  onChange={(e) => setNewChatChannel(e.target.value)}
+                  style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', outline: 'none' }}
+                >
+                  <option value="whatsapp-web">WhatsApp Web (Linked Devices)</option>
+                  <option value="whatsapp-api">WhatsApp Official API</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px' }}>Customer Phone Number</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. +919876543210"
+                  value={newChatPhone}
+                  onChange={(e) => setNewChatPhone(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px' }}>Customer Name (Optional)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. John Doe"
+                  value={newChatName}
+                  onChange={(e) => setNewChatName(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px' }}>Initial Message Text</label>
+                <textarea
+                  className="form-input"
+                  placeholder="Type initial message to send..."
+                  value={newChatInitialMessage}
+                  onChange={(e) => setNewChatInitialMessage(e.target.value)}
+                  style={{ minHeight: '80px', resize: 'vertical' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  className="claim-btn"
+                  onClick={() => setShowNewChatModal(false)}
+                  style={{ flex: 1, backgroundColor: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="claim-btn"
+                  disabled={newChatLoading}
+                  style={{ flex: 1, backgroundColor: 'var(--primary)' }}
+                >
+                  {newChatLoading ? 'Starting...' : 'Start Chat'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Toast popup */}
       {toast && <div className={`toast-msg ${toast.type}`}>{toast.text}</div>}
     </div>
