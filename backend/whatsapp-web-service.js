@@ -71,6 +71,10 @@ export async function initializeWhatsAppClient(tenantId) {
     authStrategy: new LocalAuth({
       clientId: `tenant_${tId}`
     }),
+    webVersionCache: {
+      type: 'remote',
+      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html'
+    },
     puppeteer: {
       headless: true,
       executablePath: getChromiumPath(),
