@@ -280,14 +280,13 @@ export async function initializeWhatsAppClient(tenantId) {
   });
 
   client.on('message', async (msg) => {
-    // 1. Skip group chats and status broadcasts
-    const chat = await msg.getChat();
-    if (chat.isGroup) return;
-    if (msg.from === 'status@broadcast' || msg.to === 'status@broadcast') return;
-
     const fromJid = msg.from; // e.g. "1234567890@c.us"
+    // 1. Skip group chats and status broadcasts using JID suffixes/prefixes
+    if (fromJid.endsWith('@g.us')) return;
+    if (fromJid === 'status@broadcast' || msg.to === 'status@broadcast') return;
+
     const phoneNo = fromJid.split('@')[0];
-    const contactName = msg._data?.notifyName || chat.name || `WhatsApp Contact (+${phoneNo})`;
+    const contactName = msg._data?.notifyName || `WhatsApp Contact (+${phoneNo})`;
 
     try {
       // 2. Find or create Visitor
