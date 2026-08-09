@@ -2785,6 +2785,42 @@ function App() {
                 )}
               </div>
 
+              {/* 4. Diagnostics & Live Logs Card */}
+              {user?.role === 'Admin' && (
+                <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <h3 className="card-title">Diagnostics & Server Logs</h3>
+                  <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '13px' }}>
+                    Monitor the backend process logs and WhatsApp connection handshake states.
+                  </p>
+                  <div style={{ marginTop: '10px' }}>
+                    <a 
+                      href={`${BACKEND_URL}/api/debug/logs?token=${encodeURIComponent(token)}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="auth-btn"
+                      style={{ 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        gap: '6px',
+                        textDecoration: 'none',
+                        width: 'auto',
+                        padding: '10px 20px',
+                        backgroundColor: 'var(--primary)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        fontWeight: '600'
+                      }}
+                    >
+                      🔍 Stream Live Server Logs
+                    </a>
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
 
