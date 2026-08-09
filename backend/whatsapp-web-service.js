@@ -26,6 +26,16 @@ function getChromiumPath() {
   return undefined;
 }
 
+const withTimeout = (promise, ms) => {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Operation timed out after ${ms}ms`));
+    }, ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+};
+
 // Map to store runtime WhatsApp Web client instances: tenantId -> ClientData
 // ClientData: { client, status: 'DISCONNECTED'|'INITIALIZING'|'QR_READY'|'CONNECTED'|'AUTH_FAILURE', qr: null|string }
 const whatsappClients = new Map();
@@ -111,18 +121,22 @@ export async function initializeWhatsAppClient(tenantId) {
       await Conversation.deleteOne({ visitorId: 'whatsapp-web:status@broadcast' });
       await Visitor.deleteOne({ _id: 'whatsapp-web:status@broadcast' });
 
-      let chats = [];
-      // Poll getChats until at least one direct chat is loaded (wait up to 24 seconds)
-      for (let attempt = 1; attempt <= 6; attempt++) {
-        chats = await client.getChats();
-        const directChats = chats.filter(c => !c.isGroup && c.id._serialized !== 'status@broadcast');
-        if (directChats.length > 0) {
-          console.log(`WhatsApp Web chats loaded successfully on attempt ${attempt}. Found ${directChats.length} direct chats.`);
-          break;
-        }
-        console.log(`Attempt ${attempt}: Waiting for WhatsApp Web to load chats from phone...`);
-        await new Promise(resolve => setTimeout(resolve, 4000));
-      }
+       let chats = [];
+       // Poll getChats until at least one direct chat is loaded (wait up to 24 seconds)
+       for (let attempt = 1; attempt <= 6; attempt++) {
+         try {
+           chats = await withTimeout(client.getChats(), 12000);
+         } catch (timeoutErr) {
+           console.warn(`Attempt ${attempt}: getChats timed out:`, timeoutErr.message);
+         }
+         const directChats = chats.filter(c => !c.isGroup && c.id._serialized !== 'status@broadcast');
+         if (directChats.length > 0) {
+           console.log(`WhatsApp Web chats loaded successfully on attempt ${attempt}. Found ${directChats.length} direct chats.`);
+           break;
+         }
+         console.log(`Attempt ${attempt}: Waiting for WhatsApp Web to load chats from phone...`);
+         await new Promise(resolve => setTimeout(resolve, 4000));
+       }
 
       console.log(`Syncing ${chats.length} total chats for tenant ${tId}...`);
       for (const chat of chats) {
@@ -173,8 +187,13 @@ export async function initializeWhatsAppClient(tenantId) {
           await conversation.save();
         }
 
-        // 3. Sync last message if any
-        const lastMsgs = await chat.fetchMessages({ limit: 1 });
+        // 3. Sync last message if any (with timeout to prevent hanging)
+        let lastMsgs = [];
+        try {
+          lastMsgs = await withTimeout(chat.fetchMessages({ limit: 1 }), 6000);
+        } catch (msgErr) {
+          console.warn(`Timeout/error fetching messages for chat ${fromJid}:`, msgErr.message);
+        }
         if (lastMsgs && lastMsgs.length > 0) {
           const lastMsg = lastMsgs[0];
           const textContent = lastMsg.body || '[Media/Non-text message]';
@@ -257,9 +276,10 @@ export async function initializeWhatsAppClient(tenantId) {
   });
 
   client.on('message', async (msg) => {
-    // 1. Skip group chats
+    // 1. Skip group chats and status broadcasts
     const chat = await msg.getChat();
     if (chat.isGroup) return;
+    if (msg.from === 'status@broadcast' || msg.to === 'status@broadcast') return;
 
     const fromJid = msg.from; // e.g. "1234567890@c.us"
     const phoneNo = fromJid.split('@')[0];
@@ -307,13 +327,13 @@ export async function initializeWhatsAppClient(tenantId) {
         await conversation.save();
       }
 
-      // 4. Save Message
+      // 4. Save Message (ensure text is populated even for media messages to satisfy schema validation)
       const message = new Message({
         conversationId: conversation._id,
         senderType: 'Visitor',
         senderId: visitorId,
         senderName: contactName,
-        text: msg.body,
+        text: msg.body || '[Media/Non-text message]',
         timestamp: new Date()
       });
       await message.save();
