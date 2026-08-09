@@ -72,7 +72,9 @@ export async function initializeWhatsAppClient(tenantId) {
         '--no-first-run',
         '--no-zygote',
         '--disable-gpu',
-        '--single-process'
+        '--single-process',
+        '--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        '--disable-blink-features=AutomationControlled'
       ],
       timeout: 60000
     }
