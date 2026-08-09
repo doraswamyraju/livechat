@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
 
 import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, Integration } from './models.js';
 import { initializeSocket } from './socket.js';
@@ -738,6 +739,44 @@ app.get('/api/conversations/debug', authenticateToken, async (req, res) => {
     console.error('Debug endpoint failed:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// 10. Debug Server Logs (PM2 logs fallback to file tailing)
+app.get('/api/debug/logs', authenticateToken, (req, res) => {
+  if (req.user.role !== 'Admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  exec('pm2 logs livechat-backend --lines 150 --no-colors', { timeout: 10000 }, (error, stdout, stderr) => {
+    if (error) {
+      const logPaths = [
+        path.join(process.env.HOME || '/root', '.pm2/logs/livechat-backend-out.log'),
+        '/root/.pm2/logs/livechat-backend-out.log',
+        '/root/.pm2/logs/livechat-backend-error.log'
+      ];
+      
+      let combinedLogs = '';
+      for (const logPath of logPaths) {
+        if (fs.existsSync(logPath)) {
+          const stats = fs.statSync(logPath);
+          const size = stats.size;
+          const fd = fs.openSync(logPath, 'r');
+          const bufferSize = Math.min(size, 8192);
+          const buffer = Buffer.alloc(bufferSize);
+          fs.readSync(fd, buffer, 0, bufferSize, Math.max(0, size - bufferSize));
+          fs.closeSync(fd);
+          combinedLogs += `\n--- LOG FILE: ${logPath} ---\n${buffer.toString()}\n`;
+        }
+      }
+      
+      if (!combinedLogs) {
+        return res.status(500).json({ error: 'Could not fetch logs via pm2 or log files', details: error.message });
+      }
+      return res.type('text/plain').send(combinedLogs);
+    }
+    
+    res.type('text/plain').send(stdout || stderr);
+  });
 });
 
 // ============================================

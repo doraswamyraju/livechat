@@ -107,6 +107,10 @@ export async function initializeWhatsAppClient(tenantId) {
 
     // Sync existing WhatsApp chats
     try {
+      // Clean up previous junk status@broadcast entries
+      await Conversation.deleteOne({ visitorId: 'whatsapp-web:status@broadcast' });
+      await Visitor.deleteOne({ _id: 'whatsapp-web:status@broadcast' });
+
       let chats = [];
       // Poll getChats until at least one direct chat is loaded (wait up to 24 seconds)
       for (let attempt = 1; attempt <= 6; attempt++) {
@@ -142,6 +146,9 @@ export async function initializeWhatsAppClient(tenantId) {
             isOnline: true
           });
           await visitor.save();
+        } else if (visitor.source !== 'whatsapp-web') {
+          visitor.source = 'whatsapp-web';
+          await visitor.save();
         }
 
         // 2. Find or create Conversation
@@ -160,6 +167,9 @@ export async function initializeWhatsAppClient(tenantId) {
             assignedAgentId: null,
             updatedAt: chat.timestamp ? new Date(chat.timestamp * 1000) : new Date()
           });
+          await conversation.save();
+        } else if (conversation.source !== 'whatsapp-web') {
+          conversation.source = 'whatsapp-web';
           await conversation.save();
         }
 
@@ -272,6 +282,7 @@ export async function initializeWhatsAppClient(tenantId) {
         visitor.name = contactName;
         visitor.phoneNumber = phoneNo;
         visitor.isOnline = true;
+        visitor.source = 'whatsapp-web';
       }
       await visitor.save();
 
@@ -290,6 +301,9 @@ export async function initializeWhatsAppClient(tenantId) {
           source: 'whatsapp-web',
           assignedAgentId: null
         });
+        await conversation.save();
+      } else if (conversation.source !== 'whatsapp-web') {
+        conversation.source = 'whatsapp-web';
         await conversation.save();
       }
 
