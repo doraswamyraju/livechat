@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 
 import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, Integration } from './models.js';
-import { initializeSocket } from './socket.js';
+import { initializeSocket, dashboardNamespace } from './socket.js';
 import { 
   initializeWhatsAppClient, 
   disconnectWhatsAppClient, 
