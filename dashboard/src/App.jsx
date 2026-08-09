@@ -210,7 +210,7 @@ function App() {
 
   // References
   const socketRef = useRef(null);
-  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const showToast = (text, type = 'success') => {
     setToast({ text, type });
@@ -599,7 +599,9 @@ function App() {
 
   // Scroll active chats automatically
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   // Load custom WidgetSettings & Analytics logs
@@ -1611,7 +1613,7 @@ function App() {
                       </div>
                     </div>
 
-                    <div className="chat-messages-board">
+                    <div className="chat-messages-board" ref={messagesContainerRef}>
                       {messages.map((msg, i) => (
                         <div key={i} className={`db-msg-row ${msg.senderType.toLowerCase()}`}>
                           <div className="db-msg-bubble">{msg.text}</div>
@@ -1631,8 +1633,6 @@ function App() {
                           </div>
                         </div>
                       )}
-
-                      <div ref={messagesEndRef} />
                     </div>
 
                     {/* Canned Quick Replies pills */}
@@ -2288,7 +2288,7 @@ function App() {
 
           {/* G. INTEGRATIONS HUB VIEW */}
           {activeTab === 'integrations' && (
-            <div className="monitor-grid">
+            <div className="integrations-grid">
               
               {/* WhatsApp Web Integration */}
               <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>

@@ -1,8 +1,30 @@
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode';
+import fs from 'fs';
 import { Visitor, Conversation, Message, Integration } from './models.js';
 import { dashboardNamespace } from './socket.js';
+
+function getChromiumPath() {
+  if (process.platform !== 'linux') return undefined;
+  
+  const paths = [
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/snap/bin/chromium'
+  ];
+  
+  for (const path of paths) {
+    if (fs.existsSync(path)) {
+      console.log(`Found system Chromium/Chrome at: ${path}`);
+      return path;
+    }
+  }
+  console.warn('No system Chromium/Chrome found in standard paths. Falling back to default Puppeteer path.');
+  return undefined;
+}
 
 // Map to store runtime WhatsApp Web client instances: tenantId -> ClientData
 // ClientData: { client, status: 'DISCONNECTED'|'INITIALIZING'|'QR_READY'|'CONNECTED'|'AUTH_FAILURE', qr: null|string }
@@ -41,6 +63,7 @@ export async function initializeWhatsAppClient(tenantId) {
     }),
     puppeteer: {
       headless: true,
+      executablePath: getChromiumPath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -48,8 +71,10 @@ export async function initializeWhatsAppClient(tenantId) {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--disable-gpu'
-      ]
+        '--disable-gpu',
+        '--single-process'
+      ],
+      timeout: 60000
     }
   });
 

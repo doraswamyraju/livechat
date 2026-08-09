@@ -1036,3 +1036,10 @@ input:checked + .slider:before {
   height: 40px;
   animation: spin 1s linear infinite;
 }
+
+.integrations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 24px;
+  align-items: start;
+}
