@@ -38,6 +38,7 @@ const VisitorSchema = new mongoose.Schema({
   referrer: { type: String, default: '' },
   isOnline: { type: Boolean, default: false },
   isMuted: { type: Boolean, default: false },
+  source: { type: String, enum: ['webchat', 'whatsapp-web', 'whatsapp-api', 'instagram', 'facebook'], default: 'webchat' },
   firstSeen: { type: Date, default: Date.now },
   lastSeen: { type: Date, default: Date.now }
 }, { _id: false }); // Disable automatic _id creation since we supply visitor _id as a custom UUID String.
@@ -48,6 +49,7 @@ const ConversationSchema = new mongoose.Schema({
   visitorId: { type: String, ref: 'Visitor', required: true },
   assignedAgentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   status: { type: String, enum: ['Unassigned', 'Active', 'Closed'], default: 'Unassigned' },
+  source: { type: String, enum: ['webchat', 'whatsapp-web', 'whatsapp-api', 'instagram', 'facebook'], default: 'webchat' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -85,6 +87,27 @@ const QuickReplySchema = new mongoose.Schema({
   text: { type: String, required: true }
 });
 
+// 8. Integration Model
+const IntegrationSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, unique: true },
+  whatsappWeb: {
+    enabled: { type: Boolean, default: false }
+  },
+  whatsappApi: {
+    enabled: { type: Boolean, default: false },
+    phoneNumberId: { type: String, default: '' },
+    accessToken: { type: String, default: '' },
+    verifyToken: { type: String, default: '' }
+  },
+  meta: {
+    enabled: { type: Boolean, default: false },
+    pageId: { type: String, default: '' },
+    instagramAccountId: { type: String, default: '' },
+    pageAccessToken: { type: String, default: '' },
+    verifyToken: { type: String, default: '' }
+  }
+});
+
 export const Tenant = mongoose.model('Tenant', TenantSchema);
 export const User = mongoose.model('User', UserSchema);
 export const Visitor = mongoose.model('Visitor', VisitorSchema);
@@ -92,3 +115,4 @@ export const Conversation = mongoose.model('Conversation', ConversationSchema);
 export const Message = mongoose.model('Message', MessageSchema);
 export const WidgetSettings = mongoose.model('WidgetSettings', WidgetSettingsSchema);
 export const QuickReply = mongoose.model('QuickReply', QuickReplySchema);
+export const Integration = mongoose.model('Integration', IntegrationSchema);

@@ -16,7 +16,9 @@
     "firebase-admin": "^13.10.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.3.1",
-    "socket.io": "^4.7.5"
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.7.5",
+    "whatsapp-web.js": "^1.26.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

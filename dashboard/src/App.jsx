@@ -97,6 +97,117 @@ function App() {
   const [profileAvatar, setProfileAvatar] = useState(user?.avatarUrl || '');
   const [profilePassword, setProfilePassword] = useState('');
 
+  // Integrations states
+  const [integrations, setIntegrations] = useState({
+    whatsappWeb: { enabled: false },
+    whatsappApi: { enabled: false, phoneNumberId: '', accessToken: '', verifyToken: '' },
+    meta: { enabled: false, pageId: '', instagramAccountId: '', pageAccessToken: '', verifyToken: '' }
+  });
+  const [waWebStatus, setWaWebStatus] = useState('DISCONNECTED');
+  const [waWebQr, setWaWebQr] = useState(null);
+  const [waWebLoading, setWaWebLoading] = useState(false);
+
+  const fetchIntegrations = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/integrations`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIntegrations(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch integrations:', err);
+    }
+  };
+
+  const fetchWhatsAppWebStatus = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/integrations/whatsapp-web/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWaWebStatus(data.status);
+        setWaWebQr(data.qr);
+      }
+    } catch (err) {
+      console.error('Failed to fetch WhatsApp Web status:', err);
+    }
+  };
+
+  const handleSaveIntegrations = async (updatedData) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/integrations`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updatedData)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setIntegrations(data);
+        showToast('Integrations updated successfully!');
+      } else {
+        showToast(data.error || 'Failed to update integrations', 'error');
+      }
+    } catch (err) {
+      showToast('Error updating integrations', 'error');
+    }
+  };
+
+  const connectWhatsAppWeb = async () => {
+    setWaWebLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/integrations/whatsapp-web/connect`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setWaWebStatus(data.status);
+        setWaWebQr(data.qr);
+        showToast('WhatsApp Web client initialization started!');
+      } else {
+        showToast(data.error || 'Failed to initialize WhatsApp Web', 'error');
+      }
+    } catch (err) {
+      showToast('Error initializing WhatsApp Web', 'error');
+    } finally {
+      setWaWebLoading(false);
+    }
+  };
+
+  const disconnectWhatsAppWeb = async () => {
+    setWaWebLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/integrations/whatsapp-web/disconnect`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setWaWebStatus('DISCONNECTED');
+        setWaWebQr(null);
+        showToast('WhatsApp Web client disconnected!');
+      } else {
+        showToast(data.error || 'Failed to disconnect WhatsApp Web', 'error');
+      }
+    } catch (err) {
+      showToast('Error disconnecting WhatsApp Web', 'error');
+    } finally {
+      setWaWebLoading(false);
+    }
+  };
+
   // References
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -276,6 +387,11 @@ function App() {
       // Re-map agent status
       const self = data.agents.find(a => a._id === user.id);
       if (self) setAgentStatus(self.status);
+    });
+
+    socket.on('whatsapp-web-status', (data) => {
+      setWaWebStatus(data.status);
+      setWaWebQr(data.qr);
     });
 
     // 2. A new visitor connects to the widget
@@ -511,6 +627,10 @@ function App() {
       .then(res => res.json())
       .then(data => setQuickReplies(data))
       .catch(err => console.error('Error fetching quick replies:', err));
+
+    // Fetch integration configurations
+    fetchIntegrations();
+    fetchWhatsAppWebStatus();
       
   }, [token, activeTab]);
 
@@ -960,6 +1080,13 @@ function App() {
             </button>
           )}
 
+          {user.role === 'Admin' && (
+            <button className={`menu-item ${activeTab === 'integrations' ? 'active' : ''}`} onClick={() => setActiveTab('integrations')}>
+              <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 12H4v-2h8v2zm8 0h-6v-2h6v2zm0-4H4V8h16v2z" fill="currentColor"/></svg>
+              Integrations Hub
+            </button>
+          )}
+
           <button className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
             <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
             Profile Settings
@@ -984,6 +1111,7 @@ function App() {
             {activeTab === 'chat' && 'Live Chat Dashboard'}
             {activeTab === 'customize' && 'Widget Configuration Center'}
             {activeTab === 'agents' && 'Employee Administration'}
+            {activeTab === 'integrations' && 'Unified Inbox Integrations Hub'}
             {activeTab === 'profile' && 'Employee Profile Center'}
           </div>
 
@@ -1331,6 +1459,59 @@ function App() {
                       const vis = typeof conv.visitorId === 'object' ? conv.visitorId : visitors.find(v => v._id === conv.visitorId);
                       const agentName = conv.assignedAgentId ? conv.assignedAgentId.name : 'Unassigned';
                       
+                      const renderSourceBadge = () => {
+                        let text = 'Web Chat';
+                        let bg = 'rgba(99, 102, 241, 0.15)'; 
+                        let color = '#818CF8';
+                        let icon = '💬';
+
+                        switch (conv.source) {
+                          case 'whatsapp-web':
+                            text = 'WA Linked';
+                            bg = 'rgba(16, 185, 129, 0.15)'; 
+                            color = '#34D399';
+                            icon = '🟢';
+                            break;
+                          case 'whatsapp-api':
+                            text = 'WA API';
+                            bg = 'rgba(20, 184, 166, 0.15)'; 
+                            color = '#2DD4BF';
+                            icon = '🧪';
+                            break;
+                          case 'instagram':
+                            text = 'Instagram';
+                            bg = 'rgba(236, 72, 153, 0.15)'; 
+                            color = '#F472B6';
+                            icon = '📸';
+                            break;
+                          case 'facebook':
+                            text = 'Messenger';
+                            bg = 'rgba(59, 130, 246, 0.15)'; 
+                            color = '#60A5FA';
+                            icon = '🔵';
+                            break;
+                        }
+
+                        return (
+                          <span 
+                            style={{ 
+                              padding: '2px 6px', 
+                              borderRadius: '4px', 
+                              backgroundColor: bg, 
+                              color: color, 
+                              fontSize: '10px', 
+                              fontWeight: '600',
+                              marginLeft: '8px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px'
+                            }}
+                          >
+                            {icon} {text}
+                          </span>
+                        );
+                      };
+
                       return (
                         <div
                           key={conv._id}
@@ -1340,6 +1521,7 @@ function App() {
                           <div className="room-card-header">
                             <span className="room-name">
                               {vis?.name || 'VisitorSession'}
+                              {renderSourceBadge()}
                               {vis?.isMuted && <span title="Muted" style={{ marginLeft: '4px', color: '#EF4444' }}>🔇</span>}
                             </span>
                             <span className="room-time">
@@ -1365,8 +1547,60 @@ function App() {
                   <>
                     <div className="chat-pane-header">
                       <div>
-                        <div style={{ fontWeight: '700', fontSize: '15px' }}>
+                        <div style={{ fontWeight: '700', fontSize: '15px', display: 'flex', alignItems: 'center' }}>
                           {selectedVisitor?.name || 'Visitor Conversation'}
+                          {(() => {
+                            let text = 'Web Chat';
+                            let bg = 'rgba(99, 102, 241, 0.15)'; 
+                            let color = '#818CF8';
+                            let icon = '💬';
+
+                            switch (selectedConversation.source) {
+                              case 'whatsapp-web':
+                                text = 'WA Linked';
+                                bg = 'rgba(16, 185, 129, 0.15)'; 
+                                color = '#34D399';
+                                icon = '🟢';
+                                break;
+                              case 'whatsapp-api':
+                                text = 'WA API';
+                                bg = 'rgba(20, 184, 166, 0.15)'; 
+                                color = '#2DD4BF';
+                                icon = '🧪';
+                                break;
+                              case 'instagram':
+                                text = 'Instagram';
+                                bg = 'rgba(236, 72, 153, 0.15)'; 
+                                color = '#F472B6';
+                                icon = '📸';
+                                break;
+                              case 'facebook':
+                                text = 'Messenger';
+                                bg = 'rgba(59, 130, 246, 0.15)'; 
+                                color = '#60A5FA';
+                                icon = '🔵';
+                                break;
+                            }
+
+                            return (
+                              <span 
+                                style={{ 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px', 
+                                  backgroundColor: bg, 
+                                  color: color, 
+                                  fontSize: '10px', 
+                                  fontWeight: '600',
+                                  marginLeft: '8px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
+                                }}
+                              >
+                                {icon} {text}
+                              </span>
+                            );
+                          })()}
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                           Status:{' '}
@@ -2049,6 +2283,307 @@ function App() {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* G. INTEGRATIONS HUB VIEW */}
+          {activeTab === 'integrations' && (
+            <div className="monitor-grid">
+              
+              {/* WhatsApp Web Integration */}
+              <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 className="card-title">WhatsApp Web (Linked Devices)</h3>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={integrations.whatsappWeb?.enabled || false}
+                        onChange={(e) => {
+                          const updated = {
+                            ...integrations,
+                            whatsappWeb: { ...integrations.whatsappWeb, enabled: e.target.checked }
+                          };
+                          handleSaveIntegrations(updated);
+                        }}
+                        style={{ width: 'auto', margin: 0 }}
+                      />
+                      <span style={{ fontSize: '13px' }}>{integrations.whatsappWeb?.enabled ? 'Enabled' : 'Disabled'}</span>
+                    </label>
+                  </div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                    Link your WhatsApp Business or personal phone using QR code authentication.
+                  </p>
+                </div>
+
+                {integrations.whatsappWeb?.enabled && (
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Status:</span>
+                      <span 
+                        style={{ 
+                          fontSize: '13px', 
+                          fontWeight: 'bold', 
+                          color: waWebStatus === 'CONNECTED' ? 'var(--success)' : waWebStatus === 'QR_READY' ? 'var(--warning)' : 'var(--text-muted)' 
+                        }}
+                      >
+                        {waWebStatus}
+                      </span>
+                    </div>
+
+                    {waWebStatus === 'QR_READY' && waWebQr && (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ padding: '16px', backgroundColor: 'white', borderRadius: '12px', width: '232px', height: '232px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                          <img src={waWebQr} alt="WhatsApp Web QR Code" style={{ width: '200px', height: '200px' }} />
+                        </div>
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '250px' }}>
+                          {"Open WhatsApp on your phone -> Settings -> Linked Devices -> Link a Device, then scan this QR code."}
+                        </p>
+                      </div>
+                    )}
+
+                    {waWebStatus === 'INITIALIZING' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '40px 0' }}>
+                        <div className="spinner"></div>
+                        <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Starting WhatsApp process...</span>
+                      </div>
+                    )}
+
+                    {waWebStatus === 'CONNECTED' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '20px 0' }}>
+                        <div style={{ fontSize: '48px' }}>🟢</div>
+                        <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>Your device is actively connected.</span>
+                      </div>
+                    )}
+
+                    <div style={{ width: '100%', display: 'flex', gap: '10px' }}>
+                      {(waWebStatus === 'DISCONNECTED' || waWebStatus === 'AUTH_FAILURE') && (
+                        <button 
+                          onClick={connectWhatsAppWeb} 
+                          disabled={waWebLoading} 
+                          className="auth-btn"
+                          style={{ width: '100%' }}
+                        >
+                          {waWebLoading ? 'Connecting...' : 'Connect / Get QR Code'}
+                        </button>
+                      )}
+                      {waWebStatus !== 'DISCONNECTED' && (
+                        <button 
+                          onClick={disconnectWhatsAppWeb} 
+                          disabled={waWebLoading} 
+                          className="auth-btn" 
+                          style={{ width: '100%', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
+                        >
+                          {waWebLoading ? 'Processing...' : 'Disconnect Device'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.05)', border: '1px solid var(--warning)', borderRadius: '8px', padding: '12px', fontSize: '12px', color: 'var(--warning)', display: 'flex', gap: '8px' }}>
+                  <span>⚠️</span>
+                  <span><strong>Disclaimer</strong>: This linked device integration is configured strictly for 1-to-1 live customer support replies. Mass broadcasts or cold marketing lists are not permitted on this channel.</span>
+                </div>
+              </div>
+
+              {/* WhatsApp Cloud API (Official) */}
+              <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 className="card-title">WhatsApp Cloud API (Official)</h3>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={integrations.whatsappApi?.enabled || false}
+                        onChange={(e) => {
+                          const updated = {
+                            ...integrations,
+                            whatsappApi: { ...integrations.whatsappApi, enabled: e.target.checked }
+                          };
+                          handleSaveIntegrations(updated);
+                        }}
+                        style={{ width: 'auto', margin: 0 }}
+                      />
+                      <span style={{ fontSize: '13px' }}>{integrations.whatsappApi?.enabled ? 'Enabled' : 'Disabled'}</span>
+                    </label>
+                  </div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                    Connect to the official Meta WhatsApp Business Cloud API.
+                  </p>
+                </div>
+
+                {integrations.whatsappApi?.enabled && (
+                  <form 
+                    className="auth-form" 
+                    style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSaveIntegrations(integrations);
+                    }}
+                  >
+                    <div className="form-group">
+                      <label className="form-label">Phone Number ID</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. 10484729104859"
+                        value={integrations.whatsappApi?.phoneNumberId || ''}
+                        onChange={(e) => setIntegrations({
+                          ...integrations,
+                          whatsappApi: { ...integrations.whatsappApi, phoneNumberId: e.target.value }
+                        })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Access Token (Permanent/System User)</label>
+                      <input
+                        type="password"
+                        className="form-input"
+                        placeholder="EAABw..."
+                        value={integrations.whatsappApi?.accessToken || ''}
+                        onChange={(e) => setIntegrations({
+                          ...integrations,
+                          whatsappApi: { ...integrations.whatsappApi, accessToken: e.target.value }
+                        })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Verify Token (Custom Secret for Meta Webhooks)</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. my_custom_secret_verify_token"
+                        value={integrations.whatsappApi?.verifyToken || ''}
+                        onChange={(e) => setIntegrations({
+                          ...integrations,
+                          whatsappApi: { ...integrations.whatsappApi, verifyToken: e.target.value }
+                        })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Meta Webhook Callback URL</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={`${BACKEND_URL.replace('localhost', 'your-domain')}/api/webhooks/whatsapp-api`}
+                        disabled
+                        style={{ opacity: 0.7, cursor: 'copy' }}
+                      />
+                    </div>
+                    <button type="submit" className="auth-btn">Save API Configuration</button>
+                  </form>
+                )}
+              </div>
+
+              {/* Meta Integrations (Facebook & Instagram) */}
+              <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 className="card-title">Meta (Facebook & Instagram)</h3>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={integrations.meta?.enabled || false}
+                        onChange={(e) => {
+                          const updated = {
+                            ...integrations,
+                            meta: { ...integrations.meta, enabled: e.target.checked }
+                          };
+                          handleSaveIntegrations(updated);
+                        }}
+                        style={{ width: 'auto', margin: 0 }}
+                      />
+                      <span style={{ fontSize: '13px' }}>{integrations.meta?.enabled ? 'Enabled' : 'Disabled'}</span>
+                    </label>
+                  </div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                    Receive messages from Facebook Messenger and Instagram Direct.
+                  </p>
+                </div>
+
+                {integrations.meta?.enabled && (
+                  <form 
+                    className="auth-form" 
+                    style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSaveIntegrations(integrations);
+                    }}
+                  >
+                    <div className="form-group">
+                      <label className="form-label">Facebook Page ID</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. 10928472910"
+                        value={integrations.meta?.pageId || ''}
+                        onChange={(e) => setIntegrations({
+                          ...integrations,
+                          meta: { ...integrations.meta, pageId: e.target.value }
+                        })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Instagram Business Account ID</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. 17841400000000"
+                        value={integrations.meta?.instagramAccountId || ''}
+                        onChange={(e) => setIntegrations({
+                          ...integrations,
+                          meta: { ...integrations.meta, instagramAccountId: e.target.value }
+                        })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Page Access Token</label>
+                      <input
+                        type="password"
+                        className="form-input"
+                        placeholder="EAABw..."
+                        value={integrations.meta?.pageAccessToken || ''}
+                        onChange={(e) => setIntegrations({
+                          ...integrations,
+                          meta: { ...integrations.meta, pageAccessToken: e.target.value }
+                        })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Verify Token (Custom Secret for Meta Webhooks)</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. my_custom_secret_verify_token"
+                        value={integrations.meta?.verifyToken || ''}
+                        onChange={(e) => setIntegrations({
+                          ...integrations,
+                          meta: { ...integrations.meta, verifyToken: e.target.value }
+                        })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Meta Webhook Callback URL</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={`${BACKEND_URL.replace('localhost', 'your-domain')}/api/webhooks/meta`}
+                        disabled
+                        style={{ opacity: 0.7, cursor: 'copy' }}
+                      />
+                    </div>
+                    <button type="submit" className="auth-btn">Save Meta Configuration</button>
+                  </form>
+                )}
+              </div>
+
             </div>
           )}
 

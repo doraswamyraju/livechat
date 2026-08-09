@@ -10,8 +10,16 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply } from './models.js';
+import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, Integration } from './models.js';
 import { initializeSocket } from './socket.js';
+import { 
+  initializeWhatsAppClient, 
+  disconnectWhatsAppClient, 
+  getWhatsAppClientStatus,
+  autoStartWhatsAppWebClients 
+} from './whatsapp-web-service.js';
+import { handleWhatsAppApiWebhook } from './whatsapp-api-service.js';
+import { handleMetaWebhook } from './meta-api-service.js';
 
 dotenv.config();
 
@@ -29,7 +37,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'letstrack_super_secret_session_key
 
 // Connect MongoDB
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('Successfully connected to MongoDB database.'))
+  .then(() => {
+    console.log('Successfully connected to MongoDB database.');
+    // Auto-start active WhatsApp Web clients
+    autoStartWhatsAppWebClients().catch(err => console.error('Error auto-starting WhatsApp clients:', err));
+  })
   .catch(err => console.error('MongoDB database connection error:', err));
 
 // ============================================
@@ -500,6 +512,99 @@ app.put('/api/auth/profile', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+// ============================================
+// INTEGRATIONS & WEBHOOKS
+// ============================================
+
+// 1. Get Integration Configurations
+app.get('/api/integrations', authenticateToken, async (req, res) => {
+  try {
+    let integration = await Integration.findOne({ tenantId: req.user.tenantId });
+    if (!integration) {
+      integration = new Integration({ tenantId: req.user.tenantId });
+      await integration.save();
+    }
+    res.status(200).json(integration);
+  } catch (err) {
+    console.error('Error fetching integrations:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 2. Update Integration Configurations
+app.put('/api/integrations', authenticateToken, async (req, res) => {
+  const { whatsappWeb, whatsappApi, meta } = req.body;
+  try {
+    let integration = await Integration.findOne({ tenantId: req.user.tenantId });
+    if (!integration) {
+      integration = new Integration({ tenantId: req.user.tenantId });
+    }
+
+    if (whatsappWeb !== undefined) integration.whatsappWeb = whatsappWeb;
+    if (whatsappApi !== undefined) integration.whatsappApi = whatsappApi;
+    if (meta !== undefined) integration.meta = meta;
+
+    await integration.save();
+
+    // If whatsapp web was toggled to disabled, shut down client
+    if (whatsappWeb && whatsappWeb.enabled === false) {
+      await disconnectWhatsAppClient(req.user.tenantId);
+    }
+
+    res.status(200).json(integration);
+  } catch (err) {
+    console.error('Error updating integrations:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 3. Connect/Initialize WhatsApp Web client
+app.post('/api/integrations/whatsapp-web/connect', authenticateToken, async (req, res) => {
+  try {
+    // Check if integration is enabled first
+    const integration = await Integration.findOne({ tenantId: req.user.tenantId });
+    if (!integration || !integration.whatsappWeb?.enabled) {
+      return res.status(400).json({ error: 'WhatsApp Web integration is not enabled in settings' });
+    }
+
+    const clientData = await initializeWhatsAppClient(req.user.tenantId);
+    res.status(200).json({ status: clientData.status, qr: clientData.qr });
+  } catch (err) {
+    console.error('Error connecting WhatsApp Web client:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 4. Disconnect/Logout WhatsApp Web client
+app.post('/api/integrations/whatsapp-web/disconnect', authenticateToken, async (req, res) => {
+  try {
+    await disconnectWhatsAppClient(req.user.tenantId);
+    res.status(200).json({ message: 'WhatsApp Web client disconnected successfully' });
+  } catch (err) {
+    console.error('Error disconnecting WhatsApp Web client:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 5. Get WhatsApp Web client status
+app.get('/api/integrations/whatsapp-web/status', authenticateToken, async (req, res) => {
+  try {
+    const statusData = getWhatsAppClientStatus(req.user.tenantId);
+    res.status(200).json(statusData);
+  } catch (err) {
+    console.error('Error fetching WhatsApp Web status:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 6. Public Webhook - Official WhatsApp API
+app.get('/api/webhooks/whatsapp-api', handleWhatsAppApiWebhook);
+app.post('/api/webhooks/whatsapp-api', handleWhatsAppApiWebhook);
+
+// 7. Public Webhook - Meta Messenger & Instagram
+app.get('/api/webhooks/meta', handleMetaWebhook);
+app.post('/api/webhooks/meta', handleMetaWebhook);
 
 // ============================================
 // SERVE DEMO SITE STATICALLY (Allows correct HTTP Origin and PushState Routing)

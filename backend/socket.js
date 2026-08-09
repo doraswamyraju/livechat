@@ -1,6 +1,11 @@
 import { Server } from 'socket.io';
-import { Visitor, Conversation, Message, User, Tenant } from './models.js';
+import { Visitor, Conversation, Message, User, Tenant, Integration } from './models.js';
 import { sendPushNotification } from './firebase.js';
+import { sendWhatsAppWebMessage } from './whatsapp-web-service.js';
+import { sendWhatsAppApiMessage } from './whatsapp-api-service.js';
+import { sendMetaMessage } from './meta-api-service.js';
+
+export let dashboardNamespace;
 
 // Real Geo-IP lookup resolver using ip-api.com with stable fallback
 const getGeoIP = async (ip) => {
@@ -74,7 +79,7 @@ export const initializeSocket = (httpServer) => {
   });
 
   const visitorNamespace = io.of('/visitor');
-  const dashboardNamespace = io.of('/dashboard');
+  dashboardNamespace = io.of('/dashboard');
 
   // Track active visitor socket connections to handle multi-tabbing or abrupt disconnect grace periods
   const activeVisitorSockets = new Map(); // visitorId -> socketId
@@ -557,10 +562,31 @@ export const initializeSocket = (httpServer) => {
           conv.status = 'Active';
           conv.updatedAt = new Date();
           await conv.save();
-        }
 
-        // Broadcast to visitor
-        visitorNamespace.to(`visitor_${visitorId}`).emit('msg-received', message);
+          // ROUTING OUTGOING MESSAGES
+          if (conv.source === 'whatsapp-web') {
+            await sendWhatsAppWebMessage(currentTenantId, conv.visitorId, text);
+          } else if (conv.source === 'whatsapp-api') {
+            const integration = await Integration.findOne({ tenantId: currentTenantId });
+            if (integration && integration.whatsappApi?.enabled) {
+              const recipientPhone = conv.visitorId.split(':')[1];
+              await sendWhatsAppApiMessage(integration, recipientPhone, text);
+            } else {
+              throw new Error('Official WhatsApp API integration is not enabled/configured');
+            }
+          } else if (conv.source === 'facebook' || conv.source === 'instagram') {
+            const integration = await Integration.findOne({ tenantId: currentTenantId });
+            if (integration && integration.meta?.enabled) {
+              const recipientId = conv.visitorId.split(':')[1];
+              await sendMetaMessage(integration, recipientId, text);
+            } else {
+              throw new Error('Meta (Facebook/Instagram) integration is not enabled/configured');
+            }
+          } else {
+            // Default: webchat
+            visitorNamespace.to(`visitor_${visitorId}`).emit('msg-received', message);
+          }
+        }
 
         // Broadcast to all dashboard agents in tenant
         dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-msg-received', {
