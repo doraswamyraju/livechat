@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
-import { User } from './models.js';
+import { User, Tenant } from './models.js';
 
 dotenv.config();
 
@@ -12,16 +12,24 @@ const newPasswordArg = process.argv[3];
 async function main() {
   try {
     await mongoose.connect(MONGO_URI);
-    console.log('Connected to MongoDB');
+    console.log('Connected to MongoDB database:', mongoose.connection.name);
 
     if (!emailArg) {
-      console.log('\n--- Registered Users in Database ---');
-      const users = await User.find({}).select('email name role status createdAt');
+      console.log('\n--- All Database Collections ---');
+      const collections = await mongoose.connection.db.listCollections().toArray();
+      collections.forEach(c => console.log(` - ${c.name}`));
+
+      console.log('\n--- All Registered Tenants ---');
+      const tenants = await Tenant.find({});
+      tenants.forEach(t => console.log(`Tenant Name: ${t.name} | Domain: ${t.domain} | API Key: ${t.apiKey}`));
+
+      console.log('\n--- All Registered Users ---');
+      const users = await User.find({}).populate('tenantId');
       if (users.length === 0) {
         console.log('No users found in database.');
       } else {
         users.forEach(u => {
-          console.log(`Email: ${u.email} | Name: ${u.name} | Role: ${u.role}`);
+          console.log(`Email: ${u.email} | Name: ${u.name} | Role: ${u.role} | Tenant: ${u.tenantId ? u.tenantId.name : 'N/A'}`);
         });
       }
       console.log('\nTo reset password, run:');
