@@ -142,6 +142,168 @@ app.post('/api/auth/register-tenant', async (req, res) => {
   }
 });
 
+// 1b. Internal Tenant Provisioning Endpoint (called automatically by ManaCity)
+app.post('/api/internal/provision-tenant', async (req, res) => {
+  const secretHeader = req.headers['x-provision-secret'];
+  const expectedSecret = process.env.PROVISION_SECRET || 'letstrack_manacity_internal_secret_2026';
+
+  if (secretHeader !== expectedSecret) {
+    return res.status(401).json({ error: 'Unauthorized internal provision request' });
+  }
+
+  const { tenantName, domain, adminName, email, password } = req.body;
+
+  if (!tenantName || !email) {
+    return res.status(400).json({ error: 'tenantName and email are required' });
+  }
+
+  try {
+    let existingUser = await User.findOne({ email }).populate('tenantId');
+    if (existingUser) {
+      const tenant = await Tenant.findById(existingUser.tenantId);
+      const token = jwt.sign(
+        { userId: existingUser._id, tenantId: tenant._id, role: existingUser.role },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+      return res.status(200).json({
+        message: 'Tenant already provisioned',
+        token,
+        tenant: {
+          id: tenant._id,
+          name: tenant.name,
+          domain: tenant.domain,
+          apiKey: tenant.apiKey
+        },
+        user: {
+          id: existingUser._id,
+          name: existingUser.name,
+          email: existingUser.email,
+          role: existingUser.role
+        }
+      });
+    }
+
+    const apiKey = 'lt_' + crypto.randomBytes(16).toString('hex');
+    const tenant = new Tenant({
+      name: tenantName,
+      domain: domain || 'manacity-site.com',
+      apiKey
+    });
+    await tenant.save();
+
+    const pwdToHash = password || crypto.randomBytes(12).toString('hex');
+    const passwordHash = await bcrypt.hash(pwdToHash, 10);
+    const user = new User({
+      tenantId: tenant._id,
+      name: adminName || tenantName,
+      email,
+      passwordHash,
+      role: 'Admin',
+      status: 'Offline'
+    });
+    await user.save();
+
+    const settings = new WidgetSettings({
+      tenantId: tenant._id
+    });
+    await settings.save();
+
+    const token = jwt.sign(
+      { userId: user._id, tenantId: tenant._id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.status(201).json({
+      message: 'Tenant provisioned successfully',
+      token,
+      tenant: {
+        id: tenant._id,
+        name: tenant.name,
+        domain: tenant.domain,
+        apiKey: tenant.apiKey
+      },
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+
+  } catch (err) {
+    console.error('Error in internal tenant provisioning:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 1c. Google / Gmail Sign-In Endpoint
+app.post('/api/auth/google-login', async (req, res) => {
+  const { credential, email: directEmail } = req.body;
+
+  try {
+    let email = directEmail;
+    let name = '';
+    let picture = '';
+
+    if (credential) {
+      const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
+      if (!googleRes.ok) {
+        return res.status(400).json({ error: 'Invalid Google credential' });
+      }
+      const payload = await googleRes.json();
+      email = payload.email;
+      name = payload.name;
+      picture = payload.picture;
+    }
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email missing from Google authentication' });
+    }
+
+    let user = await User.findOne({ email }).populate('tenantId');
+    if (!user) {
+      return res.status(404).json({ error: 'No LetsTrack account found for this email. Please ensure your ManaCity business is onboarded.' });
+    }
+
+    if (picture && !user.avatarUrl) {
+      user.avatarUrl = picture;
+      await user.save();
+    }
+
+    const tenant = user.tenantId;
+
+    const token = jwt.sign(
+      { userId: user._id, tenantId: tenant._id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.status(200).json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        avatarUrl: user.avatarUrl
+      },
+      tenant: {
+        id: tenant._id,
+        name: tenant.name,
+        domain: tenant.domain,
+        apiKey: tenant.apiKey
+      }
+    });
+
+  } catch (err) {
+    console.error('Error in Google login:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // 2. User Login
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
