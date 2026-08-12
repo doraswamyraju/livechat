@@ -8,13 +8,13 @@ const TenantSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// 2. User (Agent/Admin) Model
+// 2. User (Agent/Admin/SuperAdmin) Model
 const UserSchema = new mongoose.Schema({
-  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: false },
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true, index: true },
   passwordHash: { type: String, required: true },
-  role: { type: String, enum: ['Admin', 'Agent'], default: 'Agent' },
+  role: { type: String, enum: ['SuperAdmin', 'Admin', 'Agent'], default: 'Agent' },
   status: { type: String, enum: ['Online', 'Away', 'Offline'], default: 'Offline' },
   avatarUrl: { type: String, default: '' },
   fcmToken: { type: String, default: '' },
