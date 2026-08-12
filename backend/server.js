@@ -41,8 +41,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'letstrack_super_secret_session_key
 mongoose.connect(MONGO_URI)
   .then(() => {
     console.log('Successfully connected to MongoDB database.');
-    // Auto-start active WhatsApp Web clients
-    autoStartWhatsAppWebClients().catch(err => console.error('Error auto-starting WhatsApp clients:', err));
+    // Auto-start active WhatsApp Web clients (disabled temporarily)
+    // autoStartWhatsAppWebClients().catch(err => console.error('Error auto-starting WhatsApp clients:', err));
   })
   .catch(err => console.error('MongoDB database connection error:', err));
 
@@ -565,43 +565,19 @@ app.put('/api/integrations', authenticateToken, async (req, res) => {
   }
 });
 
-// 3. Connect/Initialize WhatsApp Web client
+// 3. Connect/Initialize WhatsApp Web client (Temporarily Disabled)
 app.post('/api/integrations/whatsapp-web/connect', authenticateToken, async (req, res) => {
-  try {
-    // Check if integration is enabled first
-    const integration = await Integration.findOne({ tenantId: req.user.tenantId });
-    if (!integration || !integration.whatsappWeb?.enabled) {
-      return res.status(400).json({ error: 'WhatsApp Web integration is not enabled in settings' });
-    }
-
-    const clientData = await initializeWhatsAppClient(req.user.tenantId);
-    res.status(200).json({ status: clientData.status, qr: clientData.qr });
-  } catch (err) {
-    console.error('Error connecting WhatsApp Web client:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
+  return res.status(400).json({ error: 'WhatsApp Web (QR scan) integration is temporarily disabled.' });
 });
 
-// 4. Disconnect/Logout WhatsApp Web client
+// 4. Disconnect/Logout WhatsApp Web client (Temporarily Disabled)
 app.post('/api/integrations/whatsapp-web/disconnect', authenticateToken, async (req, res) => {
-  try {
-    await disconnectWhatsAppClient(req.user.tenantId);
-    res.status(200).json({ message: 'WhatsApp Web client disconnected successfully' });
-  } catch (err) {
-    console.error('Error disconnecting WhatsApp Web client:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
+  return res.status(200).json({ message: 'WhatsApp Web integration is disabled.' });
 });
 
-// 5. Get WhatsApp Web client status
+// 5. Get WhatsApp Web client status (Temporarily Disabled)
 app.get('/api/integrations/whatsapp-web/status', authenticateToken, async (req, res) => {
-  try {
-    const statusData = getWhatsAppClientStatus(req.user.tenantId);
-    res.status(200).json(statusData);
-  } catch (err) {
-    console.error('Error fetching WhatsApp Web status:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
+  return res.status(200).json({ status: 'DISABLED', qr: null });
 });
 
 // 6. Public Webhook - Official WhatsApp API

@@ -565,7 +565,7 @@ export const initializeSocket = (httpServer) => {
 
           // ROUTING OUTGOING MESSAGES
           if (conv.source === 'whatsapp-web') {
-            await sendWhatsAppWebMessage(currentTenantId, conv.visitorId, text);
+            throw new Error('WhatsApp Web integration is temporarily disabled');
           } else if (conv.source === 'whatsapp-api') {
             const integration = await Integration.findOne({ tenantId: currentTenantId });
             if (integration && integration.whatsappApi?.enabled) {
