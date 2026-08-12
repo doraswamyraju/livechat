@@ -1,11 +1,19 @@
 (function() {
-  // Ensure widget config exists
-  if (!window.LetsTrackConfig || !window.LetsTrackConfig.websiteId) {
-    console.error("LetsTrack: Missing websiteId (API key) in LetsTrackConfig.");
+  // Ensure widget config exists or auto-detect from script tag attribute
+  let apiKey = window.LetsTrackConfig ? window.LetsTrackConfig.websiteId : null;
+  if (!apiKey) {
+    const currentScript = document.currentScript || document.querySelector('script[data-api-key]');
+    if (currentScript) {
+      apiKey = currentScript.getAttribute('data-api-key');
+    }
+  }
+
+  if (!apiKey) {
+    console.error("LetsTrack: Missing websiteId (API key) in LetsTrackConfig or data-api-key attribute.");
     return;
   }
 
-  const API_KEY = window.LetsTrackConfig.websiteId;
+  const API_KEY = apiKey;
   const BACKEND_URL = '__BACKEND_URL__'; // Dynamically replaced by server at runtime
   
   // Generate or retrieve persistent visitor UUID
