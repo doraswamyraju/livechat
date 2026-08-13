@@ -48,7 +48,8 @@ const ConversationSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
   visitorId: { type: String, ref: 'Visitor', required: true },
   assignedAgentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-  status: { type: String, enum: ['Unassigned', 'Active', 'Closed'], default: 'Unassigned' },
+  status: { type: String, enum: ['Unassigned', 'Active', 'Closed', 'Archived'], default: 'Unassigned' },
+  isArchived: { type: Boolean, default: false },
   source: { type: String, enum: ['webchat', 'whatsapp-web', 'whatsapp-api', 'instagram', 'facebook'], default: 'webchat' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }

@@ -240,22 +240,26 @@ app.post('/api/internal/provision-tenant', async (req, res) => {
 
 // 1c. Google / Gmail Sign-In Endpoint
 app.post('/api/auth/google-login', async (req, res) => {
-  const { credential, email: directEmail } = req.body;
+  const { idToken, credential, email: directEmail } = req.body;
+  const tokenToVerify = idToken || credential;
 
   try {
     let email = directEmail;
     let name = '';
     let picture = '';
 
-    if (credential) {
-      const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
-      if (!googleRes.ok) {
-        return res.status(400).json({ error: 'Invalid Google credential' });
+    if (tokenToVerify) {
+      try {
+        const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${tokenToVerify}`);
+        if (googleRes.ok) {
+          const payload = await googleRes.json();
+          email = payload.email;
+          name = payload.name;
+          picture = payload.picture;
+        }
+      } catch (err) {
+        console.warn('Google tokeninfo fetch warning:', err.message);
       }
-      const payload = await googleRes.json();
-      email = payload.email;
-      name = payload.name;
-      picture = payload.picture;
     }
 
     if (!email) {
@@ -264,7 +268,7 @@ app.post('/api/auth/google-login', async (req, res) => {
 
     let user = await User.findOne({ email }).populate('tenantId');
     if (!user) {
-      return res.status(404).json({ error: 'No LetsTrack account found for this email. Please ensure your ManaCity business is onboarded.' });
+      return res.status(404).json({ error: 'No LetsTrack account found for this email. Please ensure your account is onboarded.' });
     }
 
     if (picture && !user.avatarUrl) {
@@ -272,12 +276,10 @@ app.post('/api/auth/google-login', async (req, res) => {
       await user.save();
     }
 
-    const tenant = user.tenantId;
-
     const token = jwt.sign(
-      { userId: user._id, tenantId: tenant._id, role: user.role },
+      { userId: user._id, tenantId: user.tenantId._id, role: user.role },
       JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: '7d' }
     );
 
     res.status(200).json({
@@ -291,10 +293,10 @@ app.post('/api/auth/google-login', async (req, res) => {
         avatarUrl: user.avatarUrl
       },
       tenant: {
-        id: tenant._id,
-        name: tenant.name,
-        domain: tenant.domain,
-        apiKey: tenant.apiKey
+        id: user.tenantId._id,
+        name: user.tenantId.name,
+        domain: user.tenantId.domain,
+        apiKey: user.tenantId.apiKey
       }
     });
 
@@ -546,6 +548,49 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
     res.status(200).json(messages);
   } catch (err) {
     console.error('Error retrieving conversation messages:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 7b. Archive or Unarchive Conversation
+app.put('/api/conversations/:conversationId/archive', authenticateToken, async (req, res) => {
+  const { conversationId } = req.params;
+  const { archive } = req.body; // true or false
+
+  try {
+    const conv = await Conversation.findOne({ _id: conversationId, tenantId: req.user.tenantId });
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+    conv.isArchived = archive !== undefined ? Boolean(archive) : true;
+    conv.status = conv.isArchived ? 'Archived' : 'Active';
+    conv.updatedAt = new Date();
+    await conv.save();
+
+    dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversation-updated', conv);
+
+    res.status(200).json({ message: conv.isArchived ? 'Conversation archived' : 'Conversation unarchived', conversation: conv });
+  } catch (err) {
+    console.error('Error archiving conversation:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 7c. Delete Conversation & Messages
+app.delete('/api/conversations/:conversationId', authenticateToken, async (req, res) => {
+  const { conversationId } = req.params;
+
+  try {
+    const conv = await Conversation.findOne({ _id: conversationId, tenantId: req.user.tenantId });
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+    await Message.deleteMany({ conversationId });
+    await conv.deleteOne();
+
+    dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversation-deleted', { conversationId });
+
+    res.status(200).json({ message: 'Conversation deleted successfully', conversationId });
+  } catch (err) {
+    console.error('Error deleting conversation:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

@@ -285,6 +285,53 @@ function App() {
     }
   };
 
+  const handleArchiveConversation = async (convId, isArchivedState) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/conversations/${convId}/archive`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ archive: !isArchivedState })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Action failed');
+
+      showToast(data.message);
+      setConversations(prev => prev.map(c => c._id === convId ? data.conversation : c));
+      if (selectedConversation && selectedConversation._id === convId) {
+        setSelectedConversation(data.conversation);
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleDeleteConversation = async (convId) => {
+    if (!window.confirm('Are you sure you want to permanently delete this conversation and all its messages?')) return;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/conversations/${convId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+
+      showToast('Conversation deleted successfully');
+      setConversations(prev => prev.filter(c => c._id !== convId));
+      if (selectedConversation && selectedConversation._id === convId) {
+        setSelectedConversation(null);
+        setMessages([]);
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
   // References
   const socketRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -324,14 +371,19 @@ function App() {
     }
   };
 
-  const handleGoogleLogin = async (googleEmail) => {
-    if (!googleEmail) return showToast('Please enter your Gmail address', 'error');
+  const handleGoogleLogin = async (idTokenOrEmail) => {
+    if (!idTokenOrEmail) return showToast('Please enter your Gmail address or login with Google', 'error');
+
+    const isToken = idTokenOrEmail.length > 50;
+    const body = isToken 
+      ? { idToken: idTokenOrEmail, credential: idTokenOrEmail }
+      : { email: idTokenOrEmail };
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/google-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: googleEmail })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Google login failed');
@@ -657,7 +709,7 @@ function App() {
       }
     });
 
-    // 8. Dynamic conversation updates (like Employee Assignments)
+    // 8. Dynamic conversation updates (like Employee Assignments or Archiving)
     socket.on('chat-assigned-update', (data) => {
       const { conversation, systemMessage } = data;
       
@@ -669,6 +721,21 @@ function App() {
       }
       
       showToast(`Conversation state updated: ${systemMessage.text}`);
+    });
+
+    socket.on('conversation-updated', (updatedConv) => {
+      setConversations(prev => prev.map(c => c._id === updatedConv._id ? updatedConv : c));
+      if (selectedConversation && selectedConversation._id === updatedConv._id) {
+        setSelectedConversation(updatedConv);
+      }
+    });
+
+    socket.on('conversation-deleted', (data) => {
+      setConversations(prev => prev.filter(c => c._id !== data.conversationId));
+      if (selectedConversation && selectedConversation._id === data.conversationId) {
+        setSelectedConversation(null);
+        setMessages([]);
+      }
     });
 
     // 9. Sync agent status changes
@@ -1661,6 +1728,13 @@ function App() {
                     >
                       Queue
                     </button>
+                    <button 
+                      className={`filter-tab ${inboxFilter === 'archived' ? 'active' : ''}`} 
+                      onClick={() => setInboxFilter('archived')}
+                      style={{ flex: 1, padding: '8px 4px' }}
+                    >
+                      Archived
+                    </button>
                   </div>
                   
                   <select
@@ -1701,27 +1775,39 @@ function App() {
                       filtered = filtered.filter(c => c.source === 'facebook' || c.source === 'instagram');
                     }
 
-                    if (inboxFilter === 'mine') {
-                      filtered = filtered.filter(c => c.assignedAgentId && (c.assignedAgentId._id === user.id || c.assignedAgentId === user.id));
-                    } else if (inboxFilter === 'unassigned') {
-                      filtered = filtered.filter(c => c.status === 'Unassigned');
-                    } else if (inboxFilter.startsWith('agent-')) {
-                      const agentId = inboxFilter.split('agent-')[1];
-                      filtered = filtered.filter(c => c.assignedAgentId && (c.assignedAgentId._id === agentId || c.assignedAgentId === agentId));
+                    // Archive filter logic
+                    if (inboxFilter === 'archived') {
+                      filtered = filtered.filter(c => c.isArchived || c.status === 'Archived');
+                    } else {
+                      // Hide archived conversations in normal tabs unless requested
+                      filtered = filtered.filter(c => !c.isArchived && c.status !== 'Archived');
+                      
+                      if (inboxFilter === 'mine') {
+                        filtered = filtered.filter(c => c.assignedAgentId && (c.assignedAgentId._id === user.id || c.assignedAgentId === user.id));
+                      } else if (inboxFilter === 'unassigned') {
+                        filtered = filtered.filter(c => c.status === 'Unassigned');
+                      } else if (inboxFilter.startsWith('agent-')) {
+                        const agentId = inboxFilter.split('agent-')[1];
+                        filtered = filtered.filter(c => c.assignedAgentId && (c.assignedAgentId._id === agentId || c.assignedAgentId === agentId));
+                      }
                     }
                     
+                    // Sort conversations: Live/online users and latest messages/activity ALWAYS on top
                     const sorted = filtered.sort((a, b) => {
-                      const getStatusWeight = (status) => {
-                        if (status === 'Active') return 3;
-                        if (status === 'Unassigned') return 2;
-                        return 1;
-                      };
-                      const weightA = getStatusWeight(a.status);
-                      const weightB = getStatusWeight(b.status);
-                      if (weightA !== weightB) {
-                        return weightB - weightA;
+                      const visA = typeof a.visitorId === 'object' ? a.visitorId : visitors.find(v => v._id === a.visitorId);
+                      const visB = typeof b.visitorId === 'object' ? b.visitorId : visitors.find(v => v._id === b.visitorId);
+                      
+                      const isOnlineA = visA?.isOnline ? 1 : 0;
+                      const isOnlineB = visB?.isOnline ? 1 : 0;
+
+                      if (isOnlineA !== isOnlineB) {
+                        return isOnlineB - isOnlineA; // Live online users first
                       }
-                      return new Date(b.updatedAt) - new Date(a.updatedAt);
+
+                      // Primary timestamp sorting by latest updated activity
+                      const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+                      const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+                      return timeB - timeA;
                     });
 
                     return sorted.map(conv => {
@@ -1786,9 +1872,11 @@ function App() {
                           key={conv._id}
                           className={`room-card ${selectedConversation?._id === conv._id ? 'active' : ''}`}
                           onClick={() => handleSelectConversation(conv)}
+                          style={{ position: 'relative' }}
                         >
                           <div className="room-card-header">
                             <span className="room-name">
+                              {vis?.isOnline && <span title="Live Online" style={{ marginRight: '4px', color: '#10B981', fontSize: '10px' }}>🟢</span>}
                               {vis?.name || 'VisitorSession'}
                               {renderSourceBadge()}
                               {vis?.isMuted && <span title="Muted" style={{ marginLeft: '4px', color: '#EF4444' }}>🔇</span>}
@@ -1798,11 +1886,29 @@ function App() {
                             </span>
                           </div>
                           <div className="room-preview">
-                            {conv.status === 'Unassigned' ? 'Waiting for agent...' : 'Active chat in progress'}
+                            {conv.status === 'Unassigned' ? 'Waiting for agent...' : conv.status === 'Archived' || conv.isArchived ? 'Archived conversation' : 'Active chat in progress'}
                           </div>
-                          <span className="room-assignee" style={{ borderLeft: `2px solid ${conv.assignedAgentId ? 'var(--primary)' : 'var(--warning)'}` }}>
-                            👤 {agentName}
-                          </span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                            <span className="room-assignee" style={{ borderLeft: `2px solid ${conv.assignedAgentId ? 'var(--primary)' : 'var(--warning)'}` }}>
+                              👤 {agentName}
+                            </span>
+                            <div style={{ display: 'flex', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => handleArchiveConversation(conv._id, conv.isArchived || conv.status === 'Archived')}
+                                title={conv.isArchived || conv.status === 'Archived' ? "Unarchive Inbox" : "Archive Inbox"}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px', padding: '2px' }}
+                              >
+                                {conv.isArchived || conv.status === 'Archived' ? '📥' : '📦'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteConversation(conv._id)}
+                                title="Delete Inbox Message"
+                                style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '12px', padding: '2px' }}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       );
                     });
@@ -1817,6 +1923,7 @@ function App() {
                     <div className="chat-pane-header">
                       <div>
                         <div style={{ fontWeight: '700', fontSize: '15px', display: 'flex', alignItems: 'center' }}>
+                          {selectedVisitor?.isOnline && <span title="Live Online" style={{ marginRight: '6px', color: '#10B981' }}>🟢</span>}
                           {selectedVisitor?.name || 'Visitor Conversation'}
                           {(() => {
                             let text = 'Web Chat';
@@ -1877,6 +1984,45 @@ function App() {
                             {selectedConversation.assignedAgentId ? `Assigned to ${selectedConversation.assignedAgentId.name}` : 'Unassigned in Queue'}
                           </span>
                         </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                          onClick={() => handleArchiveConversation(selectedConversation._id, selectedConversation.isArchived || selectedConversation.status === 'Archived')}
+                          style={{
+                            backgroundColor: 'var(--bg-tertiary)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-color)',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: '605',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}
+                        >
+                          {selectedConversation.isArchived || selectedConversation.status === 'Archived' ? '📥 Unarchive' : '📦 Archive'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteConversation(selectedConversation._id)}
+                          style={{
+                            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                            color: '#EF4444',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: '605',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}
+                        >
+                          🗑️ Delete
+                        </button>
                       </div>
                     </div>
 
