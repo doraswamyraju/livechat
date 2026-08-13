@@ -67,3 +67,69 @@ class ThemeManager: ObservableObject {
         }
     }
 }
+
+func formatMessageText(text: String) -> String {
+    let pattern = "\\[timestamp:([^\\]]+)\\]"
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return text }
+    
+    let nsString = text as NSString
+    let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+    
+    var result = text
+    for match in matches.reversed() {
+        let isoRange = match.range(at: 1)
+        let isoString = nsString.substring(with: isoRange)
+        
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var date = formatter.date(from: isoString)
+        if date == nil {
+            formatter.formatOptions = [.withInternetDateTime]
+            date = formatter.date(from: isoString)
+        }
+        
+        if let date = date {
+            let outputFormatter = DateFormatter()
+            outputFormatter.dateFormat = "MMM d, yyyy, h:mm a"
+            outputFormatter.timeZone = TimeZone.current
+            let formatted = outputFormatter.string(from: date)
+            result = (result as NSString).replacingCharacters(in: match.range, with: formatted)
+        }
+    }
+    return result
+}
+
+func formatTimestamp(isoString: String) -> String {
+    if isoString.isEmpty { return "" }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    var date = formatter.date(from: isoString)
+    if date == nil {
+        formatter.formatOptions = [.withInternetDateTime]
+        date = formatter.date(from: isoString)
+    }
+    guard let date = date else { return isoString }
+    
+    let outputFormatter = DateFormatter()
+    outputFormatter.dateFormat = "h:mm a"
+    outputFormatter.timeZone = TimeZone.current
+    return outputFormatter.string(from: date)
+}
+
+func formatTimestampFull(isoString: String) -> String {
+    if isoString.isEmpty { return "" }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    var date = formatter.date(from: isoString)
+    if date == nil {
+        formatter.formatOptions = [.withInternetDateTime]
+        date = formatter.date(from: isoString)
+    }
+    guard let date = date else { return isoString }
+    
+    let outputFormatter = DateFormatter()
+    outputFormatter.dateFormat = "MMM d, yyyy, h:mm a"
+    outputFormatter.timeZone = TimeZone.current
+    return outputFormatter.string(from: date)
+}
+

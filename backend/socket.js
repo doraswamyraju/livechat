@@ -222,7 +222,7 @@ export const initializeSocket = (httpServer) => {
                 senderType: 'System',
                 senderId: 'SYSTEM',
                 senderName: 'System',
-                text: `Visitor returned online. Last seen: ${lastSeenFormatted} on URL: ${displayUrl}`,
+                text: `Visitor returned online. Last seen: ${previousLastSeen ? `[timestamp:${previousLastSeen.toISOString()}]` : 'Never'} on URL: ${displayUrl}`,
                 timestamp: new Date()
               });
               await systemMsg.save();

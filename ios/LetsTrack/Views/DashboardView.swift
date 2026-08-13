@@ -535,6 +535,10 @@ struct TrafficTab: View {
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(theme.secondaryColor)
                         .lineLimit(1)
+                    
+                    Text("Last active: \(visitor.lastSeen != nil ? formatTimestampFull(isoString: visitor.lastSeen!) : "Never")")
+                        .font(.system(size: 10))
+                        .foregroundColor(.gray)
                 }
                 
                 Spacer()

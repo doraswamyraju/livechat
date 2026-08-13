@@ -902,6 +902,12 @@ fun VisitorCard(visitor: VisitorDto, onOpenChat: (VisitorDto) -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Last active: ${formatVisitorLastActive(visitor.lastSeen)}",
+                    color = Color.Gray,
+                    fontSize = 10.sp
+                )
             }
             IconButton(onClick = { onOpenChat(visitor) }) {
                 Icon(Icons.Default.Send, contentDescription = "Open Chat", tint = Color(0xFFDC2626))
@@ -1512,3 +1518,16 @@ fun SettingsTab(
         }
     }
 }
+
+fun formatVisitorLastActive(isoString: String?): String {
+    if (isoString.isNullOrEmpty()) return "Never"
+    return try {
+        val instant = java.time.Instant.parse(isoString)
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy, h:mm a")
+            .withZone(java.time.ZoneId.systemDefault())
+        formatter.format(instant)
+    } catch (e: Exception) {
+        isoString
+    }
+}
+

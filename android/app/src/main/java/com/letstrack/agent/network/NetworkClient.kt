@@ -57,7 +57,9 @@ data class VisitorDto(
     val deviceType: String,
     val currentUrl: String?,
     val isOnline: Boolean,
-    val isMuted: Boolean? = false
+    val isMuted: Boolean? = false,
+    val firstSeen: String? = null,
+    val lastSeen: String? = null
 )
 
 data class ConversationDto(

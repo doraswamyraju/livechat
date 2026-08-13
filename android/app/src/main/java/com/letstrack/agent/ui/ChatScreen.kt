@@ -64,6 +64,8 @@ fun ChatScreen(
     var visitorEmail by remember { mutableStateOf(initialEmail ?: "") }
     var visitorPhone by remember { mutableStateOf(initialPhone ?: "") }
     var isDetailsExpanded by remember { mutableStateOf(false) }
+    var visitorFirstSeen by remember { mutableStateOf("") }
+    var visitorLastActive by remember { mutableStateOf("") }
 
     var quickRepliesList by remember { mutableStateOf<List<QuickReplyDto>>(emptyList()) }
 
@@ -99,6 +101,8 @@ fun ChatScreen(
                 visitorCity = visitor.city
                 visitorDevice = visitor.deviceType
                 visitorMuted = visitor.isMuted ?: false
+                visitorFirstSeen = visitor.firstSeen ?: ""
+                visitorLastActive = visitor.lastSeen ?: ""
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -443,6 +447,20 @@ fun ChatScreen(
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("FIRST SEEN", color = Color(0xFF64748B), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(if (visitorFirstSeen.isNotEmpty()) formatTimestampFull(visitorFirstSeen) else "Never", color = Color.White, fontSize = 13.sp)
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("LAST ACTIVE", color = Color(0xFF64748B), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(if (visitorLastActive.isNotEmpty()) formatTimestampFull(visitorLastActive) else "Never", color = Color.White, fontSize = 13.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -469,7 +487,7 @@ fun ChatScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = msg.text,
+                                text = formatMessageText(msg.text),
                                 color = Color(0xFFEF4444),
                                 fontSize = 11.sp,
                                 modifier = Modifier
@@ -485,7 +503,7 @@ fun ChatScreen(
                             horizontalAlignment = if (isSelf) Alignment.End else Alignment.Start
                         ) {
                             Text(
-                                msg.senderName,
+                                text = "${msg.senderName} • ${formatTimestamp(msg.timestamp)}",
                                 color = Color(0xFF94A3B8),
                                 fontSize = 10.sp,
                                 modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 2.dp)
@@ -516,7 +534,7 @@ fun ChatScreen(
                                     .padding(horizontal = 14.dp, vertical = 10.dp)
                             ) {
                                 Text(
-                                    msg.text,
+                                    formatMessageText(msg.text),
                                     color = Color.White,
                                     fontSize = 14.sp
                                 )
@@ -737,3 +755,43 @@ fun ChatScreen(
         )
     }
 }
+
+fun formatMessageText(text: String): String {
+    val regex = Regex("\\[timestamp:([^\\]]+)\\]")
+    return regex.replace(text) { matchResult ->
+        val isoString = matchResult.groupValues[1]
+        try {
+            val instant = java.time.Instant.parse(isoString)
+            val formatter = java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy, h:mm a")
+                .withZone(java.time.ZoneId.systemDefault())
+            formatter.format(instant)
+        } catch (e: Exception) {
+            isoString
+        }
+    }
+}
+
+fun formatTimestamp(isoString: String): String {
+    if (isoString.isEmpty()) return ""
+    return try {
+        val instant = java.time.Instant.parse(isoString)
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("h:mm a")
+            .withZone(java.time.ZoneId.systemDefault())
+        formatter.format(instant)
+    } catch (e: Exception) {
+        isoString
+    }
+}
+
+fun formatTimestampFull(isoString: String): String {
+    if (isoString.isEmpty()) return ""
+    return try {
+        val instant = java.time.Instant.parse(isoString)
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy, h:mm a")
+            .withZone(java.time.ZoneId.systemDefault())
+        formatter.format(instant)
+    } catch (e: Exception) {
+        isoString
+    }
+}
+

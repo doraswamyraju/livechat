@@ -5,6 +5,27 @@ const BACKEND_URL = window.location.hostname === 'localhost' || window.location.
   ? 'http://localhost:5004'
   : window.location.origin;
 
+const formatMessageText = (text) => {
+  if (!text) return '';
+  const regex = /\[timestamp:([^\]]+)\]/g;
+  return text.replace(regex, (match, isoString) => {
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return isoString;
+      return d.toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return isoString;
+    }
+  });
+};
+
 function App() {
   // Authentication & Session state
   const [token, setToken] = useState(localStorage.getItem('letstrack_token') || null);
@@ -1460,6 +1481,18 @@ function App() {
                       <span className="info-item-label">Browser & OS</span>
                       <span className="info-item-value">{selectedVisitor.browser} ({selectedVisitor.os})</span>
                     </div>
+                    <div className="info-item">
+                      <span className="info-item-label">First Seen</span>
+                      <span className="info-item-value">
+                        {selectedVisitor.firstSeen ? new Date(selectedVisitor.firstSeen).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Never'}
+                      </span>
+                    </div>
+                    <div className="info-item">
+                      <span className="info-item-label">Last Active</span>
+                      <span className="info-item-value">
+                        {selectedVisitor.lastSeen ? new Date(selectedVisitor.lastSeen).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Never'}
+                      </span>
+                    </div>
                     
                     <button
                       onClick={() => {
@@ -1850,7 +1883,7 @@ function App() {
                     <div className="chat-messages-board" ref={messagesContainerRef}>
                       {messages.map((msg, i) => (
                         <div key={i} className={`db-msg-row ${msg.senderType.toLowerCase()}`}>
-                          <div className="db-msg-bubble">{msg.text}</div>
+                          <div className="db-msg-bubble">{formatMessageText(msg.text)}</div>
                           <div className="db-msg-time">
                             {msg.senderName} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
@@ -1983,6 +2016,18 @@ function App() {
                       <div className="info-item">
                         <span className="info-item-label">OS/Browser</span>
                         <span className="info-item-value">{selectedVisitor?.os} / {selectedVisitor?.browser}</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-item-label">First Seen</span>
+                        <span className="info-item-value">
+                          {selectedVisitor?.firstSeen ? new Date(selectedVisitor.firstSeen).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Never'}
+                        </span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-item-label">Last Active</span>
+                        <span className="info-item-value">
+                          {selectedVisitor?.lastSeen ? new Date(selectedVisitor.lastSeen).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Never'}
+                        </span>
                       </div>
                     </div>
 

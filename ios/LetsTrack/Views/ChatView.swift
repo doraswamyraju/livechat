@@ -27,6 +27,8 @@ struct ChatView: View {
     @State private var visitorEmail = ""
     @State private var visitorPhone = ""
     @State private var visitorMuted = false
+    @State private var visitorFirstSeen = ""
+    @State private var visitorLastActive = ""
     
     // Panels/Dialogs toggles
     @State private var isDetailsExpanded = false
@@ -282,6 +284,28 @@ struct ChatView: View {
                             .font(.system(size: 12, design: .monospaced))
                             .foregroundColor(theme.secondaryColor)
                     }
+                    
+                    HStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("FIRST SEEN")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.gray)
+                            Text(visitorFirstSeen.isEmpty ? "Never" : formatTimestampFull(isoString: visitorFirstSeen))
+                                .font(.system(size: 13))
+                                .foregroundColor(.white)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("LAST ACTIVE")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.gray)
+                            Text(visitorLastActive.isEmpty ? "Never" : formatTimestampFull(isoString: visitorLastActive))
+                                .font(.system(size: 13))
+                                .foregroundColor(.white)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 .padding(14)
                 .background(theme.surfaceColor)
@@ -300,7 +324,7 @@ struct ChatView: View {
         if isSystem {
             HStack {
                 Spacer()
-                Text(msg.text)
+                Text(formatMessageText(text: msg.text))
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(theme.secondaryColor)
                     .padding(.horizontal, 14)
@@ -319,11 +343,11 @@ struct ChatView: View {
                 if isSelf { Spacer() }
                 
                 VStack(alignment: isSelf ? .trailing : .leading, spacing: 2) {
-                    Text(msg.senderName)
+                    Text("\(msg.senderName) • \(formatTimestamp(isoString: msg.timestamp))")
                         .font(.system(size: 10))
                         .foregroundColor(theme.textGrayColor)
                     
-                    Text(msg.text)
+                    Text(formatMessageText(text: msg.text))
                         .font(.system(size: 14))
                         .foregroundColor(.white)
                         .padding(.horizontal, 14)
@@ -463,6 +487,8 @@ struct ChatView: View {
                     self.visitorEmail = visitor.email ?? ""
                     self.visitorPhone = visitor.phoneNumber ?? ""
                     self.visitorMuted = visitor.isMuted ?? false
+                    self.visitorFirstSeen = visitor.firstSeen ?? ""
+                    self.visitorLastActive = visitor.lastSeen ?? ""
                 }
             }
         }

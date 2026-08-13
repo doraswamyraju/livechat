@@ -115,6 +115,8 @@ struct VisitorDto: Codable, Identifiable, Equatable {
     var currentUrl: String?
     var isOnline: Bool
     var isMuted: Bool?
+    var firstSeen: String?
+    var lastSeen: String?
 }
 
 struct ConversationDto: Codable, Identifiable, Equatable {
