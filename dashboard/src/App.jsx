@@ -1064,31 +1064,45 @@ function App() {
   };
 
   useEffect(() => {
-    if (!token && window.google?.accounts?.id) {
-      try {
-        window.google.accounts.id.initialize({
-          client_id: '931640963201-op9i4jmb31lcm8f4v5ggc0ik1oe1vvjk.apps.googleusercontent.com',
-          callback: (response) => {
-            if (response && response.credential) {
-              handleGoogleLogin(response.credential);
+    if (token || authMode !== 'login') return;
+
+    const initGoogleBtn = () => {
+      if (window.google?.accounts?.id) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: '931640963201-op9i4jmb31lcm8f4v5ggc0ik1oe1vvjk.apps.googleusercontent.com',
+            callback: (response) => {
+              if (response && response.credential) {
+                handleGoogleLogin(response.credential);
+              }
             }
-          }
-        });
-        const googleBtnParent = document.getElementById('g_id_signin');
-        if (googleBtnParent) {
-          googleBtnParent.innerHTML = '';
-          window.google.accounts.id.renderButton(googleBtnParent, {
-            theme: 'outline',
-            size: 'large',
-            width: 320,
-            text: 'continue_with',
-            shape: 'rectangular'
           });
+          const googleBtnParent = document.getElementById('g_id_signin');
+          if (googleBtnParent) {
+            googleBtnParent.innerHTML = '';
+            window.google.accounts.id.renderButton(googleBtnParent, {
+              theme: 'outline',
+              size: 'large',
+              width: 320,
+              text: 'continue_with',
+              shape: 'rectangular'
+            });
+          }
+        } catch (err) {
+          console.error('Google One-Tap initialization error:', err);
         }
-      } catch (err) {
-        console.error('Google One-Tap initialization error:', err);
       }
-    }
+    };
+
+    initGoogleBtn();
+    const timer = setInterval(() => {
+      if (window.google?.accounts?.id) {
+        initGoogleBtn();
+        clearInterval(timer);
+      }
+    }, 500);
+
+    return () => clearInterval(timer);
   }, [token, authMode]);
 
   // ============================================
