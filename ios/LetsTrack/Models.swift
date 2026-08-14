@@ -9,6 +9,11 @@ struct LoginRequest: Codable {
     let password: String
 }
 
+struct GoogleLoginRequest: Codable {
+    let idToken: String
+}
+
+
 struct UserProfile: Codable, Identifiable, Hashable {
     let id: String
     let name: String

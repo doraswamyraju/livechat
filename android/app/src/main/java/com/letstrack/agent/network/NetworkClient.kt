@@ -15,6 +15,7 @@ import java.net.URISyntaxException
 // DTO DEFINITIONS
 // ============================================
 data class LoginRequest(val email: String, val password: String)
+data class GoogleLoginRequest(val idToken: String)
 
 data class UserProfile(
     val id: String,
@@ -115,6 +116,9 @@ data class RegisterAgentResponse(
 interface LetsTrackApi {
     @POST("/api/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
+
+    @POST("/api/auth/google-login")
+    suspend fun googleLogin(@Body request: GoogleLoginRequest): LoginResponse
 
     @POST("/api/auth/reset-password")
     suspend fun resetPassword(@Body request: ResetPasswordRequest): ResetPasswordResponse

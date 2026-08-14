@@ -57,8 +57,9 @@ class MainActivity : ComponentActivity() {
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
-        
+
         setContent {
+
             val context = androidx.compose.ui.platform.LocalContext.current
             val prefs = remember { context.getSharedPreferences("letstrack_prefs", android.content.Context.MODE_PRIVATE) }
             var currentTheme by remember {
@@ -99,7 +100,39 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 9001 && data != null) {
+            val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(data)
+            try {
+                val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+                val idToken = account?.idToken
+                if (idToken != null) {
+                    kotlinx.coroutines.MainScope().launch {
+                        try {
+                            val res = NetworkClient.api.googleLogin(com.letstrack.agent.network.GoogleLoginRequest(idToken))
+                            NetworkClient.setAuth(res.token, res.user, res.tenant)
+                            val prefs = getSharedPreferences("letstrack_prefs", android.content.Context.MODE_PRIVATE)
+                            val gson = com.google.gson.Gson()
+                            prefs.edit()
+                                .putString("auth_token", res.token)
+                                .putString("user_profile", gson.toJson(res.user))
+                                .putString("tenant_details", gson.toJson(res.tenant))
+                                .apply()
+                            recreate()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     override fun onNewIntent(intent: android.content.Intent) {
+
         super.onNewIntent(intent)
         setIntent(intent)
         _intentFlow.value = intent
@@ -426,8 +459,40 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                     }
                 }
 
+                // Google Sign In Button
+                OutlinedButton(
+                    onClick = {
+                        val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
+                            com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
+                        )
+                            .requestIdToken("931640963201-op9i4jmb31lcm8f4v5ggc0ik1oe1vvjk.apps.googleusercontent.com")
+                            .requestEmail()
+                            .build()
+
+                        val googleSignInClient = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
+                        val signInIntent = googleSignInClient.signInIntent
+                        
+                        val activity = context as? ComponentActivity
+                        if (activity != null) {
+                            activity.startActivityForResult(signInIntent, 9001)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF333333)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.White
+                    ),
+                    enabled = !isLoading
+                ) {
+                    Text("Continue with Google", fontWeight = FontWeight.SemiBold, color = Color.White)
+                }
+
                 var showResetDialog by remember { mutableStateOf(false) }
                 var resetEmail by remember { mutableStateOf("") }
+
                 var resetPassword by remember { mutableStateOf("") }
                 var resetLoading by remember { mutableStateOf(false) }
                 var resetMessage by remember { mutableStateOf("") }

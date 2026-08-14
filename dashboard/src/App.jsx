@@ -1146,27 +1146,6 @@ function App() {
               
               <div id="g_id_signin" style={{ marginTop: '14px', display: 'flex', justifyContent: 'center' }}></div>
 
-              <button 
-                type="button" 
-                className="auth-btn google-auth-btn" 
-                onClick={() => {
-                  const userEmail = prompt('Enter your registered Gmail address:');
-                  if (userEmail) handleGoogleLogin(userEmail);
-                }}
-                style={{ 
-                  marginTop: '10px', 
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)', 
-                  color: 'var(--text-secondary)',
-                  border: '1px solid var(--border-color)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  fontSize: '12px'
-                }}
-              >
-                Sign in with Gmail (Direct Email Prompt)
-              </button>
               
               <div className="auth-switch-text" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px' }}>
                 <span className="auth-link" onClick={() => setAuthMode('register')}>

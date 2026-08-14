@@ -117,6 +117,28 @@ class NetworkClient: ObservableObject {
         return loginResponse
     }
     
+    func googleLogin(request: GoogleLoginRequest) async throws -> LoginResponse {
+        let url = URL(string: "\(baseURL)/api/auth/google-login")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try encoder.encode(request)
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 401, userInfo: [NSLocalizedDescriptionKey: "Invalid Google token or account not onboarded."])
+        }
+        
+        let loginResponse = try decoder.decode(LoginResponse.self, from: data)
+        
+        await MainActor.run {
+            self.setAuth(token: loginResponse.token, user: loginResponse.user, tenant: loginResponse.tenant)
+        }
+        
+        return loginResponse
+    }
+
+    
     func resetPassword(request: ResetPasswordRequest) async throws -> ResetPasswordResponse {
         let url = URL(string: "\(baseURL)/api/auth/reset-password")!
         var urlRequest = URLRequest(url: url)
