@@ -37,6 +37,7 @@
 		5E0406092DA0CFF300C3B312 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		5E04060A2DA0CFF300C3B312 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		5E0408012DA0CFF300C3B312 /* LetsTrack.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LetsTrack.entitlements; sourceTree = "<group>"; };
+		13BE28052FEA7E0000A2F449 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -82,6 +83,7 @@
 				5E0406062DA0CFF300C3B312 /* GoogleService-Info.plist */,
 				5E0406072DA0CFF300C3B312 /* Assets.xcassets */,
 				5E0408012DA0CFF300C3B312 /* LetsTrack.entitlements */,
+				13BE28052FEA7E0000A2F449 /* Info.plist */,
 				5E0405D42DA0CFF300C3B312 /* Views */,
 			);
 			path = LetsTrack;
@@ -203,6 +205,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LetsTrack/Info.plist;
 				INFOPLIST_KEY_CFBundleURLTypes = "( { CFBundleTypeRole = Editor; CFBundleURLSchemes = ( \"com.googleusercontent.apps.101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34\" ); } )";
 				INFOPLIST_KEY_GIDClientID = "101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34.apps.googleusercontent.com";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -235,6 +238,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LetsTrack/Info.plist;
 				INFOPLIST_KEY_CFBundleURLTypes = "( { CFBundleTypeRole = Editor; CFBundleURLSchemes = ( \"com.googleusercontent.apps.101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34\" ); } )";
 				INFOPLIST_KEY_GIDClientID = "101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34.apps.googleusercontent.com";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
