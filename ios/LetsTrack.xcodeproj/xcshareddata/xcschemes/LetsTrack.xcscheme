@@ -17,6 +17,7 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "5E0405A22DA0CFF300C3B312"
                BuildableName = "LetsTrack.app"
+               BlueprintName = "LetsTrack"
                ReferencedContainer = "container:LetsTrack.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -46,6 +47,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "5E0405A22DA0CFF300C3B312"
             BuildableName = "LetsTrack.app"
+            BlueprintName = "LetsTrack"
             ReferencedContainer = "container:LetsTrack.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -62,6 +64,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "5E0405A22DA0CFF300C3B312"
             BuildableName = "LetsTrack.app"
+            BlueprintName = "LetsTrack"
             ReferencedContainer = "container:LetsTrack.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

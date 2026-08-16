@@ -147,26 +147,6 @@ struct LoginView: View {
                         }
                         .disabled(isLoading || isGoogleLoading)
                         
-                        // Google Sign-In Button
-                        Button(action: performGoogleLogin) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "g.circle.fill")
-                                    .font(.system(size: 18))
-                                Text("Continue with Google")
-                                    .fontWeight(.semibold)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(Color.white.opacity(0.05))
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color(red: 38/255, green: 38/255, blue: 38/255), lineWidth: 1)
-                            )
-                        }
-                        .disabled(isLoading)
-                        
                         // Forgot password button
 
                         Button(action: { showResetDialog = true }) {
@@ -304,7 +284,6 @@ struct GoogleLogoView: View {
             greenPath.addArc(center: center, radius: innerRadius, startAngle: .degrees(130), endAngle: .degrees(45), clockwise: true)
             context.fill(greenPath, with: .color(Color(red: 52/255, green: 168/255, blue: 83/255)))
         }
->>>>>>> 0102aa8 (feat(ios): add native Google Sign-In SDK integration with Google Cloud Client ID)
     }
 }
 
