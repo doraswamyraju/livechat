@@ -212,6 +212,16 @@ struct LoginView: View {
         isGoogleLoading = true
         errorMessage = nil
         
+        if GIDSignIn.sharedInstance.configuration == nil {
+            if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+               let dict = NSDictionary(contentsOfFile: path),
+               let clientID = dict["CLIENT_ID"] as? String {
+                GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+            } else {
+                GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: "101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34.apps.googleusercontent.com")
+            }
+        }
+        
         GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController) { result, error in
             if let error = error {
                 DispatchQueue.main.async {
