@@ -3,7 +3,7 @@
 This document contains standard instructions to deploy changes to the live VPS.
 
 ## VPS Environment Details
-- **App Directory**: `/var/www/livechat.vrhere.in`
+- **App Directory**: `/var/www/livechat.manacity.in`
 - **PM2 Process Name**: `livechat-backend` (ID: 7)
 - **Domain**: `livechat.vrhere.in`
 - **OAuth Client ID**: `931640963201-op9i4jmb31lcm8f4v5ggc0ik1oe1vvjk.apps.googleusercontent.com`
@@ -20,7 +20,7 @@ Run these commands in order on the live VPS:
 ```bash
 # 1. Navigate to the project root directory
 # (Run `pm2 show livechat-backend` to check the directory if the path is different)
-cd /var/www/livechat.vrhere.in
+cd /var/www/livechat.manacity.in
 
 # 2. Pull the latest commits from GitHub
 git pull origin main
