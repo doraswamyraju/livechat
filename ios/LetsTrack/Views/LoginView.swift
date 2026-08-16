@@ -1,4 +1,5 @@
 import SwiftUI
+import GoogleSignIn
 
 struct LoginView: View {
     @StateObject private var networkClient = NetworkClient.shared
@@ -8,6 +9,7 @@ struct LoginView: View {
     @State private var password = ""
     @State private var errorMessage: String? = nil
     @State private var isLoading = false
+    @State private var isGoogleLoading = false
     
     // Reset password dialog state
     @State private var showResetDialog = false
@@ -109,7 +111,41 @@ struct LoginView: View {
                             .foregroundColor(.white)
                             .cornerRadius(8)
                         }
-                        .disabled(isLoading)
+                        .disabled(isLoading || isGoogleLoading)
+                        
+                        // Divider / Or
+                        HStack {
+                            Rectangle().frame(height: 1).foregroundColor(Color(red: 38/255, green: 38/255, blue: 38/255))
+                            Text("OR")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(theme.textGrayColor)
+                                .padding(.horizontal, 8)
+                            Rectangle().frame(height: 1).foregroundColor(Color(red: 38/255, green: 38/255, blue: 38/255))
+                        }
+                        .padding(.vertical, 4)
+                        
+                        // Continue with Google Button
+                        Button(action: performGoogleSignIn) {
+                            HStack(spacing: 12) {
+                                if isGoogleLoading {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                                } else {
+                                    GoogleLogoView()
+                                        .frame(width: 20, height: 20)
+                                    
+                                    Text("Continue with Google")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundColor(Color(red: 30/255, green: 30/255, blue: 30/255))
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(Color.white)
+                            .cornerRadius(8)
+                            .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+                        }
+                        .disabled(isLoading || isGoogleLoading)
                         
                         // Google Sign-In Button
                         Button(action: performGoogleLogin) {
@@ -186,9 +222,89 @@ struct LoginView: View {
         }
     }
     
-    private func performGoogleLogin() {
-        // Triggers Google authentication or direct prompt on iOS
-        // Calls networkClient.googleLogin(request: GoogleLoginRequest(idToken: token))
+    private func performGoogleSignIn() {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
+            errorMessage = "Unable to present Google Sign-In interface."
+            return
+        }
+        
+        isGoogleLoading = true
+        errorMessage = nil
+        
+        GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController) { result, error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.isGoogleLoading = false
+                    let nsError = error as NSError
+                    if nsError.code != GIDSignInError.canceled.rawValue {
+                        self.errorMessage = error.localizedDescription
+                    }
+                }
+                return
+            }
+            
+            guard let user = result?.user, let idToken = user.idToken?.tokenString else {
+                DispatchQueue.main.async {
+                    self.isGoogleLoading = false
+                    self.errorMessage = "Failed to retrieve Google ID Token."
+                }
+                return
+            }
+            
+            Task {
+                do {
+                    _ = try await self.networkClient.googleLogin(idToken: idToken)
+                    SocketManager.shared.connectSocket()
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = error.localizedDescription
+                        self.isGoogleLoading = false
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Google Logo Component
+struct GoogleLogoView: View {
+    var body: some View {
+        Canvas { context, size in
+            let w = size.width
+            let h = size.height
+            let center = CGPoint(x: w / 2, y: h / 2)
+            let radius = min(w, h) / 2
+            let innerRadius = radius * 0.55
+            
+            // Blue right bar & arc
+            var bluePath = Path()
+            bluePath.move(to: CGPoint(x: center.x + radius, y: center.y))
+            bluePath.addLine(to: CGPoint(x: center.x + innerRadius * 0.2, y: center.y))
+            bluePath.addLine(to: CGPoint(x: center.x + innerRadius * 0.2, y: center.y - innerRadius * 0.6))
+            bluePath.addLine(to: CGPoint(x: center.x + radius, y: center.y - innerRadius * 0.6))
+            bluePath.addArc(center: center, radius: radius, startAngle: .degrees(-25), endAngle: .degrees(45), clockwise: false)
+            context.fill(bluePath, with: .color(Color(red: 66/255, green: 133/255, blue: 244/255)))
+            
+            // Red top arc
+            var redPath = Path()
+            redPath.addArc(center: center, radius: radius, startAngle: .degrees(190), endAngle: .degrees(315), clockwise: false)
+            redPath.addArc(center: center, radius: innerRadius, startAngle: .degrees(315), endAngle: .degrees(190), clockwise: true)
+            context.fill(redPath, with: .color(Color(red: 234/255, green: 67/255, blue: 53/255)))
+            
+            // Yellow left arc
+            var yellowPath = Path()
+            yellowPath.addArc(center: center, radius: radius, startAngle: .degrees(130), endAngle: .degrees(190), clockwise: false)
+            yellowPath.addArc(center: center, radius: innerRadius, startAngle: .degrees(190), endAngle: .degrees(130), clockwise: true)
+            context.fill(yellowPath, with: .color(Color(red: 251/255, green: 188/255, blue: 5/255)))
+            
+            // Green bottom arc
+            var greenPath = Path()
+            greenPath.addArc(center: center, radius: radius, startAngle: .degrees(45), endAngle: .degrees(130), clockwise: false)
+            greenPath.addArc(center: center, radius: innerRadius, startAngle: .degrees(130), endAngle: .degrees(45), clockwise: true)
+            context.fill(greenPath, with: .color(Color(red: 52/255, green: 168/255, blue: 83/255)))
+        }
+>>>>>>> 0102aa8 (feat(ios): add native Google Sign-In SDK integration with Google Cloud Client ID)
     }
 }
 

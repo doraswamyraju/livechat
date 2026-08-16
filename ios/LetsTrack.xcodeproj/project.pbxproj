@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		13BE27FD2FEA7DEE00A2F449 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 13BE27FC2FEA7DEE00A2F449 /* FirebaseCore */; };
 		13BE27FF2FEA7DF500A2F449 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 13BE27FE2FEA7DF500A2F449 /* FirebaseMessaging */; };
+		13BE28032FEA7E0000A2F449 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 13BE28012FEA7E0000A2F449 /* GoogleSignIn */; };
+		13BE28042FEA7E0000A2F449 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 13BE28022FEA7E0000A2F449 /* GoogleSignInSwift */; };
 		5E0406212DA0CFF300C3B312 /* LetsTrackApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E0406012DA0CFF300C3B312 /* LetsTrackApp.swift */; };
 		5E0406222DA0CFF300C3B312 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E0406022DA0CFF300C3B312 /* ThemeManager.swift */; };
 		5E0406232DA0CFF300C3B312 /* SocketManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E0406032DA0CFF300C3B312 /* SocketManager.swift */; };
@@ -45,6 +47,8 @@
 				13BE27FF2FEA7DF500A2F449 /* FirebaseMessaging in Frameworks */,
 				13BE27FD2FEA7DEE00A2F449 /* FirebaseCore in Frameworks */,
 				5E0407032DA0CFF300C3B312 /* SocketIO in Frameworks */,
+				13BE28032FEA7E0000A2F449 /* GoogleSignIn in Frameworks */,
+				13BE28042FEA7E0000A2F449 /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -113,6 +117,8 @@
 				5E0407022DA0CFF300C3B312 /* SocketIO */,
 				13BE27FC2FEA7DEE00A2F449 /* FirebaseCore */,
 				13BE27FE2FEA7DF500A2F449 /* FirebaseMessaging */,
+				13BE28012FEA7E0000A2F449 /* GoogleSignIn */,
+				13BE28022FEA7E0000A2F449 /* GoogleSignInSwift */,
 			);
 			productName = LetsTrack;
 			productReference = 5E0405A32DA0CFF300C3B312 /* LetsTrack.app */;
@@ -146,6 +152,7 @@
 			packageReferences = (
 				5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */,
 				13BE27FA2FEA7CC800A2F449 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				13BE28002FEA7E0000A2F449 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			productRefGroup = 5E0405A42DA0CFF300C3B312;
 			projectDirPath = "";
@@ -196,6 +203,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleURLTypes = "( { CFBundleTypeRole = Editor; CFBundleURLSchemes = ( \"com.googleusercontent.apps.101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34\" ); } )";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -226,6 +234,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleURLTypes = "( { CFBundleTypeRole = Editor; CFBundleURLSchemes = ( \"com.googleusercontent.apps.101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34\" ); } )";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -410,6 +419,14 @@
 				minimumVersion = 16.1.0;
 			};
 		};
+		13BE28002FEA7E0000A2F449 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -427,6 +444,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */;
 			productName = SocketIO;
+		};
+		13BE28012FEA7E0000A2F449 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 13BE28002FEA7E0000A2F449 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		13BE28022FEA7E0000A2F449 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 13BE28002FEA7E0000A2F449 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

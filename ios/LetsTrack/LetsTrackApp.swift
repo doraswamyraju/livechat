@@ -2,6 +2,7 @@ import SwiftUI
 import FirebaseCore
 import FirebaseMessaging
 import UserNotifications
+import GoogleSignIn
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     func application(_ application: UIApplication,
@@ -116,6 +117,9 @@ struct LetsTrackApp: App {
                     if networkClient.isAuthenticated {
                         SocketManager.shared.connectSocket()
                     }
+                }
+                .onOpenURL { url in
+                    GIDSignIn.sharedInstance.handle(url)
                 }
         }
     }

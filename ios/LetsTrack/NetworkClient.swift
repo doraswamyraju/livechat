@@ -117,16 +117,25 @@ class NetworkClient: ObservableObject {
         return loginResponse
     }
     
-    func googleLogin(request: GoogleLoginRequest) async throws -> LoginResponse {
+    func googleLogin(idToken: String) async throws -> LoginResponse {
         let url = URL(string: "\(baseURL)/api/auth/google-login")!
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.httpBody = try encoder.encode(request)
+        let requestPayload = GoogleLoginRequest(credential: idToken)
+        urlRequest.httpBody = try encoder.encode(requestPayload)
         
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw NSError(domain: "NetworkClient", code: 401, userInfo: [NSLocalizedDescriptionKey: "Invalid Google token or account not onboarded."])
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "NetworkClient", code: 500, userInfo: [NSLocalizedDescriptionKey: "Server response error."])
+        }
+        
+        if !(200...299).contains(httpResponse.statusCode) {
+            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let message = errorJson["error"] as? String {
+                throw NSError(domain: "NetworkClient", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: message])
+            }
+            throw NSError(domain: "NetworkClient", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Google Sign-In failed on server."])
         }
         
         let loginResponse = try decoder.decode(LoginResponse.self, from: data)
@@ -137,7 +146,6 @@ class NetworkClient: ObservableObject {
         
         return loginResponse
     }
-
     
     func resetPassword(request: ResetPasswordRequest) async throws -> ResetPasswordResponse {
         let url = URL(string: "\(baseURL)/api/auth/reset-password")!

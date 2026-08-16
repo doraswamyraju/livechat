@@ -10,10 +10,8 @@ struct LoginRequest: Codable {
 }
 
 struct GoogleLoginRequest: Codable {
-    let idToken: String
+    let credential: String
 }
-
-
 struct UserProfile: Codable, Identifiable, Hashable {
     let id: String
     let name: String
