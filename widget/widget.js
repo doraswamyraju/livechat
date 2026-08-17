@@ -1,4 +1,6 @@
 (function() {
+  console.log('[LetsTrack] Widget script starting');
+
   // Ensure widget config exists or auto-detect from script tag attribute
   let apiKey = window.LetsTrackConfig ? window.LetsTrackConfig.websiteId : null;
   if (!apiKey) {
@@ -8,6 +10,15 @@
     }
   }
 
+  console.log('[LetsTrack] API key source:', 
+    window.LetsTrackConfig?.websiteId
+      ? 'LetsTrackConfig'
+      : document.querySelector('script[data-api-key]')
+        ? 'data-api-key'
+        : 'missing'
+  );
+  console.log('[LetsTrack] API key detected:', !!apiKey);
+
   if (!apiKey) {
     console.error("LetsTrack: Missing websiteId (API key) in LetsTrackConfig or data-api-key attribute.");
     return;
@@ -15,7 +26,8 @@
 
   const API_KEY = apiKey;
   const BACKEND_URL = '__BACKEND_URL__'; // Dynamically replaced by server at runtime
-  
+  console.log('[LetsTrack] BACKEND_URL:', BACKEND_URL);
+
   // Generate or retrieve persistent visitor UUID
   const savedVisitorId = localStorage.getItem('letstrack_visitor_uuid');
   const isRevisit = !!savedVisitorId;
@@ -32,7 +44,8 @@
       script.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
       script.async = true;
       script.onload = () => resolve();
-      script.onerror = () => reject(new Error("LetsTrack failed to load Socket.io client."));
+      script.onerror = () =>
+        reject(new Error("LetsTrack failed to load Socket.io client."));
       document.head.appendChild(script);
     });
   };
@@ -88,39 +101,68 @@
     return { browser, os, deviceType };
   };
 
-  // Fetch widget customizations
-  fetch(`${BACKEND_URL}/api/settings/widget?apiKey=${API_KEY}`)
+  // Safe default widget settings
+  const defaultSettings = {
+    primaryColor: '#7C3AED',
+    headingText: 'Chat with Us!',
+    welcomeMessage: 'Hi there! How can we help you today?',
+    preChatEnabled: false,
+    position: 'bottom-right',
+    headerTextColor: '#ffffff',
+    gradientColor: '#312E81',
+    useGradient: true,
+    statusText: 'Typically replies instantly',
+    borderRadius: 16,
+    launcherText: 'Chat'
+  };
+
+  let widgetSettings = defaultSettings;
+  let widgetInitialized = false;
+
+  console.log('[LetsTrack] Loading widget settings');
+
+  // Fetch widget customizations asynchronously
+  fetch(`${BACKEND_URL}/api/settings/widget?apiKey=${encodeURIComponent(API_KEY)}`)
     .then(res => {
-      if (!res.ok) throw new Error("Settings fetch failed");
+      if (!res.ok) {
+        throw new Error(`Settings fetch failed: HTTP ${res.status}`);
+      }
       return res.json();
     })
-    .then(async (settings) => {
-      await loadSocketScript();
-      initWidget(settings);
+    .then(settings => {
+      console.log('[LetsTrack] Widget settings loaded');
+      widgetSettings = {
+        ...defaultSettings,
+        ...(settings || {})
+      };
+      console.log('[LetsTrack] Rendering widget');
+      initWidget(widgetSettings);
     })
     .catch(err => {
-      console.warn("LetsTrack: falling back to default styling configuration.", err);
-      const defaultSettings = {
-        primaryColor: '#7C3AED',
-        headingText: 'Chat with Us!',
-        welcomeMessage: 'Hi there! How can we help you today?',
-        preChatEnabled: false,
-        position: 'bottom-right',
-        headerTextColor: '#ffffff',
-        gradientColor: '#312E81',
-        useGradient: true,
-        statusText: 'Typically replies instantly',
-        borderRadius: 16,
-        launcherText: 'Chat'
-      };
-      loadSocketScript().then(() => initWidget(defaultSettings));
+      console.warn('[LetsTrack] Widget settings unavailable. Using defaults.', err);
+      widgetSettings = defaultSettings;
+      console.log('[LetsTrack] Rendering widget');
+      initWidget(widgetSettings);
     });
 
   // Main UI builder using Shadow DOM
   function initWidget(settings) {
+    if (widgetInitialized) {
+      console.warn('[LetsTrack] Widget already initialized.');
+      return;
+    }
+    if (document.getElementById('letstrack-widget-root')) {
+      return;
+    }
+
+    widgetInitialized = true;
+    console.log('[LetsTrack] initWidget() started');
+
     const container = document.createElement('div');
     container.id = 'letstrack-widget-root';
     document.body.appendChild(container);
+
+    console.log('[LetsTrack] Widget DOM mounted');
 
     const shadow = container.attachShadow({ mode: 'closed' });
 
@@ -198,54 +240,60 @@
       }
 
       /* Glassmorphism Header */
-      .lt-header {
-        background: ${settings.useGradient !== false
-          ? `linear-gradient(135deg, ${settings.primaryColor}, ${settings.gradientColor || '#312E81'})`
-          : settings.primaryColor};
-        color: ${settings.headerTextColor || 'white'};
-        padding: 20px 20px 24px 20px;
+      .lt-chat-header {
+        background: ${settings.useGradient ? `linear-gradient(135deg, ${settings.primaryColor}, ${settings.gradientColor})` : settings.primaryColor};
+        color: ${settings.headerTextColor};
+        padding: 20px;
         display: flex;
-        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
         position: relative;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
       }
-      .lt-header-title {
-        font-size: 18px;
+      .lt-chat-title {
         font-weight: 700;
+        font-size: 18px;
         margin: 0;
-        letter-spacing: 0.5px;
       }
-      .lt-header-subtitle {
+      .lt-chat-subtitle {
         font-size: 12px;
-        margin: 4px 0 0 0;
-        opacity: 0.9;
+        opacity: 0.85;
+        margin-top: 4px;
         display: flex;
         align-items: center;
         gap: 6px;
       }
-      .lt-status-dot {
+      .lt-online-dot {
         width: 8px;
         height: 8px;
+        background-color: #10B981;
         border-radius: 50%;
-        background-color: #10B981; /* Green */
-        box-shadow: 0 0 6px #10B981;
         display: inline-block;
-        animation: pulse 2s infinite;
+      }
+      .lt-close-btn {
+        background: none;
+        border: none;
+        color: ${settings.headerTextColor};
+        cursor: pointer;
+        opacity: 0.8;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .lt-close-btn:hover {
+        opacity: 1;
       }
 
-      /* Pre-chat and Messages Container */
-      .lt-body {
+      /* Messages Scrollable Body */
+      .lt-chat-body {
         flex: 1;
-        overflow-y: auto;
         padding: 20px;
-        background: #F9FAFB;
+        overflow-y: auto;
         display: flex;
         flex-direction: column;
         gap: 12px;
-        scroll-behavior: smooth;
+        background: #F9FAFB;
       }
-
-      /* Messages UI styling */
       .lt-msg-wrap {
         display: flex;
         flex-direction: column;
@@ -254,29 +302,14 @@
       .lt-msg-wrap.visitor {
         align-self: flex-end;
       }
-      .lt-msg-wrap.agent {
+      .lt-msg-wrap.agent, .lt-msg-wrap.system {
         align-self: flex-start;
       }
-      .lt-msg-wrap.system {
-        align-self: center;
-        max-width: 90%;
-      }
-      .lt-msg-sender {
-        font-size: 10px;
-        color: #6B7280;
-        margin-bottom: 2px;
-        margin-left: 4px;
-      }
-      .lt-msg-wrap.visitor .lt-msg-sender {
-        margin-left: 0;
-        margin-right: 4px;
-        align-self: flex-end;
-      }
       .lt-msg-bubble {
-        padding: 10px 14px;
+        padding: 12px 16px;
         border-radius: 16px;
         font-size: 14px;
-        line-height: 1.45;
+        line-height: 1.4;
         word-break: break-word;
       }
       .lt-msg-wrap.visitor .lt-msg-bubble {
@@ -291,35 +324,17 @@
       }
       .lt-msg-wrap.system .lt-msg-bubble {
         background-color: #FEF3C7;
-        color: #D97706;
-        font-size: 11px;
-        padding: 6px 12px;
+        color: #92400E;
+        font-size: 12px;
         border-radius: 12px;
         text-align: center;
-        border: 1px dashed #FCD34D;
       }
-      
-      /* Typing Indicator dots */
-      .typing-indicator {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        padding: 10px 14px;
-        background: #E5E7EB;
-        border-radius: 16px;
-        border-bottom-left-radius: 4px;
-        align-self: flex-start;
-        display: none;
+      .lt-msg-sender {
+        font-size: 11px;
+        color: #6B7280;
+        margin-bottom: 4px;
+        padding: 0 4px;
       }
-      .typing-dot {
-        width: 6px;
-        height: 6px;
-        background: #6B7280;
-        border-radius: 50%;
-        animation: typingBounce 1.4s infinite ease-in-out both;
-      }
-      .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-      .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
       /* Pre-chat Form */
       .pre-chat-form {
@@ -327,445 +342,292 @@
         flex-direction: column;
         gap: 12px;
         padding: 10px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        border: 1px solid #E5E7EB;
       }
       .pre-chat-text {
         font-size: 13px;
         color: #4B5563;
-        margin: 0 0 6px 0;
+        margin-bottom: 8px;
         line-height: 1.4;
       }
       .pre-chat-input {
-        padding: 10px 12px;
-        border-radius: 8px;
+        padding: 10px 14px;
         border: 1px solid #D1D5DB;
-        outline: none;
+        border-radius: 8px;
         font-size: 14px;
+        outline: none;
         transition: border-color 0.2s;
       }
       .pre-chat-input:focus {
         border-color: ${settings.primaryColor};
       }
       .pre-chat-btn {
+        padding: 12px;
         background-color: ${settings.primaryColor};
         color: white;
-        padding: 11px;
-        border-radius: 8px;
         border: none;
+        border-radius: 8px;
         font-weight: 600;
-        cursor: pointer;
         font-size: 14px;
+        cursor: pointer;
+        margin-top: 4px;
         transition: opacity 0.2s;
       }
       .pre-chat-btn:hover {
         opacity: 0.9;
       }
 
-      /* Chat Footer Input */
-      .lt-footer {
-        padding: 14px 16px;
+      /* Input Footer Bar */
+      .lt-chat-footer {
+        padding: 12px 16px;
         background: white;
         border-top: 1px solid #E5E7EB;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
       }
-      .lt-input {
+      .lt-chat-input {
         flex: 1;
         border: none;
         outline: none;
-        resize: none;
         font-size: 14px;
-        max-height: 50px;
-        padding: 6px 0;
         color: #1F2937;
+        background: transparent;
       }
-      .lt-input::placeholder {
+      .lt-chat-input::placeholder {
         color: #9CA3AF;
       }
       .lt-send-btn {
-        border: none;
-        outline: none;
         background: none;
+        border: none;
+        color: ${settings.primaryColor};
         cursor: pointer;
+        padding: 4px;
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 4px;
-        border-radius: 50%;
-        transition: background-color 0.2s;
+        transition: transform 0.1s;
       }
       .lt-send-btn:hover {
-        background-color: #F3F4F6;
+        transform: scale(1.1);
       }
-      .lt-send-btn svg {
-        width: 22px;
-        height: 22px;
-        fill: ${settings.primaryColor};
-      }
-
-      /* Scrollbar config */
-      .lt-body::-webkit-scrollbar {
-        width: 5px;
-      }
-      .lt-body::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      .lt-body::-webkit-scrollbar-thumb {
-        background: #D1D5DB;
-        border-radius: 10px;
+      .lt-send-btn:disabled, .lt-chat-input:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
       }
 
-      /* Animations */
-      @keyframes pulse {
-        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-        70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
-        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-      }
-      @keyframes typingBounce {
-        0%, 80%, 100% { transform: scale(0); }
-        40% { transform: scale(1.0); }
-      }
-
-      /* Unread badge style */
+      /* Badge */
       .lt-badge {
         position: absolute;
-        top: -6px;
-        right: -6px;
-        background-color: #EF4444; /* Bright Red */
+        top: -4px;
+        right: -4px;
+        background-color: #EF4444;
         color: white;
         font-size: 11px;
-        font-weight: 700;
-        min-width: 18px;
+        font-weight: bold;
         height: 18px;
+        min-width: 18px;
         border-radius: 9px;
         display: none;
         align-items: center;
         justify-content: center;
-        border: 2px solid white;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         padding: 0 4px;
-        box-sizing: border-box;
-      }
-      .lt-widget-btn.open .lt-badge {
-        display: none !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
       }
 
-      /* Notification pop-up preview */
-      .lt-notification-popup {
-        position: absolute;
-        bottom: 70px;
-        ${settings.position === 'bottom-left' ? 'left: 0;' : 'right: 0;'}
-        width: 280px;
-        padding: 12px 16px;
+      /* Typing indicator */
+      .typing-indicator {
+        display: none;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 12px;
+        background: #E5E7EB;
         border-radius: 12px;
+        width: fit-content;
+        margin-top: 4px;
+      }
+      .typing-dot {
+        width: 6px;
+        height: 6px;
+        background: #6B7280;
+        border-radius: 50%;
+        animation: typing 1.4s infinite ease-in-out;
+      }
+      .typing-dot:nth-child(1) { animation-delay: 0s; }
+      .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+      .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+      @keyframes typing {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-4px); }
+      }
+
+      /* Notification Toast Outer Popup */
+      .lt-popup {
+        position: fixed;
+        bottom: 85px;
+        ${settings.position === 'bottom-left' ? 'left: 20px;' : 'right: 20px;'}
+        width: 280px;
         background: white;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-        border: 1px solid #E5E7EB;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        padding: 14px;
         display: none;
         flex-direction: column;
-        gap: 4px;
-        cursor: pointer;
+        gap: 6px;
         z-index: 999998;
-        animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
-        font-family: sans-serif;
+        border-left: 4px solid ${settings.primaryColor};
+        animation: popupSlideIn 0.3s ease-out;
       }
-      .lt-notification-popup:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-        transition: transform 0.2s, box-shadow 0.2s;
+      @keyframes popupSlideIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
       }
-      .lt-notification-title {
+      .lt-popup-title {
         font-size: 13px;
         font-weight: 700;
-        color: ${settings.primaryColor};
-        margin: 0;
+        color: #1F2937;
       }
-      .lt-notification-text {
+      .lt-popup-text {
         font-size: 12px;
         color: #4B5563;
-        margin: 0;
-        line-height: 1.4;
-      }
-      .lt-notification-close {
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        width: 16px;
-        height: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #9CA3AF;
-        font-size: 14px;
-        font-weight: 700;
-        cursor: pointer;
-      }
-      .lt-notification-close:hover {
-        color: #4B5563;
-      }
-
-      @keyframes slideIn {
-        from { transform: translateY(15px); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
-      }
-
-      /* Adaptive Mobile viewports */
-      @media (max-width: 480px) {
-        .lt-chat-window {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          top: 0;
-          width: 100% !important;
-          height: 100% !important;
-          border-radius: 0;
-          margin-bottom: 0;
-        }
-        .lt-widget-btn {
-          display: flex !important;
-        }
-        .lt-chat-window.open {
-          display: flex;
-        }
-        .lt-header {
-          padding-top: 30px;
-        }
+        line-height: 1.3;
       }
     `;
 
-    // ------------------------------------------
-    // DOM TREE ASSEMBLY
-    // ------------------------------------------
-    const widgetContainer = document.createElement('div');
-    widgetContainer.className = 'lt-widget-container';
+    // DOM Structure
+    const rootContainer = document.createElement('div');
+    rootContainer.className = 'lt-widget-container';
 
-    // 1. Chat Window
+    // Outer notification toast popup
+    const popup = document.createElement('div');
+    popup.className = 'lt-popup';
+    popup.innerHTML = `
+      <div class="lt-popup-title">New Message</div>
+      <div class="lt-popup-text">...</div>
+    `;
+
+    // Drawer Window
     const chatWindow = document.createElement('div');
     chatWindow.className = 'lt-chat-window';
-
-    // Header
-    const header = document.createElement('div');
-    header.className = 'lt-header';
-    header.innerHTML = `
-      <div class="lt-header-title">${settings.headingText}</div>
-      <div class="lt-header-subtitle">
-        <span class="lt-status-dot"></span> ${settings.statusText || 'Typically replies instantly'}
+    chatWindow.innerHTML = `
+      <div class="lt-chat-header">
+        <div>
+          <div class="lt-chat-title">${settings.headingText}</div>
+          <div class="lt-chat-subtitle">
+            <span class="lt-online-dot"></span> ${settings.statusText}
+          </div>
+        </div>
+        <button class="lt-close-btn" id="lt-close-btn" aria-label="Close Chat">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="lt-chat-body" id="lt-chat-body">
+        <div class="typing-indicator" id="lt-typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+      <div class="lt-chat-footer">
+        <input type="text" class="lt-chat-input" id="lt-chat-input" placeholder="Type a message..." disabled />
+        <button class="lt-send-btn" id="lt-send-btn" disabled aria-label="Send Message">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+          </svg>
+        </button>
       </div>
     `;
-    chatWindow.appendChild(header);
 
-    // Body
-    const body = document.createElement('div');
-    body.className = 'lt-body';
-    chatWindow.appendChild(body);
-
-    // Typing dots (inside body)
-    const typingIndicator = document.createElement('div');
-    typingIndicator.className = 'typing-indicator';
-    typingIndicator.innerHTML = `
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
-    `;
-    body.appendChild(typingIndicator);
-
-    // Footer Input
-    const footer = document.createElement('div');
-    footer.className = 'lt-footer';
-    footer.innerHTML = `
-      <input class="lt-input" type="text" placeholder="Type a message..." disabled />
-      <button class="lt-send-btn" disabled>
-        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-      </button>
-    `;
-    chatWindow.appendChild(footer);
-
-    widgetContainer.appendChild(chatWindow);
-
-    // 2. Trigger Floating Button
+    // Trigger Button
     const triggerBtn = document.createElement('button');
     triggerBtn.className = 'lt-widget-btn';
-    
-    const triggerInner = document.createElement('div');
-    triggerInner.style.display = 'flex';
-    triggerInner.style.alignItems = 'center';
-    triggerInner.style.justifyContent = 'center';
-    triggerInner.style.gap = '8px';
-    triggerInner.style.height = '100%';
-    
-    let btnHtml = `
+    triggerBtn.setAttribute('aria-label', 'Open Chat');
+
+    const launcherLabel = settings.launcherText 
+      ? `<span style="color: white; font-weight: 600; font-size: 14px;">${settings.launcherText}</span>` 
+      : '';
+
+    triggerBtn.innerHTML = `
+      <div class="lt-badge" id="lt-badge">0</div>
       <svg viewBox="0 0 24 24">
         <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
       </svg>
+      ${launcherLabel}
     `;
-    if (settings.launcherText) {
-      btnHtml += `<span style="color: white; font-size: 14px; font-weight: 600; font-family: inherit;">${settings.launcherText}</span>`;
-    }
-    triggerInner.innerHTML = btnHtml;
-    triggerBtn.appendChild(triggerInner);
-    widgetContainer.appendChild(triggerBtn);
 
-    // Create unread badge inside trigger button
-    const badge = document.createElement('div');
-    badge.className = 'lt-badge';
-    triggerBtn.appendChild(badge);
-
-    // Create notification popup
-    const notificationPopup = document.createElement('div');
-    notificationPopup.className = 'lt-notification-popup';
-    notificationPopup.innerHTML = `
-      <div class="lt-notification-close">&times;</div>
-      <div class="lt-notification-title">${settings.headingText || 'Support Agent'}</div>
-      <div class="lt-notification-text"></div>
-    `;
-    widgetContainer.appendChild(notificationPopup);
-
-    const popupClose = notificationPopup.querySelector('.lt-notification-close');
-    popupClose.onclick = (e) => {
-      e.stopPropagation();
-      notificationPopup.style.display = 'none';
-    };
-    notificationPopup.onclick = (e) => {
-      if (e.target !== popupClose) {
-        toggleChat(true);
-      }
-    };
+    rootContainer.appendChild(chatWindow);
+    rootContainer.appendChild(triggerBtn);
 
     shadow.appendChild(style);
-    shadow.appendChild(widgetContainer);
+    shadow.appendChild(rootContainer);
+    shadow.appendChild(popup);
 
-    // References to UI elements inside Shadow DOM
-    const textInput = footer.querySelector('.lt-input');
-    const sendBtn = footer.querySelector('.lt-send-btn');
-    
-    // Toggle Chat window Open / Close
+    // Dynamic Elements References
+    const closeBtn = shadow.querySelector('#lt-close-btn');
+    const body = shadow.querySelector('#lt-chat-body');
+    const textInput = shadow.querySelector('#lt-chat-input');
+    const sendBtn = shadow.querySelector('#lt-send-btn');
+    const badge = shadow.querySelector('#lt-badge');
+    const typingIndicator = shadow.querySelector('#lt-typing-indicator');
+
     let isWindowOpen = false;
     let unreadCount = 0;
-    let hasHistory = false;
-    let hasInteracted = false;
     let welcomeTimeout = null;
-    let popupTimeout = null;
+    let hasHistory = false;
 
-    const showNotificationPopup = (title, text) => {
-      if (isWindowOpen) return;
-      const titleEl = notificationPopup.querySelector('.lt-notification-title');
-      const textEl = notificationPopup.querySelector('.lt-notification-text');
-      titleEl.textContent = title;
-      textEl.textContent = text;
-      notificationPopup.style.display = 'flex';
-      
-      if (popupTimeout) clearTimeout(popupTimeout);
-      popupTimeout = setTimeout(() => {
-        notificationPopup.style.display = 'none';
-      }, 6000);
-    };
-
-    welcomeTimeout = setTimeout(() => {
-      if (!isWindowOpen && !hasInteracted && !hasHistory) {
-        showNotificationPopup(settings.headingText || 'Support Agent', settings.welcomeMessage || 'Hi there! How can we help you today?');
-      }
-    }, 3000);
-    
-    // Mobile close trigger helper (add close button in header on mobile)
-    const addMobileCloseBtn = () => {
-      const closeBtn = document.createElement('div');
-      closeBtn.style.cssText = `
-        position: absolute;
-        top: 15px;
-        right: 15px;
-        cursor: pointer;
-        padding: 5px;
-        display: none;
-      `;
-      closeBtn.innerHTML = `
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
-          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-        </svg>
-      `;
-      header.appendChild(closeBtn);
-
-      // Only show close icon on screens below 480px
-      const mediaQuery = window.matchMedia('(max-width: 480px)');
-      const handleMedia = (e) => {
-        if (e.matches) closeBtn.style.display = 'block';
-        else closeBtn.style.display = 'none';
-      };
-      mediaQuery.addListener(handleMedia);
-      handleMedia(mediaQuery);
-
-      closeBtn.onclick = (e) => {
-        e.stopPropagation();
-        toggleChat(false);
-      };
-    };
-    addMobileCloseBtn();
-
-    const toggleChat = (forceOpen) => {
-      isWindowOpen = forceOpen !== undefined ? forceOpen : !isWindowOpen;
-      
+    // Toggle Chat Window
+    const toggleChat = () => {
+      isWindowOpen = !isWindowOpen;
       if (isWindowOpen) {
-        // Reset unread counts and notifications
-        unreadCount = 0;
-        badge.textContent = '';
-        badge.style.display = 'none';
-        notificationPopup.style.display = 'none';
-        hasInteracted = true;
-        if (welcomeTimeout) clearTimeout(welcomeTimeout);
-        if (popupTimeout) clearTimeout(popupTimeout);
-
-        chatWindow.style.display = 'flex';
-        // Force layout calculations for transition smooth states
-        chatWindow.offsetHeight; 
         chatWindow.classList.add('open');
         triggerBtn.classList.add('open');
-        
-        let closeHtml = `
-          <svg viewBox="0 0 24 24">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-          </svg>
-        `;
-        if (settings.launcherText) {
-          closeHtml += `<span style="color: white; font-size: 14px; font-weight: 600; font-family: inherit;">Close</span>`;
-        }
-        triggerInner.innerHTML = closeHtml;
+        popup.style.display = 'none';
 
-        setTimeout(() => {
-          textInput.focus();
-          scrollToBottom();
-        }, 100);
+        // Clear unread badge
+        unreadCount = 0;
+        badge.style.display = 'none';
+        badge.textContent = '0';
+
+        // Auto-focus input
+        setTimeout(() => textInput.focus(), 150);
       } else {
         chatWindow.classList.remove('open');
         triggerBtn.classList.remove('open');
-        
-        let openHtml = `
-          <svg viewBox="0 0 24 24">
-            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
-          </svg>
-        `;
-        if (settings.launcherText) {
-          openHtml += `<span style="color: white; font-size: 14px; font-weight: 600; font-family: inherit;">${settings.launcherText}</span>`;
-        }
-        triggerInner.innerHTML = openHtml;
-
-        setTimeout(() => {
-          if (!chatWindow.classList.contains('open')) {
-            chatWindow.style.display = 'none';
-          }
-        }, 300);
       }
     };
+
+    closeBtn.onclick = () => toggleChat();
+
+    // Helper: Show Toast Notification
+    function showNotificationPopup(senderName, messageText) {
+      const popupTitle = popup.querySelector('.lt-popup-title');
+      const popupText = popup.querySelector('.lt-popup-text');
+
+      popupTitle.textContent = senderName || 'Support Agent';
+      popupText.textContent = messageText;
+      popup.style.display = 'flex';
+
+      popup.onclick = () => {
+        if (!isWindowOpen) toggleChat();
+        popup.style.display = 'none';
+      };
+
+      setTimeout(() => {
+        popup.style.display = 'none';
+      }, 6000);
+    }
 
     triggerBtn.onclick = () => toggleChat();
 
     // ------------------------------------------
-    // WEBSOCKETS COMMUNICATIONS
+    // WEBSOCKETS COMMUNICATIONS (ASYNCHRONOUS & OPTIONAL)
     // ------------------------------------------
-    const socket = window.io(`${BACKEND_URL}/visitor`);
+    let socket = null;
+    let socketReady = false;
+
     let visitorProfile = {
       name: localStorage.getItem('letstrack_visitor_name') || '',
       email: localStorage.getItem('letstrack_visitor_email') || '',
@@ -784,7 +646,7 @@
 
       return new Promise((resolve) => {
         // Geolocation is optional.
-        if (!navigator || !navigator.geolocation) {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) {
           return resolve(null);
         }
 
@@ -823,9 +685,9 @@
       });
     };
 
-
     // Helper to send visitor initialization state
     const sendVisitorInit = (coords = null) => {
+      if (!socket || !socketReady) return;
       const browserInfo = getBrowserInfo();
       socket.emit('visitor-init', {
         apiKey: API_KEY,
@@ -843,73 +705,78 @@
       });
     };
 
-    socket.on('connect', async () => {
-      const coords = await getPreciseLocation();
-      sendVisitorInit(coords);
-    });
+    function bindSocketEvents() {
+      if (!socket) return;
 
-    socket.on('visitor-init-success', (data) => {
-      visitorProfile.name = data.name;
-      
-      // On revisit, if they are missing real contact details, show the form
-      const hasRealName = visitorProfile.name && !visitorProfile.name.startsWith('Visitor #');
-      const hasEmail = visitorProfile.email && visitorProfile.email.trim().length > 0;
-      const hasPhone = visitorProfile.phoneNumber && visitorProfile.phoneNumber.trim().length > 0;
-      const needsLeadCapture = !hasRealName || !hasEmail || !hasPhone;
-
-      if (isRevisit && needsLeadCapture) {
-        renderPreChatForm(true);
-      } else if (!settings.preChatEnabled || hasRealName) {
-        renderChatUI();
-      } else {
-        renderPreChatForm(false);
-      }
-    });
-
-    // Handle incoming chat logs history
-    socket.on('chat-history', (data) => {
-      const { messages } = data;
-      if (messages && messages.length > 0) {
-        hasHistory = true;
-        if (welcomeTimeout) clearTimeout(welcomeTimeout);
-      }
-      messages.forEach(msg => {
-        appendMessage(msg.senderName, msg.senderType, msg.text, false);
+      socket.on('connect', async () => {
+        console.log('[LetsTrack] Socket connected');
+        const coords = await getPreciseLocation();
+        sendVisitorInit(coords);
       });
-      scrollToBottom();
-    });
 
-    // Handle incoming real-time messages
-    socket.on('msg-received', (message) => {
-      // Cancel agent typing indicators on new messages
-      typingIndicator.style.display = 'none';
+      socket.on('visitor-init-success', (data) => {
+        visitorProfile.name = data.name;
+        
+        // On revisit, if they are missing real contact details, show the form
+        const hasRealName = visitorProfile.name && !visitorProfile.name.startsWith('Visitor #');
+        const hasEmail = visitorProfile.email && visitorProfile.email.trim().length > 0;
+        const hasPhone = visitorProfile.phoneNumber && visitorProfile.phoneNumber.trim().length > 0;
+        const needsLeadCapture = !hasRealName || !hasEmail || !hasPhone;
 
-      appendMessage(message.senderName, message.senderType, message.text, true);
-      scrollToBottom();
+        if (isRevisit && needsLeadCapture) {
+          renderPreChatForm(true);
+        } else if (!settings.preChatEnabled || hasRealName) {
+          renderChatUI();
+        } else {
+          renderPreChatForm(false);
+        }
+      });
 
-      // Play audio notification chime if window is minimized or not active
-      if (!isWindowOpen || message.senderType === 'Agent') {
-        playChime();
-      }
-
-      // Show outer notification popup and increment unread badge if window is closed
-      if (!isWindowOpen && message.senderType === 'Agent') {
-        unreadCount++;
-        badge.textContent = unreadCount;
-        badge.style.display = 'flex';
-        showNotificationPopup(message.senderName, message.text);
-      }
-    });
-
-    // Handle agent typing indicator state changes
-    socket.on('agent-typing', (data) => {
-      if (data.isTyping) {
-        typingIndicator.style.display = 'flex';
+      // Handle incoming chat logs history
+      socket.on('chat-history', (data) => {
+        const { messages } = data;
+        if (messages && messages.length > 0) {
+          hasHistory = true;
+          if (welcomeTimeout) clearTimeout(welcomeTimeout);
+        }
+        messages.forEach(msg => {
+          appendMessage(msg.senderName, msg.senderType, msg.text, false);
+        });
         scrollToBottom();
-      } else {
+      });
+
+      // Handle incoming real-time messages
+      socket.on('msg-received', (message) => {
+        // Cancel agent typing indicators on new messages
         typingIndicator.style.display = 'none';
-      }
-    });
+
+        appendMessage(message.senderName, message.senderType, message.text, true);
+        scrollToBottom();
+
+        // Play audio notification chime if window is minimized or not active
+        if (!isWindowOpen || message.senderType === 'Agent') {
+          playChime();
+        }
+
+        // Show outer notification popup and increment unread badge if window is closed
+        if (!isWindowOpen && message.senderType === 'Agent') {
+          unreadCount++;
+          badge.textContent = unreadCount;
+          badge.style.display = 'flex';
+          showNotificationPopup(message.senderName, message.text);
+        }
+      });
+
+      // Handle agent typing indicator state changes
+      socket.on('agent-typing', (data) => {
+        if (data.isTyping) {
+          typingIndicator.style.display = 'flex';
+          scrollToBottom();
+        } else {
+          typingIndicator.style.display = 'none';
+        }
+      });
+    }
 
     // Handle real-time URL path tracking
     let lastUrl = window.location.pathname + window.location.search;
@@ -917,9 +784,45 @@
       const currentUrl = window.location.pathname + window.location.search;
       if (currentUrl !== lastUrl) {
         lastUrl = currentUrl;
-        socket.emit('page-view', { currentUrl });
+        if (socket && socketReady) {
+          socket.emit('page-view', { currentUrl });
+        }
       }
     }, 2000);
+
+    const initializeSocket = async () => {
+      console.log('[LetsTrack] Loading Socket.io');
+      try {
+        await loadSocketScript();
+
+        if (!window.io) {
+          throw new Error('Socket.io client unavailable after script load');
+        }
+
+        console.log('[LetsTrack] Socket.io loaded');
+        socket = window.io(`${BACKEND_URL}/visitor`);
+        socketReady = true;
+
+        bindSocketEvents();
+
+      } catch (error) {
+        console.warn(
+          '[LetsTrack] Live connection unavailable. Widget running in offline mode.',
+          error
+        );
+        socketReady = false;
+      }
+    };
+
+    // Render pre-chat form or initial chat state
+    if (!settings.preChatEnabled) {
+      renderChatUI();
+    } else {
+      renderPreChatForm(false);
+    }
+
+    // Initialize Socket.io after DOM/UI is completely mounted
+    initializeSocket();
 
     // ------------------------------------------
     // RENDER INTERACTION PANELS
@@ -993,7 +896,7 @@
 
       appendMessage('System', 'System', settings.welcomeMessage, false);
 
-      // Re-enable chat text forms
+      // Enable chat text forms
       textInput.removeAttribute('disabled');
       sendBtn.removeAttribute('disabled');
 
@@ -1001,6 +904,11 @@
       const triggerSendMessage = () => {
         const textVal = textInput.value.trim();
         if (!textVal) return;
+
+        if (!socket || !socketReady) {
+          console.warn('[LetsTrack] Chat connection is not ready.');
+          return;
+        }
 
         socket.emit('visitor-msg', { text: textVal });
         textInput.value = '';
@@ -1020,11 +928,15 @@
       // Handle visitor typing indicators
       let typingTimeout = null;
       textInput.oninput = () => {
-        socket.emit('visitor-typing', { isTyping: true });
+        if (socket && socketReady) {
+          socket.emit('visitor-typing', { isTyping: true });
+        }
         
         if (typingTimeout) clearTimeout(typingTimeout);
         typingTimeout = setTimeout(() => {
-          socket.emit('visitor-typing', { isTyping: false });
+          if (socket && socketReady) {
+            socket.emit('visitor-typing', { isTyping: false });
+          }
         }, 2000);
       };
     }
@@ -1047,7 +959,6 @@
       } else {
         body.appendChild(msgWrap);
       }
-
 
       if (shouldScroll) {
         scrollToBottom();
