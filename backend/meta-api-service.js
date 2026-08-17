@@ -150,7 +150,7 @@ export async function handleMetaWebhook(req, res) {
 
 
             // Check if source is Instagram or Facebook Page
-            const isInstagram = entryId === integration.meta.instagramAccountId || body.object === 'instagram';
+            const isInstagram = body.object === 'instagram' || entryId === integration?.meta?.instagramAccountId;
             const source = isInstagram ? 'instagram' : 'facebook';
             const visitorId = `${source}:${senderId}`;
 
@@ -205,7 +205,7 @@ export async function handleMetaWebhook(req, res) {
               senderType: 'Visitor',
               senderId: visitorId,
               senderName: name,
-              text: msg.text,
+              text: textContent,
               timestamp: new Date(messagingItem.timestamp || Date.now())
             });
             await message.save();
@@ -216,12 +216,14 @@ export async function handleMetaWebhook(req, res) {
 
             // Broadcast message to agents dashboard
             if (dashboardNamespace) {
-              dashboardNamespace.to(`tenant_${tenantId}`).emit('visitor-msg', {
+              const strTenantId = tenantId.toString();
+              dashboardNamespace.to(`tenant_${strTenantId}`).emit('visitor-msg', {
                 conversation,
                 message,
                 visitor
               });
             }
+
           }
         }
       } catch (err) {
