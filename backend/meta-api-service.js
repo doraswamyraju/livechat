@@ -139,18 +139,22 @@ export async function handleMetaWebhook(req, res) {
 
 
 
-          // Extract messaging events from entry.messaging or entry.changes
+          // Extract messaging events from entry.messaging, entry.standby, or entry.changes
           const messagingItems = [];
           if (Array.isArray(entry.messaging)) {
             messagingItems.push(...entry.messaging);
           }
+          if (Array.isArray(entry.standby)) {
+            messagingItems.push(...entry.standby);
+          }
           if (Array.isArray(entry.changes)) {
             for (const change of entry.changes) {
-              if ((change.field === 'messages' || change.field === 'instagram_messages') && change.value) {
+              if (change.value && (change.field === 'messages' || change.field === 'instagram_messages' || change.field === 'messages_instagram' || change.field === 'conversations')) {
                 messagingItems.push(change.value);
               }
             }
           }
+
 
           // Process messages
           for (const messagingItem of messagingItems) {

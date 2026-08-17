@@ -1010,8 +1010,13 @@
       msgHtml += `<div class="lt-msg-bubble">${text}</div>`;
       msgWrap.innerHTML = msgHtml;
 
-      // Insert message right before the typingIndicator
-      body.insertBefore(msgWrap, typingIndicator);
+      // Insert message right before typingIndicator if attached, otherwise append to body
+      if (typingIndicator && typingIndicator.parentNode === body) {
+        body.insertBefore(msgWrap, typingIndicator);
+      } else {
+        body.appendChild(msgWrap);
+      }
+
 
       if (shouldScroll) {
         scrollToBottom();
