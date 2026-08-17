@@ -98,12 +98,19 @@ export const initializeSocket = (httpServer) => {
       const { apiKey, visitorId, currentUrl, referrer, name, email, phoneNumber, browser, os, deviceType, latitude, longitude } = data;
       
       try {
-        // 1. Verify Tenant API Key
-        const tenant = await Tenant.findOne({ apiKey });
+        // 1. Verify Tenant API Key (or Tenant ID / Business Group ID)
+        const tenant = await Tenant.findOne({
+          $or: [
+            { apiKey },
+            { _id: mongoose.Types.ObjectId.isValid(apiKey) ? new mongoose.Types.ObjectId(apiKey) : null },
+            { manacityBusinessGroupId: apiKey }
+          ]
+        });
         if (!tenant) {
           socket.emit('error-msg', { message: 'Invalid API Key' });
           return socket.disconnect();
         }
+
 
         currentVisitorId = visitorId;
         currentTenantId = tenant._id.toString();
