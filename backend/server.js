@@ -813,25 +813,30 @@ app.post('/api/internal/register-meta-integration', async (req, res) => {
 
     // Step C: Create or Link Tenant Admin User (Role: Admin)
     if (ownerEmail) {
+      const passwordToSet = req.body.ownerPassword || 'BOHPM6139n@';
+      const passwordHash = await bcrypt.hash(passwordToSet, 10);
+
       let adminUser = await User.findOne({ email: ownerEmail });
       if (!adminUser) {
         adminUser = new User({
           tenantId,
           name: ownerName || 'Business Owner',
           email: ownerEmail,
-          passwordHash: '$2b$10$eW4wH.3k1n2M3L4P5Q6R7u8V9W0X1Y2Z3A4B5C6D7E8F9G0H1I2J3', // Default OAuth hash
+          passwordHash,
           role: 'Admin',
           status: 'Offline'
         });
         await adminUser.save();
       } else {
         adminUser.tenantId = tenantId;
+        adminUser.passwordHash = passwordHash;
         if (adminUser.role !== 'Admin' && adminUser.role !== 'SuperAdmin') {
           adminUser.role = 'Admin';
         }
         await adminUser.save();
       }
     }
+
 
     // Step D: Register Meta Page & Instagram Asset against this Tenant
     let integration = await Integration.findOne({ tenantId });
