@@ -163,9 +163,10 @@ export async function handleMetaWebhook(req, res) {
 
 
             // Check if source is Instagram or Facebook Page
-            const isInstagram = body.object === 'instagram' || entryId === integration?.meta?.instagramAccountId;
+            const isInstagram = body.object === 'instagram' || entryIdStr === integration?.meta?.instagramAccountId;
             const source = isInstagram ? 'instagram' : 'facebook';
             const visitorId = `${source}:${senderId}`;
+
 
             const objTenantId = mongoose.Types.ObjectId.isValid(tenantId) ? new mongoose.Types.ObjectId(tenantId) : tenantId;
 
