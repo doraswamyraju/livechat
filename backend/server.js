@@ -856,8 +856,9 @@ app.post('/api/internal/register-meta-integration', async (req, res) => {
     await integration.save();
     console.log(`[MetaProvisioning] BusinessGroup: ${manacityBusinessGroupId} Meta Page: ${metaPageId} Action: REGISTER_ASSET Status: SUCCESS`);
 
-    return res.status(200).json({ success: true, tenantId, integration });
+    return res.status(200).json({ success: true, tenantId, apiKey: tenant.apiKey, integration });
   } catch (err) {
+
     console.error(`[MetaProvisioning] BusinessGroup: ${manacityBusinessGroupId} Action: REGISTER_ASSET Status: FAILED Reason: ${err.message}`);
     return res.status(500).json({ error: err.message });
   }
