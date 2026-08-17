@@ -200,10 +200,11 @@ export async function handleMetaWebhook(req, res) {
 
             // Find or create active Conversation
             let conversation = await Conversation.findOne({
-              tenantId: objTenantId,
+              tenantId: { $in: [objTenantId, tenantId] },
               visitorId,
               status: { $ne: 'Closed' }
             });
+
 
             if (!conversation) {
               conversation = new Conversation({
