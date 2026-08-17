@@ -4,11 +4,12 @@ import { Tenant, Integration, User } from '../models.js';
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/letstrack';
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/letstrack';
 
 async function smokeTestMetaIndexes() {
   console.log('[Phase D0 Smoke Test] Connecting to MongoDB...');
-  await mongoose.connect(MONGODB_URI);
+  await mongoose.connect(MONGO_URI);
+
 
   const testBgId = '6a833cbb5bbd8d30f94aeaab';
   const testTenantId = '6a8362ee230ac05cc08ca37f';

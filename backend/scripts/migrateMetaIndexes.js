@@ -4,11 +4,12 @@ import { Tenant, Integration } from '../models.js';
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/letstrack';
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/letstrack';
 
 async function migrateMetaIndexes() {
   console.log('[Phase C Migration] Connecting to MongoDB...');
-  await mongoose.connect(MONGODB_URI);
+  await mongoose.connect(MONGO_URI);
+
 
   console.log('[Phase C Migration] Step 1: Performing $unset on empty-string fields...');
 

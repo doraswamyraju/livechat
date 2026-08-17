@@ -4,12 +4,13 @@ import { Tenant, Integration } from '../models.js';
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/letstrack';
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/letstrack';
 
 async function verifyDuplicateIndexes() {
   console.log('[Phase A Audit] Starting read-only data integrity & duplicate index check...');
   
-  await mongoose.connect(MONGODB_URI);
+  await mongoose.connect(MONGO_URI);
+
   console.log('[Phase A Audit] Connected to MongoDB.');
 
   let conflictCount = 0;
