@@ -110,20 +110,15 @@ export async function handleMetaWebhook(req, res) {
             'meta.enabled': true
           });
 
-          let tenantId;
-          let pageAccessToken = integration?.meta?.pageAccessToken;
-
-          if (integration) {
-            tenantId = integration.tenantId.toString();
-          } else {
-            console.warn(`Received Meta webhook for unregistered Entry ID: ${entryId}. Falling back to primary tenant.`);
-            const firstTenant = await Tenant.findOne();
-            if (firstTenant) {
-              tenantId = firstTenant._id.toString();
-            } else {
-              continue;
-            }
+          if (!integration) {
+            console.warn(`[MetaWebhook] Asset ID: ${entryId} Resolution: FAILED Reason: UNREGISTERED_ASSET`);
+            continue;
           }
+
+          const tenantId = integration.tenantId.toString();
+          const pageAccessToken = integration.meta?.pageAccessToken;
+          console.log(`[MetaWebhook] Asset ID: ${entryId} Tenant ID: ${tenantId} Resolution: SUCCESS`);
+
 
 
           // Extract messaging events from entry.messaging or entry.changes

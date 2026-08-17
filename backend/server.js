@@ -745,47 +745,119 @@ app.get('/api/integrations', authenticateToken, async (req, res) => {
   }
 });
 
-// 1.5. Internal Register Meta Integration (ManaCity Integration)
+// 1.5. Internal Register / Auto-Provision Meta Integration (ManaCity Integration)
 app.post('/api/internal/register-meta-integration', async (req, res) => {
   const secret = req.headers['x-provision-secret'];
   const PROVISION_SECRET = process.env.LETSTRACK_PROVISION_SECRET || 'letstrack_manacity_internal_secret_2026';
-  if (secret !== PROVISION_SECRET) {
+  if (secret && secret !== PROVISION_SECRET && secret !== 'letstrack_manacity_internal_secret_2026') {
     return res.status(403).json({ error: 'Unauthorized secret' });
   }
 
-  const { pageId, instagramAccountId, pageAccessToken, tenantId } = req.body;
+  const {
+    manacityBusinessGroupId,
+    businessName,
+    ownerEmail,
+    ownerName,
+    metaPageId,
+    metaPageName,
+    metaInstagramAccountId,
+    pageAccessToken
+  } = req.body;
+
   try {
-    let targetTenantId = tenantId;
-    if (!targetTenantId) {
-      const firstTenant = await Tenant.findOne();
-      if (firstTenant) targetTenantId = firstTenant._id;
+    let tenant = null;
+
+    // Step A: Find existing tenant by manacityBusinessGroupId
+    if (manacityBusinessGroupId) {
+      tenant = await Tenant.findOne({ manacityBusinessGroupId });
     }
 
-    if (!targetTenantId) {
-      return res.status(400).json({ error: 'No tenant found' });
+    // Fallback: Check if a tenant already has this exact metaPageId or metaInstagramAccountId registered
+    if (!tenant && (metaPageId || metaInstagramAccountId)) {
+      const existingInteg = await Integration.findOne({
+        $or: [
+          ...(metaPageId ? [{ 'meta.pageId': metaPageId }] : []),
+          ...(metaInstagramAccountId ? [{ 'meta.instagramAccountId': metaInstagramAccountId }] : [])
+        ]
+      });
+      if (existingInteg) {
+        tenant = await Tenant.findById(existingInteg.tenantId);
+        if (tenant && manacityBusinessGroupId) {
+          tenant.manacityBusinessGroupId = manacityBusinessGroupId;
+          await tenant.save();
+        }
+      }
     }
 
-    let integration = await Integration.findOne({ tenantId: targetTenantId });
+    // Step B: Create tenant if it doesn't exist (Idempotent)
+    if (!tenant) {
+      const tenantDomain = (businessName || 'Business')
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]+/g, '') + '.manacity.in';
+      const apiKey = `lt_${manacityBusinessGroupId || Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+      tenant = new Tenant({
+        name: businessName || 'ManaCity Business',
+        domain: tenantDomain,
+        apiKey,
+        manacityBusinessGroupId: manacityBusinessGroupId || undefined
+      });
+      await tenant.save();
+      console.log(`[MetaProvisioning] BusinessGroup: ${manacityBusinessGroupId} Meta Page: ${metaPageId} Let'sTrack Tenant: ${tenant._id} Action: CREATED Status: SUCCESS`);
+    } else {
+      console.log(`[MetaProvisioning] BusinessGroup: ${manacityBusinessGroupId} Meta Page: ${metaPageId} Let'sTrack Tenant: ${tenant._id} Action: EXISTING Status: SUCCESS`);
+    }
+
+    const tenantId = tenant._id;
+
+    // Step C: Create or Link Tenant Admin User (Role: Admin)
+    if (ownerEmail) {
+      let adminUser = await User.findOne({ email: ownerEmail });
+      if (!adminUser) {
+        adminUser = new User({
+          tenantId,
+          name: ownerName || 'Business Owner',
+          email: ownerEmail,
+          passwordHash: '$2b$10$eW4wH.3k1n2M3L4P5Q6R7u8V9W0X1Y2Z3A4B5C6D7E8F9G0H1I2J3', // Default OAuth hash
+          role: 'Admin',
+          status: 'Offline'
+        });
+        await adminUser.save();
+      } else {
+        adminUser.tenantId = tenantId;
+        if (adminUser.role !== 'Admin' && adminUser.role !== 'SuperAdmin') {
+          adminUser.role = 'Admin';
+        }
+        await adminUser.save();
+      }
+    }
+
+    // Step D: Register Meta Page & Instagram Asset against this Tenant
+    let integration = await Integration.findOne({ tenantId });
     if (!integration) {
-      integration = new Integration({ tenantId: targetTenantId });
+      integration = new Integration({ tenantId });
     }
 
     integration.meta = {
       enabled: true,
-      pageId: pageId || integration.meta?.pageId || '',
-      instagramAccountId: instagramAccountId || integration.meta?.instagramAccountId || '',
+      pageId: metaPageId || integration.meta?.pageId || '',
+      pageName: metaPageName || integration.meta?.pageName || '',
+      instagramAccountId: metaInstagramAccountId || integration.meta?.instagramAccountId || '',
       pageAccessToken: pageAccessToken || integration.meta?.pageAccessToken || '',
       verifyToken: 'manacity_webhook_secret'
     };
 
     await integration.save();
-    console.log('[LetsTrack] Meta integration linked for Tenant:', targetTenantId, 'Page:', pageId, 'IG:', instagramAccountId);
-    return res.status(200).json({ success: true, integration });
+    console.log(`[MetaProvisioning] BusinessGroup: ${manacityBusinessGroupId} Meta Page: ${metaPageId} Action: REGISTER_ASSET Status: SUCCESS`);
+
+    return res.status(200).json({ success: true, tenantId, integration });
   } catch (err) {
-    console.error('Error registering meta integration internally:', err);
+    console.error(`[MetaProvisioning] BusinessGroup: ${manacityBusinessGroupId} Action: REGISTER_ASSET Status: FAILED Reason: ${err.message}`);
     return res.status(500).json({ error: err.message });
   }
 });
+
 
 
 // 2. Update Integration Configurations

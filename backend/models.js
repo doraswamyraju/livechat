@@ -5,8 +5,10 @@ const TenantSchema = new mongoose.Schema({
   name: { type: String, required: true },
   domain: { type: String, required: true },
   apiKey: { type: String, required: true, unique: true, index: true },
+  manacityBusinessGroupId: { type: String, sparse: true, index: true },
   createdAt: { type: Date, default: Date.now }
 });
+
 
 // 2. User (Agent/Admin/SuperAdmin) Model
 const UserSchema = new mongoose.Schema({
