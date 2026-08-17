@@ -222,21 +222,19 @@ export async function handleMetaWebhook(req, res) {
               text: textContent,
               timestamp: new Date(messagingItem.timestamp || Date.now())
             });
-            await message.save();
-
-            // Update Conversation updatedAt
-            conversation.updatedAt = new Date();
-            await conversation.save();
+            console.log(`[MetaWebhook] Saved message from ${name} (${visitorId}) text: "${textContent}" in conversation ${conversation._id} for tenant ${tenantId}`);
 
             // Broadcast message to agents dashboard
             if (dashboardNamespace) {
               const strTenantId = tenantId.toString();
+              console.log(`[MetaWebhook] Emitting visitor-msg event to room tenant_${strTenantId}`);
               dashboardNamespace.to(`tenant_${strTenantId}`).emit('visitor-msg', {
                 conversation,
                 message,
                 visitor
               });
             }
+
 
           }
         }
