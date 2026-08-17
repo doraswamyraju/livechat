@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
-import { Visitor, Conversation, Message, Integration } from './models.js';
+import { Visitor, Conversation, Message, Integration, Tenant } from './models.js';
 import { dashboardNamespace } from './socket.js';
+
 
 
 /**
