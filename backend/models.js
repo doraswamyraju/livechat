@@ -104,12 +104,13 @@ const IntegrationSchema = new mongoose.Schema({
   },
   meta: {
     enabled: { type: Boolean, default: false },
-    pageId: { type: String, default: '' },
-    instagramAccountId: { type: String, default: '' },
+    pageId: { type: String, default: '', index: true },
+    instagramAccountId: { type: String, default: '', index: true },
     pageAccessToken: { type: String, default: '' },
     verifyToken: { type: String, default: '' }
   }
 });
+
 
 export const Tenant = mongoose.model('Tenant', TenantSchema);
 export const User = mongoose.model('User', UserSchema);

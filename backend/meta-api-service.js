@@ -101,23 +101,32 @@ export async function handleMetaWebhook(req, res) {
         for (const entry of body.entry || []) {
           const entryId = entry.id; // Page ID or Instagram Account ID
           
-          // Find integration by pageId or instagramAccountId to resolve tenant ID
+          const entryIdStr = String(entryId);
+
+          // Find canonical integration by pageId or instagramAccountId to resolve tenant ID
           const integration = await Integration.findOne({
             $or: [
-              { 'meta.pageId': entryId },
-              { 'meta.instagramAccountId': entryId }
+              { 'meta.pageId': entryIdStr },
+              { 'meta.instagramAccountId': entryIdStr }
             ],
             'meta.enabled': true
           });
 
-          if (!integration) {
-            console.warn(`[MetaWebhook] Asset ID: ${entryId} Resolution: FAILED Reason: UNREGISTERED_ASSET`);
+          if (!integration || !integration.meta || !integration.tenantId) {
+            console.warn(`[MetaWebhook] Asset ID: ${entryIdStr} Resolution: FAILED Reason: UNREGISTERED_ASSET`);
+            continue;
+          }
+
+          const tenant = await Tenant.findById(integration.tenantId);
+          if (!tenant) {
+            console.warn(`[MetaWebhook] Asset ID: ${entryIdStr} Resolution: FAILED Reason: TENANT_NOT_FOUND`);
             continue;
           }
 
           const tenantId = integration.tenantId.toString();
-          const pageAccessToken = integration.meta?.pageAccessToken;
-          console.log(`[MetaWebhook] Asset ID: ${entryId} Tenant ID: ${tenantId} Resolution: SUCCESS`);
+          const pageAccessToken = integration.meta.pageAccessToken;
+          console.log(`[MetaWebhook] Asset ID: ${entryIdStr} Tenant ID: ${tenantId} Resolution: SUCCESS`);
+
 
 
 
