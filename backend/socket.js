@@ -504,10 +504,17 @@ export const initializeSocket = (httpServer) => {
           status: 'Online'
         });
 
-        // Send full active lists (visitors + conversations + agents) to this newly logged in agent
-        const visitors = await Visitor.find({ tenantId: currentTenantId });
-        const conversations = await Conversation.find({ tenantId: currentTenantId, status: { $ne: 'Closed' } }).populate('assignedAgentId', 'name email avatarUrl status');
-        const agents = await User.find({ tenantId: currentTenantId }).select('-passwordHash');
+        const tenantQuery = mongoose.Types.ObjectId.isValid(currentTenantId) 
+          ? { $in: [currentTenantId, new mongoose.Types.ObjectId(currentTenantId)] }
+          : currentTenantId;
+
+        const visitors = await Visitor.find({ tenantId: tenantQuery });
+        const conversations = await Conversation.find({ tenantId: tenantQuery, status: { $ne: 'Closed' } })
+          .populate('visitorId')
+          .populate('assignedAgentId', 'name email avatarUrl status');
+
+        const agents = await User.find({ tenantId: tenantQuery }).select('-passwordHash');
+
 
         socket.emit('dashboard-sync', { visitors, conversations, agents });
 

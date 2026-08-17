@@ -1,5 +1,7 @@
+import mongoose from 'mongoose';
 import { Visitor, Conversation, Message, Integration } from './models.js';
 import { dashboardNamespace } from './socket.js';
+
 
 /**
  * Sends a message via Facebook Messenger or Instagram Direct using Meta Send API
@@ -151,6 +153,8 @@ export async function handleMetaWebhook(req, res) {
             const source = isInstagram ? 'instagram' : 'facebook';
             const visitorId = `${source}:${senderId}`;
 
+            const objTenantId = mongoose.Types.ObjectId.isValid(tenantId) ? new mongoose.Types.ObjectId(tenantId) : tenantId;
+
             // Fetch user profile details or use cached/existing Visitor
             let visitor = await Visitor.findById(visitorId);
             let name = visitor ? visitor.name : null;
@@ -163,12 +167,13 @@ export async function handleMetaWebhook(req, res) {
             if (!visitor) {
               visitor = new Visitor({
                 _id: visitorId,
-                tenantId,
+                tenantId: objTenantId,
                 name,
                 source,
                 isOnline: true
               });
             } else {
+              visitor.tenantId = objTenantId;
               visitor.name = name;
               visitor.isOnline = true;
             }
@@ -176,14 +181,14 @@ export async function handleMetaWebhook(req, res) {
 
             // Find or create active Conversation
             let conversation = await Conversation.findOne({
-              tenantId,
+              tenantId: objTenantId,
               visitorId,
               status: { $ne: 'Closed' }
             });
 
             if (!conversation) {
               conversation = new Conversation({
-                tenantId,
+                tenantId: objTenantId,
                 visitorId,
                 status: 'Unassigned',
                 source,
@@ -191,6 +196,7 @@ export async function handleMetaWebhook(req, res) {
               });
               await conversation.save();
             }
+
 
             // Save Message
             const message = new Message({
