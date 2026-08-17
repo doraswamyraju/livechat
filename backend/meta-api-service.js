@@ -123,13 +123,28 @@ export async function handleMetaWebhook(req, res) {
           }
 
 
-          // Process messages
-          for (const messagingItem of entry.messaging || []) {
-            const senderId = messagingItem.sender?.id;
-            const msg = messagingItem.message;
+          // Extract messaging events from entry.messaging or entry.changes
+          const messagingItems = [];
+          if (Array.isArray(entry.messaging)) {
+            messagingItems.push(...entry.messaging);
+          }
+          if (Array.isArray(entry.changes)) {
+            for (const change of entry.changes) {
+              if ((change.field === 'messages' || change.field === 'instagram_messages') && change.value) {
+                messagingItems.push(change.value);
+              }
+            }
+          }
 
-            // Only process text messages (skip echo messages sent by our page)
-            if (!senderId || !msg || msg.is_echo || !msg.text) continue;
+          // Process messages
+          for (const messagingItem of messagingItems) {
+            const senderId = messagingItem.sender?.id || messagingItem.from?.id || messagingItem.from;
+            const msg = messagingItem.message || messagingItem.text || messagingItem;
+            const textContent = typeof msg === 'string' ? msg : (msg?.text || msg?.body);
+
+            // Only process text messages (skip echo messages)
+            if (!senderId || !textContent || msg?.is_echo) continue;
+
 
             // Check if source is Instagram or Facebook Page
             const isInstagram = entryId === integration.meta.instagramAccountId || body.object === 'instagram';
