@@ -11,7 +11,8 @@ export async function sendWhatsAppApiMessage(integration, toPhoneNumber, text) {
     throw new Error('Official WhatsApp Cloud API is not fully configured (missing Phone Number ID or Access Token)');
   }
 
-  const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
+  const url = `https://graph.facebook.com/v26.0/${phoneNumberId}/messages`;
+
   const body = {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',

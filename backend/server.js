@@ -745,6 +745,49 @@ app.get('/api/integrations', authenticateToken, async (req, res) => {
   }
 });
 
+// 1.5. Internal Register Meta Integration (ManaCity Integration)
+app.post('/api/internal/register-meta-integration', async (req, res) => {
+  const secret = req.headers['x-provision-secret'];
+  const PROVISION_SECRET = process.env.LETSTRACK_PROVISION_SECRET || 'letstrack_manacity_internal_secret_2026';
+  if (secret !== PROVISION_SECRET) {
+    return res.status(403).json({ error: 'Unauthorized secret' });
+  }
+
+  const { pageId, instagramAccountId, pageAccessToken, tenantId } = req.body;
+  try {
+    let targetTenantId = tenantId;
+    if (!targetTenantId) {
+      const firstTenant = await Tenant.findOne();
+      if (firstTenant) targetTenantId = firstTenant._id;
+    }
+
+    if (!targetTenantId) {
+      return res.status(400).json({ error: 'No tenant found' });
+    }
+
+    let integration = await Integration.findOne({ tenantId: targetTenantId });
+    if (!integration) {
+      integration = new Integration({ tenantId: targetTenantId });
+    }
+
+    integration.meta = {
+      enabled: true,
+      pageId: pageId || integration.meta?.pageId || '',
+      instagramAccountId: instagramAccountId || integration.meta?.instagramAccountId || '',
+      pageAccessToken: pageAccessToken || integration.meta?.pageAccessToken || '',
+      verifyToken: 'manacity_webhook_secret'
+    };
+
+    await integration.save();
+    console.log('[LetsTrack] Meta integration linked for Tenant:', targetTenantId, 'Page:', pageId, 'IG:', instagramAccountId);
+    return res.status(200).json({ success: true, integration });
+  } catch (err) {
+    console.error('Error registering meta integration internally:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
 // 2. Update Integration Configurations
 app.put('/api/integrations', authenticateToken, async (req, res) => {
   const { whatsappWeb, whatsappApi, meta } = req.body;

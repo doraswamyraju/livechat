@@ -11,7 +11,7 @@ export async function sendMetaMessage(integration, recipientId, text) {
     throw new Error('Meta Integration is not fully configured (missing Page Access Token)');
   }
 
-  const url = `https://graph.facebook.com/v20.0/me/messages?access_token=${pageAccessToken}`;
+  const url = `https://graph.facebook.com/v26.0/me/messages?access_token=${pageAccessToken}`;
   const body = {
     recipient: {
       id: recipientId
@@ -45,10 +45,11 @@ async function fetchMetaUserProfile(userId, pageAccessToken, isInstagram = false
   try {
     let url;
     if (isInstagram) {
-      url = `https://graph.facebook.com/v20.0/${userId}?fields=name,username&access_token=${pageAccessToken}`;
+      url = `https://graph.facebook.com/v26.0/${userId}?fields=name,username&access_token=${pageAccessToken}`;
     } else {
-      url = `https://graph.facebook.com/v20.0/${userId}?fields=first_name,last_name&access_token=${pageAccessToken}`;
+      url = `https://graph.facebook.com/v26.0/${userId}?fields=first_name,last_name&access_token=${pageAccessToken}`;
     }
+
 
     const res = await fetch(url);
     if (res.ok) {
@@ -106,13 +107,21 @@ export async function handleMetaWebhook(req, res) {
             'meta.enabled': true
           });
 
-          if (!integration) {
-            console.warn(`Received Meta webhook for unregistered/disabled Entry ID: ${entryId}`);
-            continue;
+          let tenantId;
+          let pageAccessToken = integration?.meta?.pageAccessToken;
+
+          if (integration) {
+            tenantId = integration.tenantId.toString();
+          } else {
+            console.warn(`Received Meta webhook for unregistered Entry ID: ${entryId}. Falling back to primary tenant.`);
+            const firstTenant = await Tenant.findOne();
+            if (firstTenant) {
+              tenantId = firstTenant._id.toString();
+            } else {
+              continue;
+            }
           }
 
-          const tenantId = integration.tenantId.toString();
-          const pageAccessToken = integration.meta.pageAccessToken;
 
           // Process messages
           for (const messagingItem of entry.messaging || []) {
