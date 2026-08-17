@@ -199,10 +199,18 @@ export const initializeSocket = (httpServer) => {
         // Send FCM push notification for visitor online to all agents
         if (wasOffline) {
           try {
-            const staffList = await User.find({ tenantId: currentTenantId });
+            const tenantQuery = mongoose.Types.ObjectId.isValid(currentTenantId) 
+              ? { $in: [currentTenantId, new mongoose.Types.ObjectId(currentTenantId)] }
+              : currentTenantId;
+            const staffList = await User.find({ tenantId: tenantQuery });
+            const staffWithFcm = staffList.filter(s => s.fcmToken);
+
+            console.log(`[VisitorInit] Visitor ${visitor.name} online for tenant ${currentTenantId}. Staff count: ${staffList.length}, Staff with FCM token: ${staffWithFcm.length}`);
+
             for (const staff of staffList) {
               if (staff.fcmToken) {
                 const title = isNewVisitor ? "🟢 New Visitor Online!" : "⚡️ Visitor Returned Online!";
+
                 const body = isNewVisitor 
                   ? `👤 ${visitor.name} has just landed on your website.`
                   : `👤 ${visitor.name} returned. Last seen: ${lastSeenFormatted} on URL: ${displayUrl}`;
