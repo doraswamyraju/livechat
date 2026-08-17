@@ -99,9 +99,17 @@ export async function handleMetaWebhook(req, res) {
     if (body.object === 'page' || body.object === 'instagram') {
       try {
         for (const entry of body.entry || []) {
-          const entryId = entry.id; // Page ID or Instagram Account ID
-          
-          const entryIdStr = String(entryId);
+          const rawAssetId = entry.id;
+          if (!rawAssetId || (typeof rawAssetId !== 'string' && typeof rawAssetId !== 'number')) {
+            console.warn('[MetaWebhook] Resolution: FAILED Reason: INVALID_ASSET_ID');
+            continue;
+          }
+
+          const entryIdStr = String(rawAssetId).trim();
+          if (!entryIdStr || entryIdStr === 'undefined' || entryIdStr === 'null') {
+            console.warn('[MetaWebhook] Resolution: FAILED Reason: INVALID_ASSET_ID');
+            continue;
+          }
 
           // Find canonical integration by pageId or instagramAccountId to resolve tenant ID
           const integration = await Integration.findOne({
@@ -111,6 +119,7 @@ export async function handleMetaWebhook(req, res) {
             ],
             'meta.enabled': true
           });
+
 
           if (!integration || !integration.meta || !integration.tenantId) {
             console.warn(`[MetaWebhook] Asset ID: ${entryIdStr} Resolution: FAILED Reason: UNREGISTERED_ASSET`);

@@ -749,7 +749,7 @@ app.get('/api/integrations', authenticateToken, async (req, res) => {
 app.post('/api/internal/register-meta-integration', async (req, res) => {
   const secret = req.headers['x-provision-secret'];
   const PROVISION_SECRET = process.env.LETSTRACK_PROVISION_SECRET || 'letstrack_manacity_internal_secret_2026';
-  if (secret && secret !== PROVISION_SECRET && secret !== 'letstrack_manacity_internal_secret_2026') {
+  if (secret !== PROVISION_SECRET) {
     return res.status(403).json({ error: 'Unauthorized secret' });
   }
 
@@ -841,9 +841,9 @@ app.post('/api/internal/register-meta-integration', async (req, res) => {
 
     integration.meta = {
       enabled: true,
-      pageId: metaPageId || integration.meta?.pageId || '',
+      pageId: metaPageId || integration.meta?.pageId || undefined,
       pageName: metaPageName || integration.meta?.pageName || '',
-      instagramAccountId: metaInstagramAccountId || integration.meta?.instagramAccountId || '',
+      instagramAccountId: metaInstagramAccountId || integration.meta?.instagramAccountId || undefined,
       pageAccessToken: pageAccessToken || integration.meta?.pageAccessToken || '',
       verifyToken: 'manacity_webhook_secret'
     };
@@ -857,6 +857,7 @@ app.post('/api/internal/register-meta-integration', async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
 
 
 

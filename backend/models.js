@@ -5,10 +5,15 @@ const TenantSchema = new mongoose.Schema({
   name: { type: String, required: true },
   domain: { type: String, required: true },
   apiKey: { type: String, required: true, unique: true, index: true },
-  manacityBusinessGroupId: { type: String, sparse: true, index: true },
+  manacityBusinessGroupId: { type: String, default: undefined },
   createdAt: { type: Date, default: Date.now }
 });
 
+// Single Authoritative Unique Sparse Index for Tenant
+TenantSchema.index(
+  { manacityBusinessGroupId: 1 },
+  { unique: true, sparse: true }
+);
 
 // 2. User (Agent/Admin/SuperAdmin) Model
 const UserSchema = new mongoose.Schema({
@@ -43,7 +48,7 @@ const VisitorSchema = new mongoose.Schema({
   source: { type: String, enum: ['webchat', 'whatsapp-web', 'whatsapp-api', 'instagram', 'facebook'], default: 'webchat' },
   firstSeen: { type: Date, default: Date.now },
   lastSeen: { type: Date, default: Date.now }
-}, { _id: false }); // Disable automatic _id creation since we supply visitor _id as a custom UUID String.
+}, { _id: false });
 
 // 4. Conversation Model
 const ConversationSchema = new mongoose.Schema({
@@ -61,7 +66,7 @@ const ConversationSchema = new mongoose.Schema({
 const MessageSchema = new mongoose.Schema({
   conversationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Conversation', required: true, index: true },
   senderType: { type: String, enum: ['Visitor', 'Agent', 'System'], required: true },
-  senderId: { type: String, required: true }, // Can be Visitor UUID or User ID
+  senderId: { type: String, required: true },
   senderName: { type: String, required: true },
   text: { type: String, required: true },
   timestamp: { type: Date, default: Date.now }
@@ -70,7 +75,7 @@ const MessageSchema = new mongoose.Schema({
 // 6. Widget Settings Model
 const WidgetSettingsSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, unique: true },
-  primaryColor: { type: String, default: '#7C3AED' }, // Deep Purple
+  primaryColor: { type: String, default: '#7C3AED' },
   headingText: { type: String, default: 'Chat with Us!' },
   welcomeMessage: { type: String, default: 'Hi there! How can we help you today?' },
   preChatEnabled: { type: Boolean, default: false },
@@ -104,13 +109,23 @@ const IntegrationSchema = new mongoose.Schema({
   },
   meta: {
     enabled: { type: Boolean, default: false },
-    pageId: { type: String, default: '', index: true },
-    instagramAccountId: { type: String, default: '', index: true },
+    pageId: { type: String, default: undefined },
+    instagramAccountId: { type: String, default: undefined },
     pageAccessToken: { type: String, default: '' },
     verifyToken: { type: String, default: '' }
   }
 });
 
+// Authoritative Unique Sparse Indexes for Meta Assets
+IntegrationSchema.index(
+  { 'meta.pageId': 1 },
+  { unique: true, sparse: true }
+);
+
+IntegrationSchema.index(
+  { 'meta.instagramAccountId': 1 },
+  { unique: true, sparse: true }
+);
 
 export const Tenant = mongoose.model('Tenant', TenantSchema);
 export const User = mongoose.model('User', UserSchema);
