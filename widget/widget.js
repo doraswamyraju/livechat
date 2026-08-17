@@ -772,26 +772,57 @@
       phoneNumber: localStorage.getItem('letstrack_visitor_phone') || ''
     };
 
-    // Helper utility: Requests HTML5 coordinates
+    let locationAttempted = false;
+    let cachedCoords = null;
+
+    // Helper utility: Requests HTML5 coordinates safely
     const getPreciseLocation = () => {
+      if (locationAttempted) {
+        return Promise.resolve(cachedCoords);
+      }
+      locationAttempted = true;
+
       return new Promise((resolve) => {
-        if (!navigator.geolocation) {
+        // Geolocation is optional.
+        if (!navigator || !navigator.geolocation) {
           return resolve(null);
         }
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            resolve({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude
-            });
-          },
-          () => {
-            resolve(null);
-          },
-          { timeout: 5000 }
-        );
+
+        // Do not request location from iframe previews / embedded contexts (e.g. ManaCity website preview)
+        try {
+          if (window.self !== window.top) {
+            return resolve(null);
+          }
+        } catch (e) {
+          return resolve(null);
+        }
+
+        try {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              cachedCoords = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude
+              };
+              resolve(cachedCoords);
+            },
+            () => {
+              // Permission denied, blocked, unavailable, timeout, etc.
+              resolve(null);
+            },
+            {
+              enableHighAccuracy: false,
+              timeout: 5000,
+              maximumAge: 300000
+            }
+          );
+        } catch (error) {
+          // Geolocation is optional. Never break widget initialization.
+          resolve(null);
+        }
       });
     };
+
 
     // Helper to send visitor initialization state
     const sendVisitorInit = (coords = null) => {
