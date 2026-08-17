@@ -891,11 +891,14 @@ function App() {
   };
 
   const handleSelectConversation = async (conv) => {
+    if (!conv) return;
     setSelectedConversation(conv);
-    const vis = visitors.find(v => v._id === (conv.visitorId._id || conv.visitorId));
+    const visId = typeof conv.visitorId === 'object' ? conv.visitorId?._id : conv.visitorId;
+    const vis = visitors.find(v => v._id === visId) || (typeof conv.visitorId === 'object' ? conv.visitorId : { _id: visId, name: visId });
     setSelectedVisitor(vis);
     await fetchConversationMessages(conv._id);
   };
+
 
   const handleSendAgentMessage = () => {
     if (!chatInput.trim() || !selectedConversation) return;
