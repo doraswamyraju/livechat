@@ -43,15 +43,21 @@ async function migrateMetaIndexes() {
     process.exit(1);
   }
 
-  console.log('[Phase C Migration] Step 2: Syncing Mongoose unique sparse indexes...');
+  console.log('[Phase C Migration] Step 2: Safely dropping legacy non-unique indexes if present...');
+  await Tenant.collection.dropIndex('manacityBusinessGroupId_1').catch(err => console.log('  Notice: No legacy manacityBusinessGroupId_1 index to drop.'));
+  await Integration.collection.dropIndex('meta.pageId_1').catch(err => console.log('  Notice: No legacy meta.pageId_1 index to drop.'));
+  await Integration.collection.dropIndex('meta.instagramAccountId_1').catch(err => console.log('  Notice: No legacy meta.instagramAccountId_1 index to drop.'));
+
+  console.log('[Phase C Migration] Step 3: Building Mongoose unique sparse indexes...');
 
   await Tenant.createIndexes();
-  console.log('[Phase C Migration] Tenant indexes created.');
+  console.log('[Phase C Migration] Tenant unique sparse index created.');
 
   await Integration.createIndexes();
-  console.log('[Phase C Migration] Integration indexes created.');
+  console.log('[Phase C Migration] Integration unique sparse indexes created.');
 
-  console.log('[Phase C Migration] Step 3: Verifying active MongoDB indexes via getIndexes()...');
+  console.log('[Phase C Migration] Step 4: Verifying active MongoDB indexes via getIndexes()...');
+
 
   const tenantIndexes = await Tenant.collection.getIndexes();
   console.log('[Phase C Migration] Tenant active indexes:', JSON.stringify(tenantIndexes, null, 2));
