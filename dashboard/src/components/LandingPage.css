@@ -1223,8 +1223,326 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.inbox-item-row.unread {
-  background: rgba(220, 38, 38, 0.08);
-  border-color: rgba(220, 38, 38, 0.25);
+/* Floating Social Proof Toast */
+.live-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(220, 38, 38, 0.2);
+  border-radius: 14px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 999;
+  backdrop-filter: blur(12px);
+  animation: slideInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: 340px;
 }
+
+@keyframes slideInUp {
+  from { transform: translateY(100px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.toast-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: white;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.toast-text {
+  font-size: 12px;
+  color: #e5e7eb;
+  line-height: 1.4;
+}
+
+.toast-text strong {
+  color: #ffffff;
+}
+
+.toast-time {
+  font-size: 10px;
+  color: #ef4444;
+  font-weight: 600;
+}
+
+/* Logos & Platform Integration Banner */
+.logos-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  flex-wrap: wrap;
+  opacity: 0.65;
+  margin-top: 50px;
+  margin-bottom: 20px;
+}
+
+.platform-logo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.5px;
+}
+
+/* ROI Calculator Box */
+.roi-calculator-box {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(9, 13, 22, 0.95));
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: 28px;
+  padding: 44px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.6), 0 0 40px rgba(220, 38, 38, 0.15);
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 40px;
+  align-items: center;
+}
+
+.calc-slider-group {
+  margin-bottom: 28px;
+}
+
+.calc-label-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.calc-range-input {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  outline: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.calc-range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #dc2626;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.8);
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.calc-range-input::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.calc-result-card {
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  border-radius: 20px;
+  padding: 32px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.calc-val-display {
+  font-family: 'Outfit', sans-serif;
+  font-size: 42px;
+  font-weight: 800;
+  color: #ef4444;
+  margin: 12px 0;
+  text-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+}
+
+/* Before vs After Grid */
+.before-after-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+  margin-top: 30px;
+}
+
+.ba-card {
+  border-radius: 24px;
+  padding: 36px;
+  position: relative;
+}
+
+.ba-card.without {
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.ba-card.with {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  box-shadow: 0 15px 40px rgba(16, 185, 129, 0.15);
+}
+
+.ba-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-bottom: 16px;
+}
+
+.without .ba-badge { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+.with .ba-badge { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+
+.ba-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.ba-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: #d1d5db;
+  line-height: 1.5;
+}
+
+/* Competitor Matrix Table */
+.matrix-container {
+  overflow-x: auto;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 20px;
+}
+
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: center;
+}
+
+.matrix-table th, .matrix-table td {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 14px;
+}
+
+.matrix-table th {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.matrix-table th.highlight {
+  background: rgba(220, 38, 38, 0.15);
+  color: #ef4444;
+  border-radius: 12px 12px 0 0;
+}
+
+.matrix-table td.highlight {
+  background: rgba(220, 38, 38, 0.06);
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* Testimonials Grid */
+.testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.testimonial-card {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.3s ease;
+}
+
+.testimonial-card:hover {
+  border-color: rgba(220, 38, 38, 0.4);
+  transform: translateY(-4px);
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.stars-row {
+  color: #f59e0b;
+  font-size: 16px;
+  margin-bottom: 14px;
+}
+
+.t-quote {
+  font-size: 15px;
+  color: #d1d5db;
+  line-height: 1.6;
+  font-style: italic;
+  margin-bottom: 24px;
+}
+
+.t-author-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.t-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: white;
+  font-size: 16px;
+}
+
+.t-author-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.t-name {
+  font-weight: 700;
+  color: white;
+  font-size: 14px;
+}
+
+.t-role {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+@media (max-width: 850px) {
+  .roi-calculator-box { grid-template-columns: 1fr; }
+  .before-after-grid { grid-template-columns: 1fr; }
+}
+
 

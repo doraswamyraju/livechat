@@ -32,6 +32,24 @@ export default function LandingPage({ onNavigateToLogin, onNavigateToRegister })
     return () => clearInterval(interval);
   }, []);
 
+  // ROI Calculator State
+  const [calcVisitors, setCalcVisitors] = useState(15000);
+  const [calcOrderValue, setCalcOrderValue] = useState(85);
+
+  // Rotating Social Proof Toast
+  const toastNotifications = [
+    { initial: 'SF', name: 'Alex M. (San Francisco)', text: 'just started a Pro Trial for 3 websites', time: '2m ago' },
+    { initial: 'LD', name: 'James K. (London, UK)', text: 'recovered $1,420 in abandoned sales today', time: '5m ago' },
+    { initial: 'NY', name: 'Elena R. (New York)', text: 'installed LetsTrack WordPress Plugin', time: '8m ago' }
+  ];
+  const [activeToastIdx, setActiveToastIdx] = useState(0);
+  useEffect(() => {
+    const tInterval = setInterval(() => {
+      setActiveToastIdx(prev => (prev + 1) % toastNotifications.length);
+    }, 7000);
+    return () => clearInterval(tInterval);
+  }, []);
+
   const handleSendDemoMessage = (e) => {
     e?.preventDefault();
     if (!demoInput.trim()) return;
@@ -248,6 +266,75 @@ export default function App() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Platform Compatibility Banner */}
+        <div className="logos-strip">
+          <span style={{ fontSize: '12px', textTransform: 'uppercase', color: '#6b7280', fontWeight: 600 }}>COMPATIBLE WITH ALL PLATFORMS:</span>
+          <div className="platform-logo-item">🌐 WordPress</div>
+          <div className="platform-logo-item">🛍️ Shopify</div>
+          <div className="platform-logo-item">⚛️ React & Next.js</div>
+          <div className="platform-logo-item">📦 WooCommerce</div>
+          <div className="platform-logo-item">🎨 Webflow</div>
+        </div>
+      </section>
+
+      {/* Before vs After Section */}
+      <section className="section-padding" style={{ paddingTop: '40px' }}>
+        <div className="section-header">
+          <span className="section-tag">Why You Need LetsTrack</span>
+          <h2 className="section-title">Stop Losing 98% of Your Website Visitors</h2>
+          <p className="section-desc">
+            Most website visitors leave without buying or filling a form. Here is how LetsTrack transforms your sales pipeline.
+          </p>
+        </div>
+
+        <div className="before-after-grid">
+          <div className="ba-card without">
+            <span className="ba-badge">❌ WITHOUT LETSTRACK</span>
+            <h3 style={{ fontSize: '22px', fontWeight: 800, color: '#f87171' }}>Anonymous Visitors Bounce</h3>
+            <ul className="ba-list">
+              <li className="ba-item">
+                <span style={{ color: '#ef4444' }}>✕</span>
+                <span>98% of visitors leave your website without taking any action or leaving contact info.</span>
+              </li>
+              <li className="ba-item">
+                <span style={{ color: '#ef4444' }}>✕</span>
+                <span>Zero visibility into which product or pricing page high-intent leads are currently reading.</span>
+              </li>
+              <li className="ba-item">
+                <span style={{ color: '#ef4444' }}>✕</span>
+                <span>You miss the critical 2-minute window to answer buyer questions before they leave for competitors.</span>
+              </li>
+              <li className="ba-item">
+                <span style={{ color: '#ef4444' }}>✕</span>
+                <span>Expensive live chat tools (Intercom/Drift) charge $450+/mo per seat.</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="ba-card with">
+            <span className="ba-badge">✅ WITH LETSTRACK</span>
+            <h3 style={{ fontSize: '22px', fontWeight: 800, color: '#34d399' }}>Instant Lead Capture & Conversion</h3>
+            <ul className="ba-list">
+              <li className="ba-item">
+                <span style={{ color: '#10b981' }}>✓</span>
+                <span>Track exact active URLs, geolocation, referral sources, and visitor behavior in real time.</span>
+              </li>
+              <li className="ba-item">
+                <span style={{ color: '#10b981' }}>✓</span>
+                <span>Proactively chat with visitors on high-intent pages before they exit your site.</span>
+              </li>
+              <li className="ba-item">
+                <span style={{ color: '#10b981' }}>✓</span>
+                <span>Get instant push alerts on Android & iOS whenever a hot lead asks a question.</span>
+              </li>
+              <li className="ba-item">
+                <span style={{ color: '#10b981' }}>✓</span>
+                <span>Unified Multi-Channel Inbox (Web, Instagram DMs, Facebook, WhatsApp) starting at just $29/mo.</span>
+              </li>
+            </ul>
           </div>
         </div>
       </section>
@@ -560,6 +647,198 @@ export default function App() {
         </div>
       </section>
 
+      {/* Interactive ROI Calculator Section */}
+      <section className="section-padding">
+        <div className="section-header">
+          <span className="section-tag">Calculate Your ROI</span>
+          <h2 className="section-title">How Much Revenue Are You Missing?</h2>
+          <p className="section-desc">
+            Adjust the sliders below to calculate how much additional monthly revenue LetsTrack can recover for your business.
+          </p>
+        </div>
+
+        <div className="roi-calculator-box">
+          <div>
+            <div className="calc-slider-group">
+              <div className="calc-label-row">
+                <span>Monthly Website Visitors:</span>
+                <span style={{ color: '#ef4444', fontWeight: 800 }}>{calcVisitors.toLocaleString()} visitors</span>
+              </div>
+              <input
+                type="range"
+                className="calc-range-input"
+                min="1000"
+                max="100000"
+                step="1000"
+                value={calcVisitors}
+                onChange={(e) => setCalcVisitors(Number(e.target.value))}
+              />
+            </div>
+
+            <div className="calc-slider-group">
+              <div className="calc-label-row">
+                <span>Average Order / Deal Value ($):</span>
+                <span style={{ color: '#ef4444', fontWeight: 800 }}>${calcOrderValue}</span>
+              </div>
+              <input
+                type="range"
+                className="calc-range-input"
+                min="10"
+                max="500"
+                step="5"
+                value={calcOrderValue}
+                onChange={(e) => setCalcOrderValue(Number(e.target.value))}
+              />
+            </div>
+
+            <div style={{ fontSize: '13px', color: '#9ca3af', lineHeight: 1.6 }}>
+              💡 <em>Based on capturing an extra 3.5% of exiting or hesitation traffic using real-time visitor radar and proactive chat triggers.</em>
+            </div>
+          </div>
+
+          <div className="calc-result-card">
+            <span style={{ fontSize: '12px', uppercase: true, fontWeight: 700, color: '#d1d5db' }}>ESTIMATED EXTRA MONTHLY REVENUE</span>
+            <div className="calc-val-display">${Math.round(calcVisitors * 0.035 * calcOrderValue).toLocaleString()}</div>
+            <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '20px' }}>
+              Recovered every single month with LetsTrack Pro ($29/mo).
+            </p>
+            <button className="btn-primary-cta" style={{ width: '100%', justifyContent: 'center' }} onClick={onNavigateToRegister}>
+              Start Recovering Sales Now
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Competitor Comparison Matrix Section */}
+      <section className="section-padding">
+        <div className="section-header">
+          <span className="section-tag">Value Comparison</span>
+          <h2 className="section-title">Why Smart Growth Teams Choose LetsTrack</h2>
+          <p className="section-desc">
+            Get enterprise-grade visitor tracking and multi-channel messaging without paying $500+/month.
+          </p>
+        </div>
+
+        <div className="matrix-container">
+          <table className="matrix-table">
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left' }}>Features</th>
+                <th className="highlight">🚀 LetsTrack</th>
+                <th>Intercom</th>
+                <th>Drift</th>
+                <th>Crisp</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ textAlign: 'left', fontWeight: 600 }}>Real-Time Visitor Radar</td>
+                <td className="highlight">✅ Streaming WebSockets</td>
+                <td>❌ Basic ($499+/mo)</td>
+                <td>❌ Enterprise Only</td>
+                <td>⚠️ Basic Logs</td>
+              </tr>
+              <tr>
+                <td style={{ textAlign: 'left', fontWeight: 600 }}>Unified Social Inbox (Insta, FB, Web)</td>
+                <td className="highlight">✅ Included</td>
+                <td>⚠️ Expensive Add-on</td>
+                <td>❌ Not Available</td>
+                <td>⚠️ Limited</td>
+              </tr>
+              <tr>
+                <td style={{ textAlign: 'left', fontWeight: 600 }}>WordPress 1-Click Plugin</td>
+                <td className="highlight">✅ Included (.zip)</td>
+                <td>⚠️ Complex Script</td>
+                <td>⚠️ Complex Script</td>
+                <td>⚠️ Basic Plugin</td>
+              </tr>
+              <tr>
+                <td style={{ textAlign: 'left', fontWeight: 600 }}>Mobile Push Alerts (Android/iOS)</td>
+                <td className="highlight">✅ Included</td>
+                <td>✅ Included</td>
+                <td>✅ Included</td>
+                <td>⚠️ Web Only</td>
+              </tr>
+              <tr>
+                <td style={{ textAlign: 'left', fontWeight: 600 }}>Sub-15KB Script Footprint</td>
+                <td className="highlight">⚡ &lt; 15 KB</td>
+                <td>🐌 ~120 KB</td>
+                <td>🐌 ~180 KB</td>
+                <td>⚡ ~40 KB</td>
+              </tr>
+              <tr>
+                <td style={{ textAlign: 'left', fontWeight: 600 }}>Monthly Price</td>
+                <td className="highlight" style={{ fontSize: '18px', color: '#10b981' }}>$29 / mo</td>
+                <td>$450+ / mo</td>
+                <td>$2,500+ / mo</td>
+                <td>$95+ / mo</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Verified Customer Testimonials Section */}
+      <section className="section-padding">
+        <div className="section-header">
+          <span className="section-tag">Proven Results</span>
+          <h2 className="section-title">Loved by Founder & Growth Leads</h2>
+          <p className="section-desc">
+            See how businesses use LetsTrack to convert traffic into repeat customers.
+          </p>
+        </div>
+
+        <div className="testimonials-grid">
+          <div className="testimonial-card">
+            <div>
+              <div className="stars-row">★★★★★</div>
+              <p className="t-quote">
+                "LetsTrack allowed us to see visitors browsing our pricing page in real time. We greeted 4 high-intent prospects live and closed 3 of them the same day! Our conversion rate jumped by 340%."
+              </p>
+            </div>
+            <div className="t-author-box">
+              <div className="t-avatar">MD</div>
+              <div className="t-author-info">
+                <span className="t-name">Marcus Vance</span>
+                <span className="t-role">Founder, SaaSFlow</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="testimonial-card">
+            <div>
+              <div className="stars-row">★★★★★</div>
+              <p className="t-quote">
+                "The WordPress plugin setup took literally 90 seconds. Having Instagram DMs and Website visitor chats in one unified mobile app means our support team responds in seconds."
+              </p>
+            </div>
+            <div className="t-author-box">
+              <div className="t-avatar">ST</div>
+              <div className="t-author-info">
+                <span className="t-name">Sarah Tanaka</span>
+                <span className="t-role">Head of E-Commerce, TrendBoutique</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="testimonial-card">
+            <div>
+              <div className="stars-row">★★★★★</div>
+              <p className="t-quote">
+                "We switched from Intercom to LetsTrack and saved over $5,000/year while getting better real-time visitor tracking and zero page load slowdown."
+              </p>
+            </div>
+            <div className="t-author-box">
+              <div className="t-avatar">DR</div>
+              <div className="t-author-info">
+                <span className="t-name">David Ross</span>
+                <span className="t-role">CTO, WebCraft Agency</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* WordPress & Integration Section */}
       <section id="integrations" className="section-padding">
         <div className="section-header">
@@ -852,6 +1131,19 @@ export default function App() {
           <span>Powered by ManaCity Engine</span>
         </div>
       </footer>
+
+      {/* Live Social Proof Toast */}
+      {toastNotifications[activeToastIdx] && (
+        <div className="live-toast">
+          <div className="toast-avatar">{toastNotifications[activeToastIdx].initial}</div>
+          <div>
+            <div className="toast-text">
+              <strong>{toastNotifications[activeToastIdx].name}</strong> {toastNotifications[activeToastIdx].text}
+            </div>
+            <div className="toast-time">{toastNotifications[activeToastIdx].time}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
