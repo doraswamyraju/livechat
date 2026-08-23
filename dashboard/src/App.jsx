@@ -91,6 +91,45 @@ function App() {
 
   // Auth Inputs
   const [authMode, setAuthMode] = useState('landing'); // landing | login | register | reset
+
+  const navigateAuthMode = (mode) => {
+    setAuthMode(mode);
+    if (mode === 'login') {
+      window.location.hash = '#login';
+    } else if (mode === 'register') {
+      window.location.hash = '#register';
+    } else if (mode === 'reset') {
+      window.location.hash = '#reset';
+    } else {
+      if (window.location.hash && ['#login', '#register', '#reset'].includes(window.location.hash)) {
+        window.history.pushState(null, '', window.location.pathname);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleRouteFromLocation = () => {
+      const hash = window.location.hash;
+      const path = window.location.pathname;
+      if (hash === '#login' || path === '/login') {
+        setAuthMode('login');
+      } else if (hash === '#register' || hash === '#signup' || path === '/register') {
+        setAuthMode('register');
+      } else if (hash === '#reset' || path === '/reset') {
+        setAuthMode('reset');
+      } else if (!hash || hash === '#' || hash.startsWith('#features') || hash.startsWith('#demo') || hash.startsWith('#pricing') || hash.startsWith('#faq') || hash.startsWith('#integrations')) {
+        setAuthMode('landing');
+      }
+    };
+
+    handleRouteFromLocation();
+    window.addEventListener('hashchange', handleRouteFromLocation);
+    window.addEventListener('popstate', handleRouteFromLocation);
+    return () => {
+      window.removeEventListener('hashchange', handleRouteFromLocation);
+      window.removeEventListener('popstate', handleRouteFromLocation);
+    };
+  }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -1116,8 +1155,8 @@ function App() {
     if (authMode === 'landing') {
       return (
         <LandingPage
-          onNavigateToLogin={() => setAuthMode('login')}
-          onNavigateToRegister={() => setAuthMode('register')}
+          onNavigateToLogin={() => navigateAuthMode('login')}
+          onNavigateToRegister={() => navigateAuthMode('register')}
         />
       );
     }
@@ -1131,7 +1170,7 @@ function App() {
           <div style={{ marginBottom: '16px' }}>
             <span
               className="auth-link"
-              onClick={() => setAuthMode('landing')}
+              onClick={() => navigateAuthMode('landing')}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#9ca3af' }}
             >
               ← Back to Product Overview
@@ -1171,10 +1210,10 @@ function App() {
 
               
               <div className="auth-switch-text" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px' }}>
-                <span className="auth-link" onClick={() => setAuthMode('register')}>
+                <span className="auth-link" onClick={() => navigateAuthMode('register')}>
                   Create Tenant
                 </span>
-                <span className="auth-link" onClick={() => setAuthMode('reset')}>
+                <span className="auth-link" onClick={() => navigateAuthMode('reset')}>
                   Forgot Password?
                 </span>
               </div>
@@ -1207,7 +1246,7 @@ function App() {
               
               <div className="auth-switch-text">
                 Back to{' '}
-                <span className="auth-link" onClick={() => setAuthMode('login')}>
+                <span className="auth-link" onClick={() => navigateAuthMode('login')}>
                   Sign In
                 </span>
               </div>
@@ -1215,29 +1254,28 @@ function App() {
           ) : (
             <form className="auth-form" onSubmit={handleRegisterTenant}>
               <div className="form-group">
-                <label className="form-label">Website / Company Name</label>
+                <label className="form-label">Tenant / Business Name</label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="My MERN Store"
+                  placeholder="Acme Corp"
                   value={tenantName}
                   onChange={(e) => setTenantName(e.target.value)}
                   required
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Website Domain</label>
+                <label className="form-label">Domain Name (Optional)</label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="https://my-mern-app.com"
+                  placeholder="example.com"
                   value={domain}
                   onChange={(e) => setDomain(e.target.value)}
-                  required
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Administrator Name</label>
+                <label className="form-label">Admin Full Name</label>
                 <input
                   type="text"
                   className="form-input"
@@ -1248,11 +1286,11 @@ function App() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Email Address</label>
+                <label className="form-label">Admin Email</label>
                 <input
                   type="email"
                   className="form-input"
-                  placeholder="john@company.com"
+                  placeholder="admin@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -1269,12 +1307,12 @@ function App() {
                   required
                 />
               </div>
-              <button type="submit" className="auth-btn">Initialize Platform</button>
+              <button type="submit" className="auth-btn">Create Tenant Account</button>
               
               <div className="auth-switch-text">
-                Already registered?{' '}
-                <span className="auth-link" onClick={() => setAuthMode('login')}>
-                  Sign In
+                Already have a tenant?{' '}
+                <span className="auth-link" onClick={() => navigateAuthMode('login')}>
+                  Access Console
                 </span>
               </div>
             </form>
