@@ -38,6 +38,10 @@ export default function LandingPage({ onNavigateToLogin, onNavigateToRegister })
   // Floating Widget state on Landing Page
   const [isFloatingWidgetOpen, setIsFloatingWidgetOpen] = useState(false);
 
+  // ROI Calculator State
+  const [calcVisitors, setCalcVisitors] = useState(15000);
+  const [calcOrderValue, setCalcOrderValue] = useState(85);
+
   const handleSendDemoMessage = (e) => {
     e?.preventDefault();
     if (!demoInput.trim()) return;
