@@ -20,6 +20,9 @@ export default function LandingPage({ onNavigateToLogin, onNavigateToRegister })
   // FAQ Accordion state
   const [openFaq, setOpenFaq] = useState(0);
 
+  // Inbox Showcase filter state
+  const [demoInboxFilter, setDemoInboxFilter] = useState('all');
+
   // Live visitor ticker simulation
   const [simulatedVisitorCount, setSimulatedVisitorCount] = useState(148);
   useEffect(() => {
@@ -413,6 +416,33 @@ export default function App() {
           <div className="feature-card">
             <div className="feature-icon-wrapper">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+            </div>
+            <h3 className="feature-title">Unified Multi-Agent Inbox</h3>
+            <p className="feature-text">
+              Manage all incoming visitor chats from a centralized inbox with smart filters (All, Mine, Unassigned), automated routing, and canned quick responses.
+            </p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+            </div>
+            <h3 className="feature-title">Real-Time Traffic Analytics</h3>
+            <p className="feature-text">
+              Track conversion rates, active chat volume, peak traffic hours, geographic visitor heatmaps, and agent response speed in real time.
+            </p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
               </svg>
             </div>
@@ -420,6 +450,93 @@ export default function App() {
             <p className="feature-text">
               Engineered for extreme performance. Asynchronous loading ensures zero impact on your site’s Google PageSpeed scores.
             </p>
+          </div>
+        </div>
+
+        {/* Feature Spotlight Showcases for Unified Inbox & Analytics */}
+        <div className="showcase-two-col">
+          {/* Spotlight 1: Unified Inbox */}
+          <div className="spotlight-card">
+            <span className="spotlight-header-badge">📥 Centralized Communication</span>
+            <h3 className="spotlight-title">Unified Agent Inbox</h3>
+            <p className="spotlight-desc">
+              Organize every customer interaction in one place. Filter conversations by status, assign agents instantly, and reply in seconds with slash shortcuts.
+            </p>
+
+            <div className="inbox-filter-pills">
+              {['all', 'mine', 'unassigned'].map(f => (
+                <button
+                  key={f}
+                  className={`inbox-pill ${demoInboxFilter === f ? 'active' : ''}`}
+                  onClick={() => setDemoInboxFilter(f)}
+                >
+                  {f === 'all' ? 'All Chats (12)' : f === 'mine' ? 'Assigned to Me (5)' : 'Unassigned (7)'}
+                </button>
+              ))}
+            </div>
+
+            <div className="inbox-chat-list">
+              <div className="inbox-item-row unread">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }}></span>
+                  <div>
+                    <strong style={{ fontSize: '13px', color: '#ffffff' }}>Lead #4019 (High Intent)</strong>
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Looking for WordPress multisite pricing..."</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>Just Now</span>
+              </div>
+
+              <div className="inbox-item-row">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></span>
+                  <div>
+                    <strong style={{ fontSize: '13px', color: '#ffffff' }}>Visitor #2841 (California, US)</strong>
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Can I connect webhooks to Zapier?"</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>2m ago</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Spotlight 2: Real-Time Analytics */}
+          <div className="spotlight-card">
+            <span className="spotlight-header-badge">📊 Live Metrics & Intelligence</span>
+            <h3 className="spotlight-title">Real-Time Traffic Analytics</h3>
+            <p className="spotlight-desc">
+              Gain deep visibility into visitor trends, peak engagement hours, average agent response velocity, and lead conversion rates.
+            </p>
+
+            <div className="analytics-metrics-row">
+              <div className="metric-pill-box">
+                <div className="metric-num">1,842</div>
+                <div className="metric-lbl">Total Visitors Today</div>
+              </div>
+              <div className="metric-pill-box">
+                <div className="metric-num" style={{ color: '#10b981' }}>98.4%</div>
+                <div className="metric-lbl">Satisfaction Rate</div>
+              </div>
+              <div className="metric-pill-box">
+                <div className="metric-num" style={{ color: '#ef4444' }}>&lt; 38s</div>
+                <div className="metric-lbl">Avg Response Time</div>
+              </div>
+            </div>
+
+            <div className="chart-bar-container">
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#9ca3af', marginBottom: '8px' }}>
+                <span>Hourly Engagement Trends</span>
+                <span style={{ color: '#10b981' }}>+24% vs Yesterday</span>
+              </div>
+              <div className="chart-bars-wrap">
+                <div className="bar-col" style={{ height: '40%' }} title="09:00 - 120 visitors"></div>
+                <div className="bar-col" style={{ height: '65%' }} title="10:00 - 240 visitors"></div>
+                <div className="bar-col" style={{ height: '90%' }} title="11:00 - 380 visitors"></div>
+                <div className="bar-col" style={{ height: '75%' }} title="12:00 - 310 visitors"></div>
+                <div className="bar-col" style={{ height: '100%' }} title="13:00 - 450 visitors"></div>
+                <div className="bar-col" style={{ height: '85%' }} title="14:00 - 360 visitors"></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

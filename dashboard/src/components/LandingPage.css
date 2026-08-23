@@ -27,6 +27,7 @@
   width: 600px;
   height: 600px;
   background: radial-gradient(circle, #dc2626 0%, rgba(220, 38, 38, 0) 70%);
+  animation: float-slow 14s ease-in-out infinite alternate;
 }
 
 .blob-2 {
@@ -35,6 +36,7 @@
   width: 500px;
   height: 500px;
   background: radial-gradient(circle, #991b1b 0%, rgba(153, 27, 27, 0) 70%);
+  animation: float-slow 18s ease-in-out infinite alternate-reverse;
 }
 
 .blob-3 {
@@ -43,6 +45,13 @@
   width: 550px;
   height: 550px;
   background: radial-gradient(circle, #b91c1c 0%, rgba(185, 28, 28, 0) 70%);
+  animation: float-slow 16s ease-in-out infinite alternate;
+}
+
+@keyframes float-slow {
+  0% { transform: translate(0px, 0px) scale(1); }
+  50% { transform: translate(30px, -25px) scale(1.08); }
+  100% { transform: translate(-20px, 20px) scale(0.95); }
 }
 
 /* Header & Navbar */
@@ -1051,6 +1060,7 @@
   .mockup-body { grid-template-columns: 1fr; }
   .demo-section-box { grid-template-columns: 1fr; }
   .landing-nav-links { display: none; }
+  .showcase-two-col { grid-template-columns: 1fr !important; }
 }
 
 @media (max-width: 640px) {
@@ -1060,3 +1070,161 @@
   .stat-value { font-size: 22px; }
   .section-title { font-size: 28px; }
 }
+
+/* Feature Showcase Spotlights */
+.showcase-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-top: 40px;
+}
+
+.spotlight-card {
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.7), rgba(9, 13, 22, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 36px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s ease;
+}
+
+.spotlight-card:hover {
+  border-color: rgba(220, 38, 38, 0.4);
+  box-shadow: 0 24px 60px rgba(220, 38, 38, 0.2);
+  transform: translateY(-4px);
+}
+
+.spotlight-header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  background: rgba(220, 38, 38, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-bottom: 16px;
+}
+
+.spotlight-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 12px;
+}
+
+.spotlight-desc {
+  font-size: 14px;
+  color: #9ca3af;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+/* Analytics Chart Mock */
+.analytics-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.metric-pill-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+}
+
+.metric-num {
+  font-family: 'Outfit', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.metric-lbl {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.chart-bar-container {
+  background: #080c14;
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.chart-bars-wrap {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 90px;
+  padding-top: 10px;
+}
+
+.bar-col {
+  width: 12%;
+  background: linear-gradient(180deg, #ef4444 0%, rgba(220, 38, 38, 0.2) 100%);
+  border-radius: 6px 6px 0 0;
+  transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.bar-col:hover {
+  background: linear-gradient(180deg, #f87171 0%, #dc2626 100%);
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+}
+
+/* Inbox Mock */
+.inbox-filter-pills {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.inbox-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #9ca3af;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.inbox-pill.active {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+
+.inbox-chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inbox-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.inbox-item-row.unread {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
