@@ -23,6 +23,9 @@ export default function LandingPage({ onNavigateToLogin, onNavigateToRegister })
   // Inbox Showcase filter state
   const [demoInboxFilter, setDemoInboxFilter] = useState('all');
 
+  // Hero Mockup Tab State
+  const [heroMockupTab, setHeroMockupTab] = useState('radar'); // 'radar' | 'inbox' | 'analytics'
+
   // Live visitor ticker simulation
   const [simulatedVisitorCount, setSimulatedVisitorCount] = useState(148);
   useEffect(() => {
@@ -144,21 +147,20 @@ export default function App() {
       <section className="hero-section">
         <div className="hero-pill">
           <span className="hero-pill-dot"></span>
-          <span>Standalone Real-Time Visitor Tracking & Chat Engine</span>
+          <span>⚡ All-In-One Real-Time Growth & Sales Engine</span>
         </div>
 
         <h1 className="hero-title">
-          Turn Anonymous Visitors into Customers <span>in Real-Time.</span>
+          Know the Moment a Visitor Lands. <span>Engage & Upsell in One Single App.</span>
         </h1>
 
         <p className="hero-subtitle">
-          Track active page views, visitor geolocation, and live behavior across your website. 
-          Engage intent-ready leads instantly with a ultra-lightweight live chat widget and instant mobile push alerts.
+          Get instant push alerts the second a prospect opens your website. Receive every message—from Web Chat, Instagram DMs, and Facebook—into one unified inbox, powered by live upsell analytics.
         </p>
 
         <div className="hero-buttons">
           <button className="btn-primary-cta btn-hero-lg" onClick={onNavigateToRegister}>
-            Get Started Free
+            Start 14-Day Free Trial
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M5 12h14M12 5l7 7-7 7"/>
             </svg>
@@ -172,26 +174,40 @@ export default function App() {
           </a>
         </div>
 
-        <div className="hero-stats">
-          <div className="stat-item">
-            <span className="stat-value">&lt; 15 KB</span>
-            <span className="stat-label">Ultra Lightweight SDK</span>
+        {/* 3 Core Pillar Cards Right in Hero */}
+        <div className="hero-pillars-grid">
+          <div className="hero-pillar-card">
+            <div className="hero-pillar-header">
+              <div className="hero-pillar-icon">🔔</div>
+              <h3 className="hero-pillar-title">1. Instant Entry Alerts</h3>
+            </div>
+            <p className="hero-pillar-text">
+              Receive real-time push notifications on mobile or desktop the exact second a high-intent buyer opens your website or lands on your pricing page.
+            </p>
           </div>
-          <div className="stat-item">
-            <span className="stat-value">&lt; 50 ms</span>
-            <span className="stat-label">WebSocket Latency</span>
+
+          <div className="hero-pillar-card">
+            <div className="hero-pillar-header">
+              <div className="hero-pillar-icon">📥</div>
+              <h3 className="hero-pillar-title">2. Meta & Web Unified Inbox</h3>
+            </div>
+            <p className="hero-pillar-text">
+              Stream Website Chat, Instagram DMs, Facebook Messenger, and WhatsApp into 1 single master app. Reply to all leads from one screen.
+            </p>
           </div>
-          <div className="stat-item">
-            <span className="stat-value">{simulatedVisitorCount}</span>
-            <span className="stat-label">Active Demo Visitors Now</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-value">100%</span>
-            <span className="stat-label">WordPress Compatible</span>
+
+          <div className="hero-pillar-card">
+            <div className="hero-pillar-header">
+              <div className="hero-pillar-icon">📊</div>
+              <h3 className="hero-pillar-title">3. Sales & Upsell Analytics</h3>
+            </div>
+            <p className="hero-pillar-text">
+              Track live buyer intent scores, cart values, and traffic heatmaps to trigger timely discount coupons and close high-ticket upsells.
+            </p>
           </div>
         </div>
 
-        {/* Hero Interactive Mockup */}
+        {/* Hero Interactive Showcase Window */}
         <div className="hero-mockup-container">
           <div className="mockup-header">
             <span className="mockup-dot dot-red"></span>
@@ -206,66 +222,153 @@ export default function App() {
             </div>
           </div>
 
+          {/* Interactive Showcase Tabs inside Hero Mockup */}
+          <div className="mockup-tab-bar">
+            <button
+              className={`mockup-tab-btn ${heroMockupTab === 'radar' ? 'active' : ''}`}
+              onClick={() => setHeroMockupTab('radar')}
+            >
+              🔔 Instant Visitor Entry Alerts & Radar
+            </button>
+            <button
+              className={`mockup-tab-btn ${heroMockupTab === 'inbox' ? 'active' : ''}`}
+              onClick={() => setHeroMockupTab('inbox')}
+            >
+              📥 Meta & Web Unified Inbox
+            </button>
+            <button
+              className={`mockup-tab-btn ${heroMockupTab === 'analytics' ? 'active' : ''}`}
+              onClick={() => setHeroMockupTab('analytics')}
+            >
+              📊 Upsell Analytics & Buyer Intent
+            </button>
+          </div>
+
           <div className="mockup-body">
-            {/* Left side: Live Visitor Radar */}
-            <div className="mockup-visitor-table">
-              <div className="table-title">
-                <span>🔴 Live Visitor Radar</span>
-                <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>Streaming WebSockets</span>
-              </div>
+            {heroMockupTab === 'radar' && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <div className="push-alert-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '20px' }}>🔔</span>
+                    <div style={{ textAlign: 'left' }}>
+                      <strong style={{ color: '#ffffff', fontSize: '13px' }}>INSTANT ALERT: High-Intent Lead #8402 (United States)</strong>
+                      <div style={{ fontSize: '11px', color: '#9ca3af' }}>Currently reading /pricing for 3 minutes • 89% Buy Intent Score</div>
+                    </div>
+                  </div>
+                  <button className="btn-primary-cta" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={onNavigateToRegister}>
+                    Start Chat Now
+                  </button>
+                </div>
 
-              <div className="visitor-row active">
-                <div className="visitor-info">
-                  <span className="online-indicator"></span>
-                  <div>
-                    <strong style={{ color: 'white' }}>Visitor #8402 (United States)</strong>
-                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>Chrome on macOS • Chrome/122</div>
+                <div className="mockup-visitor-table">
+                  <div className="table-title">
+                    <span>🔴 Real-Time Visitor Radar (WebSockets Stream)</span>
+                    <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 600 }}>● {simulatedVisitorCount} Active Visitors Now</span>
+                  </div>
+
+                  <div className="visitor-row active">
+                    <div className="visitor-info">
+                      <span className="online-indicator"></span>
+                      <div>
+                        <strong style={{ color: 'white' }}>Visitor #8402 (United States)</strong>
+                        <div style={{ fontSize: '11px', color: '#9ca3af' }}>Chrome on macOS • Referral: Google Search</div>
+                      </div>
+                    </div>
+                    <span className="visitor-page">/pricing (3m 12s)</span>
+                  </div>
+
+                  <div className="visitor-row">
+                    <div className="visitor-info">
+                      <span className="online-indicator"></span>
+                      <div>
+                        <strong style={{ color: 'white' }}>Visitor #3194 (London, UK)</strong>
+                        <div style={{ fontSize: '11px', color: '#9ca3af' }}>Mobile Safari on iOS</div>
+                      </div>
+                    </div>
+                    <span className="visitor-page">/checkout (1m 45s)</span>
                   </div>
                 </div>
-                <span className="visitor-page">/pricing</span>
               </div>
+            )}
 
-              <div className="visitor-row">
-                <div className="visitor-info">
-                  <span className="online-indicator"></span>
-                  <div>
-                    <strong style={{ color: 'white' }}>Visitor #3194 (India)</strong>
-                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>Mobile Safari on iOS</div>
+            {heroMockupTab === 'inbox' && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <div style={{ background: 'rgba(15,23,42,0.8)', padding: '16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', marginBottom: '14px', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>📥 Unified Master Inbox (Meta + Web)</span>
+                    <span style={{ fontSize: '11px', color: '#ef4444' }}>4 Unread Conversations</span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div className="inbox-item-row unread">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span>📸</span>
+                        <div>
+                          <strong style={{ color: '#ffffff', fontSize: '13px' }}>@sarah_designs (Instagram DM)</strong>
+                          <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Hi! Can I get a discount for 5 website licenses?"</div>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>Just Now</span>
+                    </div>
+
+                    <div className="inbox-item-row unread">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span>🌐</span>
+                        <div>
+                          <strong style={{ color: '#ffffff', fontSize: '13px' }}>Visitor #4019 (Website Chat)</strong>
+                          <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Does your WordPress plugin support multisite?"</div>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>1m ago</span>
+                    </div>
+
+                    <div className="inbox-item-row">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span>💬</span>
+                        <div>
+                          <strong style={{ color: '#ffffff', fontSize: '13px' }}>Alex Rivers (FB Messenger)</strong>
+                          <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Scheduling live demo for tomorrow!"</div>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#6b7280' }}>3m ago</span>
+                    </div>
                   </div>
                 </div>
-                <span className="visitor-page">/checkout</span>
               </div>
+            )}
 
-              <div className="visitor-row">
-                <div className="visitor-info">
-                  <span className="online-indicator"></span>
-                  <div>
-                    <strong style={{ color: 'white' }}>Visitor #1092 (Germany)</strong>
-                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>Firefox on Windows 11</div>
+            {heroMockupTab === 'analytics' && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <div style={{ background: 'rgba(15,23,42,0.8)', padding: '16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', marginBottom: '14px', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>📊 Live Upsell & Conversion Analytics</span>
+                    <span style={{ fontSize: '11px', color: '#10b981' }}>+340% Lead Lift</span>
+                  </div>
+
+                  <div className="analytics-metrics-row">
+                    <div className="metric-pill-box">
+                      <div className="metric-num" style={{ color: '#10b981' }}>89%</div>
+                      <div className="metric-lbl">High Buy Intent</div>
+                    </div>
+                    <div className="metric-pill-box">
+                      <div className="metric-num">$3,420</div>
+                      <div className="metric-lbl">Recovered Cart Sales</div>
+                    </div>
+                    <div className="metric-pill-box">
+                      <div className="metric-num" style={{ color: '#ef4444' }}>&lt; 28s</div>
+                      <div className="metric-lbl">Avg Reply Time</div>
+                    </div>
+                  </div>
+
+                  <div style={{ background: 'rgba(220,38,38,0.1)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(220,38,38,0.3)', marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', color: '#e5e7eb' }}>💡 <strong>AUTOMATED UPSELL PROMPT:</strong> 42 visitors are hovering on the Checkout page right now. Trigger 10% coupon popover?</span>
+                    <button className="btn-primary-cta" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={onNavigateToRegister}>
+                      Trigger Upsell
+                    </button>
                   </div>
                 </div>
-                <span className="visitor-page">/docs/wordpress</span>
               </div>
-            </div>
-
-            {/* Right side: Active Co-Browsing Chat Card */}
-            <div className="mockup-chat-preview">
-              <div className="mockup-chat-head">
-                <span>💬 Co-Browsing Live Session</span>
-                <span style={{ fontSize: '10px', background: '#10b981', padding: '2px 6px', borderRadius: '4px' }}>ACTIVE</span>
-              </div>
-              <div className="mockup-chat-messages">
-                <div className="chat-bubble bubble-visitor">
-                  Hi! Does LetsTrack work with WordPress single-site and multisite?
-                </div>
-                <div className="chat-bubble bubble-agent">
-                  Yes! We provide a dedicated WordPress plugin that installs in seconds and tracks all user sessions automatically.
-                </div>
-                <div className="chat-bubble bubble-visitor">
-                  Awesome, testing it now! 🚀
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
