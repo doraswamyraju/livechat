@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './LandingPage.css';
 
-export default function LandingPage({ onNavigateToLogin, onNavigateToRegister }) {
+export default function LandingPage({ onNavigateToLogin, onNavigateToRegister, onNavigateToDemo }) {
   // Demo Widget State
   const [widgetColor, setWidgetColor] = useState('#dc2626');
   const [demoMessages, setDemoMessages] = useState([
@@ -112,7 +112,7 @@ export default function App() {
 
           <div className="landing-nav-links">
             <a href="#features" className="landing-nav-link">Features</a>
-            <a href="#demo" className="landing-nav-link">Live Demo</a>
+            <span className="landing-nav-link" onClick={onNavigateToDemo} style={{ cursor: 'pointer' }}>Live Demo</span>
             <a href="#integrations" className="landing-nav-link">WordPress & SDK</a>
             <a href="#pricing" className="landing-nav-link">Pricing</a>
             <a href="#faq" className="landing-nav-link">FAQ</a>
@@ -155,12 +155,12 @@ export default function App() {
             </svg>
           </button>
 
-          <a href="#demo" className="btn-secondary-hero">
+          <button className="btn-secondary-hero" onClick={onNavigateToDemo}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
             Test Drive Live Widget
-          </a>
+          </button>
         </div>
 
         {/* Hero Interactive Showcase Window */}

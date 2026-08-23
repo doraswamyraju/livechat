@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import LandingPage from './components/LandingPage';
+import DemoSandbox from './components/DemoSandbox';
 
 const BACKEND_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:5004'
@@ -90,7 +91,7 @@ function App() {
   });
 
   // Auth Inputs
-  const [authMode, setAuthMode] = useState('landing'); // landing | login | register | reset
+  const [authMode, setAuthMode] = useState('landing'); // landing | demo | login | register | reset
 
   const navigateAuthMode = (mode) => {
     setAuthMode(mode);
@@ -100,8 +101,10 @@ function App() {
       window.location.hash = '#register';
     } else if (mode === 'reset') {
       window.location.hash = '#reset';
+    } else if (mode === 'demo') {
+      window.location.hash = '#demo';
     } else {
-      if (window.location.hash && ['#login', '#register', '#reset'].includes(window.location.hash)) {
+      if (window.location.hash && ['#login', '#register', '#reset', '#demo'].includes(window.location.hash)) {
         window.history.pushState(null, '', window.location.pathname);
       }
     }
@@ -111,13 +114,15 @@ function App() {
     const handleRouteFromLocation = () => {
       const hash = window.location.hash;
       const path = window.location.pathname;
-      if (hash === '#login' || path === '/login') {
+      if (hash === '#demo' || path === '/demo') {
+        setAuthMode('demo');
+      } else if (hash === '#login' || path === '/login') {
         setAuthMode('login');
       } else if (hash === '#register' || hash === '#signup' || path === '/register') {
         setAuthMode('register');
       } else if (hash === '#reset' || path === '/reset') {
         setAuthMode('reset');
-      } else if (!hash || hash === '#' || hash.startsWith('#features') || hash.startsWith('#demo') || hash.startsWith('#pricing') || hash.startsWith('#faq') || hash.startsWith('#integrations')) {
+      } else if (!hash || hash === '#' || hash.startsWith('#features') || hash.startsWith('#pricing') || hash.startsWith('#faq') || hash.startsWith('#integrations')) {
         setAuthMode('landing');
       }
     };
@@ -1156,6 +1161,16 @@ function App() {
       return (
         <LandingPage
           onNavigateToLogin={() => navigateAuthMode('login')}
+          onNavigateToRegister={() => navigateAuthMode('register')}
+          onNavigateToDemo={() => navigateAuthMode('demo')}
+        />
+      );
+    }
+
+    if (authMode === 'demo') {
+      return (
+        <DemoSandbox
+          onBackToLanding={() => navigateAuthMode('landing')}
           onNavigateToRegister={() => navigateAuthMode('register')}
         />
       );
