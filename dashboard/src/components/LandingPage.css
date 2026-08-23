@@ -190,6 +190,50 @@
   background: linear-gradient(135deg, #ef4444, #dc2626);
 }
 
+/* Hero Section */
+.hero-section {
+  position: relative;
+  z-index: 1;
+  padding: 160px 24px 80px;
+  max-width: 1280px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  padding: 6px 16px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #f87171;
+  margin-top: 10px;
+  margin-bottom: 24px;
+  backdrop-filter: blur(8px);
+}
+
+.hero-mockup-container {
+  position: relative;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(220, 38, 38, 0.15);
+  animation: heroFloat 7s ease-in-out infinite alternate;
+}
+
+@keyframes heroFloat {
+  0% { transform: translateY(0px); }
+  100% { transform: translateY(-10px); }
+}
+
 /* Hero Pillars Feature Grid */
 .hero-pillars-grid {
   display: grid;

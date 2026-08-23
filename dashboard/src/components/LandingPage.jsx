@@ -174,39 +174,6 @@ export default function App() {
           </a>
         </div>
 
-        {/* 3 Core Pillar Cards Right in Hero */}
-        <div className="hero-pillars-grid">
-          <div className="hero-pillar-card">
-            <div className="hero-pillar-header">
-              <div className="hero-pillar-icon">🔔</div>
-              <h3 className="hero-pillar-title">1. Instant Entry Alerts</h3>
-            </div>
-            <p className="hero-pillar-text">
-              Receive real-time push notifications on mobile or desktop the exact second a high-intent buyer opens your website or lands on your pricing page.
-            </p>
-          </div>
-
-          <div className="hero-pillar-card">
-            <div className="hero-pillar-header">
-              <div className="hero-pillar-icon">📥</div>
-              <h3 className="hero-pillar-title">2. Meta & Web Unified Inbox</h3>
-            </div>
-            <p className="hero-pillar-text">
-              Stream Website Chat, Instagram DMs, Facebook Messenger, and WhatsApp into 1 single master app. Reply to all leads from one screen.
-            </p>
-          </div>
-
-          <div className="hero-pillar-card">
-            <div className="hero-pillar-header">
-              <div className="hero-pillar-icon">📊</div>
-              <h3 className="hero-pillar-title">3. Sales & Upsell Analytics</h3>
-            </div>
-            <p className="hero-pillar-text">
-              Track live buyer intent scores, cart values, and traffic heatmaps to trigger timely discount coupons and close high-ticket upsells.
-            </p>
-          </div>
-        </div>
-
         {/* Hero Interactive Showcase Window */}
         <div className="hero-mockup-container">
           <div className="mockup-header">
@@ -369,6 +336,39 @@ export default function App() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* 3 Core Pillar Cards Below Mockup Window */}
+        <div className="hero-pillars-grid">
+          <div className="hero-pillar-card">
+            <div className="hero-pillar-header">
+              <div className="hero-pillar-icon">🔔</div>
+              <h3 className="hero-pillar-title">1. Instant Entry Alerts</h3>
+            </div>
+            <p className="hero-pillar-text">
+              Receive real-time push notifications on mobile or desktop the exact second a high-intent buyer opens your website or lands on your pricing page.
+            </p>
+          </div>
+
+          <div className="hero-pillar-card">
+            <div className="hero-pillar-header">
+              <div className="hero-pillar-icon">📥</div>
+              <h3 className="hero-pillar-title">2. Meta & Web Unified Inbox</h3>
+            </div>
+            <p className="hero-pillar-text">
+              Stream Website Chat, Instagram DMs, Facebook Messenger, and WhatsApp into 1 single master app. Reply to all leads from one screen.
+            </p>
+          </div>
+
+          <div className="hero-pillar-card">
+            <div className="hero-pillar-header">
+              <div className="hero-pillar-icon">📊</div>
+              <h3 className="hero-pillar-title">3. Sales & Upsell Analytics</h3>
+            </div>
+            <p className="hero-pillar-text">
+              Track live buyer intent scores, cart values, and traffic heatmaps to trigger timely discount coupons and close high-ticket upsells.
+            </p>
           </div>
         </div>
 
