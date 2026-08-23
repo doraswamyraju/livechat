@@ -710,9 +710,15 @@
 
       socket.on('connect', async () => {
         console.log('[LetsTrack] Socket connected');
+        socketReady = true;
         const coords = await getPreciseLocation();
         sendVisitorInit(coords);
       });
+
+      socket.on('connect_error', (err) => {
+        console.warn('[LetsTrack] Socket connect_error:', err ? err.message : err);
+      });
+
 
       socket.on('visitor-init-success', (data) => {
         visitorProfile.name = data.name;
@@ -905,7 +911,7 @@
         const textVal = textInput.value.trim();
         if (!textVal) return;
 
-        if (!socket || !socketReady) {
+        if (!socket) {
           console.warn('[LetsTrack] Chat connection is not ready.');
           return;
         }
@@ -928,17 +934,18 @@
       // Handle visitor typing indicators
       let typingTimeout = null;
       textInput.oninput = () => {
-        if (socket && socketReady) {
+        if (socket) {
           socket.emit('visitor-typing', { isTyping: true });
         }
         
         if (typingTimeout) clearTimeout(typingTimeout);
         typingTimeout = setTimeout(() => {
-          if (socket && socketReady) {
+          if (socket) {
             socket.emit('visitor-typing', { isTyping: false });
           }
         }, 2000);
       };
+
     }
 
     // Helper: append message elements

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
+import LandingPage from './components/LandingPage';
 
 const BACKEND_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:5004'
@@ -89,7 +90,7 @@ function App() {
   });
 
   // Auth Inputs
-  const [authMode, setAuthMode] = useState('login'); // login | register
+  const [authMode, setAuthMode] = useState('landing'); // landing | login | register | reset
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -1112,12 +1113,31 @@ function App() {
   // RENDER SECTIONS
   // ============================================
   if (!token) {
+    if (authMode === 'landing') {
+      return (
+        <LandingPage
+          onNavigateToLogin={() => setAuthMode('login')}
+          onNavigateToRegister={() => setAuthMode('register')}
+        />
+      );
+    }
+
     return (
       <div className="auth-wrapper">
         <div className="auth-bg-blob top-left"></div>
         <div className="auth-bg-blob bottom-right"></div>
         
         <div className="auth-card glass-card">
+          <div style={{ marginBottom: '16px' }}>
+            <span
+              className="auth-link"
+              onClick={() => setAuthMode('landing')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#9ca3af' }}
+            >
+              ← Back to Product Overview
+            </span>
+          </div>
+
           <div className="auth-title">LetsTrack Console</div>
           <div className="auth-subtitle">Real-time Visitor Tracking & Messaging Platform</div>
 
