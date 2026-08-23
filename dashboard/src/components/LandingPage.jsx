@@ -416,13 +416,12 @@ export default function App() {
           <div className="feature-card">
             <div className="feature-icon-wrapper">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                <polyline points="22,6 12,13 2,6"/>
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
               </svg>
             </div>
-            <h3 className="feature-title">Unified Multi-Agent Inbox</h3>
+            <h3 className="feature-title">Multi-Channel Unified Inbox</h3>
             <p className="feature-text">
-              Manage all incoming visitor chats from a centralized inbox with smart filters (All, Mine, Unassigned), automated routing, and canned quick responses.
+              Receive messages from your Website Chat, Instagram DMs, Facebook Messenger, WhatsApp, and custom Webhooks into one single agent application.
             </p>
           </div>
 
@@ -457,20 +456,20 @@ export default function App() {
         <div className="showcase-two-col">
           {/* Spotlight 1: Unified Inbox */}
           <div className="spotlight-card">
-            <span className="spotlight-header-badge">📥 Centralized Communication</span>
-            <h3 className="spotlight-title">Unified Agent Inbox</h3>
+            <span className="spotlight-header-badge">📥 Multi-Channel Inbox (Web • Insta • FB • WhatsApp)</span>
+            <h3 className="spotlight-title">Unified Multi-Channel Inbox</h3>
             <p className="spotlight-desc">
-              Organize every customer interaction in one place. Filter conversations by status, assign agents instantly, and reply in seconds with slash shortcuts.
+              Stop switching between separate apps and browser tabs. Stream your Website Visitors, Instagram DMs, Facebook Messenger, and WhatsApp inquiries directly into one master console.
             </p>
 
             <div className="inbox-filter-pills">
-              {['all', 'mine', 'unassigned'].map(f => (
+              {['all', 'website', 'instagram', 'facebook'].map(f => (
                 <button
                   key={f}
                   className={`inbox-pill ${demoInboxFilter === f ? 'active' : ''}`}
                   onClick={() => setDemoInboxFilter(f)}
                 >
-                  {f === 'all' ? 'All Chats (12)' : f === 'mine' ? 'Assigned to Me (5)' : 'Unassigned (7)'}
+                  {f === 'all' ? 'All Channels (14)' : f === 'website' ? '🌐 Website (6)' : f === 'instagram' ? '📸 Instagram (4)' : '💬 Facebook (4)'}
                 </button>
               ))}
             </div>
@@ -478,24 +477,44 @@ export default function App() {
             <div className="inbox-chat-list">
               <div className="inbox-item-row unread">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }}></span>
+                  <span style={{ fontSize: '14px' }}>📸</span>
                   <div>
-                    <strong style={{ fontSize: '13px', color: '#ffffff' }}>Lead #4019 (High Intent)</strong>
-                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Looking for WordPress multisite pricing..."</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <strong style={{ fontSize: '13px', color: '#ffffff' }}>@sarah_designs</strong>
+                      <span style={{ fontSize: '10px', background: 'rgba(236,72,153,0.2)', color: '#f472b6', padding: '1px 6px', borderRadius: '4px' }}>Instagram DM</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Hi! What are your pro subscription packages?"</div>
                   </div>
                 </div>
                 <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>Just Now</span>
               </div>
 
-              <div className="inbox-item-row">
+              <div className="inbox-item-row unread">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></span>
+                  <span style={{ fontSize: '14px' }}>🌐</span>
                   <div>
-                    <strong style={{ fontSize: '13px', color: '#ffffff' }}>Visitor #2841 (California, US)</strong>
-                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Can I connect webhooks to Zapier?"</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <strong style={{ fontSize: '13px', color: '#ffffff' }}>Lead #4019 (High Intent)</strong>
+                      <span style={{ fontSize: '10px', background: 'rgba(220,38,38,0.2)', color: '#f87171', padding: '1px 6px', borderRadius: '4px' }}>Website Chat</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Looking for WordPress multisite integration..."</div>
                   </div>
                 </div>
-                <span style={{ fontSize: '11px', color: '#6b7280' }}>2m ago</span>
+                <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>1m ago</span>
+              </div>
+
+              <div className="inbox-item-row">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '14px' }}>💬</span>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <strong style={{ fontSize: '13px', color: '#ffffff' }}>Alex Rivers</strong>
+                      <span style={{ fontSize: '10px', background: 'rgba(59,130,246,0.2)', color: '#60a5fa', padding: '1px 6px', borderRadius: '4px' }}>FB Messenger</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Can we schedule a live demo call for tomorrow?"</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>4m ago</span>
               </div>
             </div>
           </div>
