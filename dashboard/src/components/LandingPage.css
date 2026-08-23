@@ -299,6 +299,10 @@
   0% { border-color: rgba(220, 38, 38, 0.3); }
   100% { border-color: rgba(239, 68, 68, 0.7); box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); }
 }
+
+.hero-pill-dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #ef4444;
   box-shadow: 0 0 10px #ef4444;
