@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './LandingPage.css';
 
-export default function LandingPage({ onNavigateToLogin, onNavigateToRegister, onNavigateToDemo }) {
+export default function LandingPage({ onNavigateToLogin, onNavigateToRegister, onNavigateToDemo, on1ClickDemoLogin }) {
   // Demo Widget State
   const [widgetColor, setWidgetColor] = useState('#dc2626');
   const [demoMessages, setDemoMessages] = useState([
@@ -155,11 +155,15 @@ export default function App() {
             </svg>
           </button>
 
+          <button className="btn-primary-cta btn-hero-lg" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 20px rgba(16, 185, 129, 0.35)' }} onClick={on1ClickDemoLogin}>
+            🚀 Launch Full Console (1-Click Demo)
+          </button>
+
           <button className="btn-secondary-hero" onClick={onNavigateToDemo}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
-            Test Drive Live Widget
+            Playground Sandbox
           </button>
         </div>
 

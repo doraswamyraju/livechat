@@ -521,6 +521,84 @@ function App() {
     showToast('Logged out.');
   };
 
+  const handle1ClickDemoLogin = () => {
+    const demoUser = { id: 'demo-agent-01', name: 'Demo Agent (Sales)', email: 'demo@letstrack.io', role: 'Admin', status: 'Online' };
+    const demoTenant = { id: 'demo-tenant-99', name: 'Demo Enterprise Store', domain: 'letstrack.manacity.in', apiKey: 'demo_api_key_8840' };
+    const demoToken = 'demo_jwt_token_simulation_99201';
+
+    localStorage.setItem('letstrack_token', demoToken);
+    localStorage.setItem('letstrack_user', JSON.stringify(demoUser));
+    localStorage.setItem('letstrack_tenant', JSON.stringify(demoTenant));
+
+    setToken(demoToken);
+    setUser(demoUser);
+    setTenant(demoTenant);
+
+    setVisitors([
+      { _id: 'v1', name: 'Visitor #8402 (United States)', email: 'alex.m@example.com', phoneNumber: '+1 555-0192', location: 'San Francisco, USA', currentUrl: '/pricing', duration: 192, status: 'Active', isMuted: false, browser: 'Chrome on macOS', flag: '🇺🇸' },
+      { _id: 'v2', name: 'Visitor #3194 (London, UK)', email: 'james.k@example.com', phoneNumber: '+44 7911-123456', location: 'London, UK', currentUrl: '/checkout', duration: 105, status: 'Active', isMuted: false, browser: 'Safari on iOS', flag: '🇬🇧' },
+      { _id: 'v3', name: 'Visitor #1092 (Germany)', email: 'elena.r@example.com', phoneNumber: '+49 151-234567', location: 'Berlin, Germany', currentUrl: '/docs/wordpress', duration: 42, status: 'Active', isMuted: false, browser: 'Firefox on Windows', flag: '🇩🇪' }
+    ]);
+
+    setConversations([
+      { _id: 'c1', visitorId: { _id: 'v1', name: 'Visitor #8402 (USA)' }, status: 'Unassigned', channel: 'webchat', unreadCount: 1, lastMessageText: 'Does your WordPress plugin support multisite?', updatedAt: new Date().toISOString() },
+      { _id: 'c2', visitorId: { _id: 'v2', name: '@sarah_designs (Instagram DM)' }, status: 'Active', channel: 'instagram', unreadCount: 1, lastMessageText: 'Hi! Can I get a discount for 5 website licenses?', updatedAt: new Date().toISOString() },
+      { _id: 'c3', visitorId: { _id: 'v3', name: 'Alex Rivers (FB Messenger)' }, status: 'Assigned', channel: 'facebook', unreadCount: 0, lastMessageText: 'Scheduling live demo for tomorrow!', updatedAt: new Date().toISOString() }
+    ]);
+
+    setAnalytics({
+      totalVisitors: 1480,
+      onlineVisitors: 14,
+      activeConversations: 3,
+      unassignedConversations: 1,
+      totalChats: 248,
+      totalAgents: 4,
+      onlineAgents: 3
+    });
+
+    setWidgetSettings({
+      primaryColor: '#dc2626',
+      widgetTitle: 'LetsTrack Sales Support',
+      welcomeMessage: 'Hi there! 👋 Welcome to Demo Store. How can we help your business today?',
+      position: 'bottom-right',
+      requirePreChatForm: true
+    });
+
+    showToast('Welcome to the Full LetsTrack Dashboard Console (Demo Mode)!');
+  };
+
+  const handleSimulateNewVisitor = () => {
+    const id = String(Math.floor(1000 + Math.random() * 9000));
+    const newVis = {
+      _id: `v_${id}`,
+      name: `Visitor #${id} (Canada)`,
+      email: `visitor${id}@example.com`,
+      location: 'Toronto, Canada',
+      currentUrl: '/pricing',
+      duration: 10,
+      status: 'Active',
+      browser: 'Chrome on macOS',
+      flag: '🇨🇦'
+    };
+    setVisitors(prev => [newVis, ...prev]);
+    showToast(`🔔 New Visitor #${id} landed on /pricing page!`);
+  };
+
+  const handleSimulateInstagramDM = () => {
+    const id = Math.floor(1000 + Math.random() * 9000);
+    const newConv = {
+      _id: `c_${id}`,
+      visitorId: { _id: `v_${id}`, name: `@user_${id} (Instagram DM)` },
+      status: 'Unassigned',
+      channel: 'instagram',
+      unreadCount: 1,
+      lastMessageText: 'Hey! Saw your story about LetsTrack. How fast is the WordPress setup?',
+      updatedAt: new Date().toISOString()
+    };
+    setConversations(prev => [newConv, ...prev]);
+    showToast(`📸 Incoming Instagram DM from @user_${id}!`);
+  };
+
   const handleInviteAgent = async (e) => {
     e.preventDefault();
     if (!agentInviteName || !agentInviteEmail || !agentInvitePassword) {
@@ -1163,6 +1241,7 @@ function App() {
           onNavigateToLogin={() => navigateAuthMode('login')}
           onNavigateToRegister={() => navigateAuthMode('register')}
           onNavigateToDemo={() => navigateAuthMode('demo')}
+          on1ClickDemoLogin={handle1ClickDemoLogin}
         />
       );
     }
@@ -1172,6 +1251,7 @@ function App() {
         <DemoSandbox
           onBackToLanding={() => navigateAuthMode('landing')}
           onNavigateToRegister={() => navigateAuthMode('register')}
+          on1ClickDemoLogin={handle1ClickDemoLogin}
         />
       );
     }
@@ -1197,6 +1277,20 @@ function App() {
 
           {authMode === 'login' ? (
             <form className="auth-form" onSubmit={handleLogin}>
+              <div style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.15), rgba(15,23,42,0.9))', border: '1px solid rgba(220,38,38,0.4)', borderRadius: '12px', padding: '12px', marginBottom: '16px', textAlignment: 'center' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#ffffff', marginBottom: '6px' }}>
+                  🚀 Want to explore without signing up?
+                </div>
+                <button 
+                  type="button" 
+                  className="auth-btn" 
+                  onClick={handle1ClickDemoLogin}
+                  style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', padding: '8px 16px', fontSize: '13px' }}
+                >
+                  Launch Full Live Console (1-Click Demo)
+                </button>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Email Address</label>
                 <input
@@ -1339,7 +1433,31 @@ function App() {
   }
 
   return (
-    <div className="app-container">
+    <div className="app-container" style={{ paddingTop: user?.email === 'demo@letstrack.io' ? '46px' : undefined }}>
+      {user?.email === 'demo@letstrack.io' && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '46px', background: 'linear-gradient(90deg, #dc2626, #991b1b)', color: '#ffffff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 99999, fontSize: '13px', fontWeight: 700, boxShadow: '0 4px 20px rgba(220,38,38,0.4)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '16px' }}>⚡</span>
+            <span>YOU ARE IN DEMO MODE — Experiencing the 100% Actual LetsTrack Console Live!</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button onClick={handleSimulateNewVisitor} style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
+              🔔 Simulate New Visitor
+            </button>
+            <button onClick={handleSimulateInstagramDM} style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
+              📸 Simulate Instagram DM
+            </button>
+            <button onClick={() => { handleLogout(); navigateAuthMode('register'); }} style={{ background: '#ffffff', color: '#dc2626', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}>
+              Create Account
+            </button>
+            <button onClick={handleLogout} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>
+              Exit Demo
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. Sidebar */}
       <div className="sidebar">
         <div className="sidebar-logo">

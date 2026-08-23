@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './DemoSandbox.css';
 
-export default function DemoSandbox({ onBackToLanding, onNavigateToRegister }) {
+export default function DemoSandbox({ onBackToLanding, onNavigateToRegister, on1ClickDemoLogin }) {
   // Mode Switcher State: 'web' (Desktop Web Console) vs 'mobile' (Mobile App Simulator)
   const [sandboxMode, setSandboxMode] = useState('web');
 
@@ -158,9 +158,18 @@ export default function DemoSandbox({ onBackToLanding, onNavigateToRegister }) {
           </button>
         </div>
 
-        <button className="btn-primary-cta" style={{ padding: '8px 18px', fontSize: '13px' }} onClick={onNavigateToRegister}>
-          Start 14-Day Free Trial
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button 
+            className="btn-primary-cta" 
+            style={{ background: 'linear-gradient(135deg, #10b981, #059669)', padding: '8px 18px', fontSize: '13px' }} 
+            onClick={on1ClickDemoLogin}
+          >
+            🚀 Launch Full Live Console (1-Click)
+          </button>
+          <button className="btn-primary-cta" style={{ padding: '8px 18px', fontSize: '13px' }} onClick={onNavigateToRegister}>
+            Start Free Trial
+          </button>
+        </div>
       </header>
 
       {/* Interactive Simulation Controls Bar */}
