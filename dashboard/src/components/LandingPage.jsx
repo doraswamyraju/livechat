@@ -35,23 +35,8 @@ export default function LandingPage({ onNavigateToLogin, onNavigateToRegister })
     return () => clearInterval(interval);
   }, []);
 
-  // ROI Calculator State
-  const [calcVisitors, setCalcVisitors] = useState(15000);
-  const [calcOrderValue, setCalcOrderValue] = useState(85);
-
-  // Rotating Social Proof Toast
-  const toastNotifications = [
-    { initial: 'SF', name: 'Alex M. (San Francisco)', text: 'just started a Pro Trial for 3 websites', time: '2m ago' },
-    { initial: 'LD', name: 'James K. (London, UK)', text: 'recovered $1,420 in abandoned sales today', time: '5m ago' },
-    { initial: 'NY', name: 'Elena R. (New York)', text: 'installed LetsTrack WordPress Plugin', time: '8m ago' }
-  ];
-  const [activeToastIdx, setActiveToastIdx] = useState(0);
-  useEffect(() => {
-    const tInterval = setInterval(() => {
-      setActiveToastIdx(prev => (prev + 1) % toastNotifications.length);
-    }, 7000);
-    return () => clearInterval(tInterval);
-  }, []);
+  // Floating Widget state on Landing Page
+  const [isFloatingWidgetOpen, setIsFloatingWidgetOpen] = useState(false);
 
   const handleSendDemoMessage = (e) => {
     e?.preventDefault();
@@ -1235,16 +1220,56 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Live Social Proof Toast */}
-      {toastNotifications[activeToastIdx] && (
-        <div className="live-toast">
-          <div className="toast-avatar">{toastNotifications[activeToastIdx].initial}</div>
-          <div>
-            <div className="toast-text">
-              <strong>{toastNotifications[activeToastIdx].name}</strong> {toastNotifications[activeToastIdx].text}
+      {/* Floating Live Chat Widget Launcher on Landing Page */}
+      <button 
+        className="landing-floating-widget-toggle" 
+        onClick={() => setIsFloatingWidgetOpen(!isFloatingWidgetOpen)}
+      >
+        <span>💬</span>
+        <span>{isFloatingWidgetOpen ? 'Close Live Demo Widget' : 'Test Drive Live Widget'}</span>
+      </button>
+
+      {/* Floating Live Chat Widget Popup */}
+      {isFloatingWidgetOpen && (
+        <div className="landing-floating-widget-popup">
+          <div className="demo-widget-head" style={{ backgroundColor: widgetColor }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></span>
+              <span>LetsTrack Support (Live Demo)</span>
             </div>
-            <div className="toast-time">{toastNotifications[activeToastIdx].time}</div>
+            <button 
+              onClick={() => setIsFloatingWidgetOpen(false)}
+              style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '16px' }}
+            >
+              ✕
+            </button>
           </div>
+
+          <div className="demo-widget-body" style={{ flex: 1 }}>
+            {demoMessages.map((msg, idx) => (
+              <div key={idx} className={`chat-bubble ${msg.sender === 'visitor' ? 'bubble-visitor' : 'bubble-agent'}`} style={{ backgroundColor: msg.sender === 'agent' ? widgetColor : undefined }}>
+                {msg.text}
+              </div>
+            ))}
+            {isTyping && (
+              <div className="chat-bubble bubble-agent" style={{ backgroundColor: widgetColor, opacity: 0.8, fontStyle: 'italic', fontSize: '11px' }}>
+                Agent is typing...
+              </div>
+            )}
+          </div>
+
+          <form className="demo-widget-footer" onSubmit={handleSendDemoMessage}>
+            <input
+              type="text"
+              className="demo-input"
+              placeholder="Type a message to test..."
+              value={demoInput}
+              onChange={(e) => setDemoInput(e.target.value)}
+            />
+            <button type="submit" className="demo-send-btn" style={{ backgroundColor: widgetColor }}>
+              Send
+            </button>
+          </form>
         </div>
       )}
     </div>
