@@ -639,6 +639,16 @@ export default function App() {
               Stop switching between separate apps and browser tabs. Stream your Website Visitors, Instagram DMs, Facebook Messenger, and WhatsApp inquiries directly into one master console.
             </p>
 
+            <div style={{ marginTop: '16px', marginBottom: '16px', borderRadius: '14px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
+              <img 
+                src="/omnichannel-inbox-preview.jpg" 
+                alt="LetsTrack Unified Omnichannel Inbox" 
+                style={{ width: '100%', height: 'auto', display: 'block', transform: 'scale(1)', transition: 'transform 0.3s ease' }} 
+                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              />
+            </div>
+
             <div className="inbox-filter-pills">
               {['all', 'website', 'instagram', 'facebook'].map(f => (
                 <button
@@ -696,17 +706,27 @@ export default function App() {
             </div>
           </div>
 
-          {/* Spotlight 2: Real-Time Analytics */}
+          {/* Spotlight 2: Real-Time Analytics & Radar */}
           <div className="spotlight-card">
             <span className="spotlight-header-badge">📊 Live Metrics & Intelligence</span>
-            <h3 className="spotlight-title">Real-Time Traffic Analytics</h3>
+            <h3 className="spotlight-title">Real-Time Traffic Radar & Analytics</h3>
             <p className="spotlight-desc">
-              Gain deep visibility into visitor trends, peak engagement hours, average agent response velocity, and lead conversion rates.
+              Gain deep visibility into visitor trends, peak engagement hours, average agent response velocity, and lead conversion rates with live heatmaps.
             </p>
+
+            <div style={{ marginTop: '16px', marginBottom: '16px', borderRadius: '14px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
+              <img 
+                src="/visitor-radar-preview.jpg" 
+                alt="LetsTrack Live Visitor Radar & Heatmap" 
+                style={{ width: '100%', height: 'auto', display: 'block', transform: 'scale(1)', transition: 'transform 0.3s ease' }} 
+                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              />
+            </div>
 
             <div className="analytics-metrics-row">
               <div className="metric-pill-box">
-                <div className="metric-num">1,842</div>
+                <div className="metric-num">2,874</div>
                 <div className="metric-lbl">Total Visitors Today</div>
               </div>
               <div className="metric-pill-box">
@@ -714,7 +734,7 @@ export default function App() {
                 <div className="metric-lbl">Satisfaction Rate</div>
               </div>
               <div className="metric-pill-box">
-                <div className="metric-num" style={{ color: '#ef4444' }}>&lt; 38s</div>
+                <div className="metric-num" style={{ color: '#ef4444' }}>&lt; 28s</div>
                 <div className="metric-lbl">Avg Response Time</div>
               </div>
             </div>
