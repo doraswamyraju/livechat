@@ -728,11 +728,12 @@ export const initializeSocket = (httpServer) => {
       if (!currentAgentId || !currentTenantId) return;
 
       try {
-        // Optional: wait a moment or mark offline immediately. For simplicity we mark Offline.
-        const agent = await User.findById(currentAgentId);
-        if (agent) {
-          agent.status = 'Offline';
-          await agent.save();
+        if (mongoose.Types.ObjectId.isValid(currentAgentId)) {
+          const agent = await User.findById(currentAgentId);
+          if (agent) {
+            agent.status = 'Offline';
+            await agent.save();
+          }
         }
         dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-status-changed', {
           agentId: currentAgentId,
