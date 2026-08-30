@@ -40,7 +40,7 @@ export default function LandingPage({ onNavigateToLogin, onNavigateToRegister, o
 
   // ROI Calculator State
   const [calcVisitors, setCalcVisitors] = useState(15000);
-  const [calcOrderValue, setCalcOrderValue] = useState(85);
+  const [calcOrderValue, setCalcOrderValue] = useState(1500);
 
   const handleSendDemoMessage = (e) => {
     e?.preventDefault();
@@ -57,7 +57,7 @@ export default function LandingPage({ onNavigateToLogin, onNavigateToRegister, o
       if (userMsg.toLowerCase().includes('wordpress')) {
         replyText = 'Installing on WordPress takes less than 2 minutes! Download our .zip plugin, upload to WP Admin, enter your API key, and you are live.';
       } else if (userMsg.toLowerCase().includes('pricing') || userMsg.toLowerCase().includes('cost')) {
-        replyText = 'LetsTrack offers a Free Starter tier, and Pro plans start at just $29/month with unlimited visitors!';
+        replyText = 'LetsTrack offers a Free Starter tier, and Growth plans start at just ₹299/month (Offer for first 1,000 users)!';
       }
       setDemoMessages(prev => [...prev, { sender: 'agent', text: replyText }]);
     }, 1200);
@@ -100,14 +100,8 @@ export default function App() {
       {/* Header Navbar */}
       <header className="landing-header">
         <nav className="landing-nav">
-          <div className="landing-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="landing-logo-icon">
-              <svg viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
-              </svg>
-            </div>
-            <span className="landing-logo-title">LetsTrack</span>
-            <span className="landing-logo-badge">Module</span>
+          <div className="landing-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <img src="/logo-wide.png" alt="LetsTrack" style={{ height: '42px', width: 'auto', objectFit: 'contain' }} />
           </div>
 
           <div className="landing-nav-links">
@@ -311,7 +305,7 @@ export default function App() {
                       <div className="metric-lbl">High Buy Intent</div>
                     </div>
                     <div className="metric-pill-box">
-                      <div className="metric-num">$3,420</div>
+                      <div className="metric-num">₹2,84,500</div>
                       <div className="metric-lbl">Recovered Cart Sales</div>
                     </div>
                     <div className="metric-pill-box">
@@ -405,7 +399,7 @@ export default function App() {
               </li>
               <li className="ba-item">
                 <span style={{ color: '#ef4444' }}>✕</span>
-                <span>Expensive live chat tools (Intercom/Drift) charge $450+/mo per seat.</span>
+                <span>Expensive live chat tools (Intercom/Drift) charge ₹35,000+/mo per seat.</span>
               </li>
             </ul>
           </div>
@@ -428,7 +422,7 @@ export default function App() {
               </li>
               <li className="ba-item">
                 <span style={{ color: '#10b981' }}>✓</span>
-                <span>Unified Multi-Channel Inbox (Web, Instagram DMs, Facebook, WhatsApp) starting at just $29/mo.</span>
+                <span>Unified Multi-Channel Inbox (Web, Instagram DMs, Facebook, WhatsApp) starting at just ₹299/mo.</span>
               </li>
             </ul>
           </div>
@@ -773,15 +767,15 @@ export default function App() {
 
             <div className="calc-slider-group">
               <div className="calc-label-row">
-                <span>Average Order / Deal Value ($):</span>
-                <span style={{ color: '#ef4444', fontWeight: 800 }}>${calcOrderValue}</span>
+                <span>Average Order / Deal Value (₹):</span>
+                <span style={{ color: '#ef4444', fontWeight: 800 }}>₹{calcOrderValue.toLocaleString('en-IN')}</span>
               </div>
               <input
                 type="range"
                 className="calc-range-input"
-                min="10"
-                max="500"
-                step="5"
+                min="200"
+                max="25000"
+                step="100"
                 value={calcOrderValue}
                 onChange={(e) => setCalcOrderValue(Number(e.target.value))}
               />
@@ -794,9 +788,9 @@ export default function App() {
 
           <div className="calc-result-card">
             <span style={{ fontSize: '12px', uppercase: true, fontWeight: 700, color: '#d1d5db' }}>ESTIMATED EXTRA MONTHLY REVENUE</span>
-            <div className="calc-val-display">${Math.round(calcVisitors * 0.035 * calcOrderValue).toLocaleString()}</div>
+            <div className="calc-val-display">₹{Math.round(calcVisitors * 0.035 * calcOrderValue).toLocaleString('en-IN')}</div>
             <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '20px' }}>
-              Recovered every single month with LetsTrack Pro ($29/mo).
+              Recovered every single month with LetsTrack Growth (₹299/mo).
             </p>
             <button className="btn-primary-cta" style={{ width: '100%', justifyContent: 'center' }} onClick={onNavigateToRegister}>
               Start Recovering Sales Now
@@ -811,7 +805,7 @@ export default function App() {
           <span className="section-tag">Value Comparison</span>
           <h2 className="section-title">Why Smart Growth Teams Choose LetsTrack</h2>
           <p className="section-desc">
-            Get enterprise-grade visitor tracking and multi-channel messaging without paying $500+/month.
+            Get enterprise-grade visitor tracking and multi-channel messaging without paying ₹35,000+/month.
           </p>
         </div>
 
@@ -830,7 +824,7 @@ export default function App() {
               <tr>
                 <td style={{ textAlign: 'left', fontWeight: 600 }}>Real-Time Visitor Radar</td>
                 <td className="highlight">✅ Streaming WebSockets</td>
-                <td>❌ Basic ($499+/mo)</td>
+                <td>❌ Basic (₹35,000+/mo)</td>
                 <td>❌ Enterprise Only</td>
                 <td>⚠️ Basic Logs</td>
               </tr>
@@ -864,10 +858,10 @@ export default function App() {
               </tr>
               <tr>
                 <td style={{ textAlign: 'left', fontWeight: 600 }}>Monthly Price</td>
-                <td className="highlight" style={{ fontSize: '18px', color: '#10b981' }}>$29 / mo</td>
-                <td>$450+ / mo</td>
-                <td>$2,500+ / mo</td>
-                <td>$95+ / mo</td>
+                <td className="highlight" style={{ fontSize: '18px', color: '#10b981' }}>₹299 / mo</td>
+                <td>₹35,000+ / mo</td>
+                <td>₹1,80,000+ / mo</td>
+                <td>₹7,500+ / mo</td>
               </tr>
             </tbody>
           </table>
@@ -921,7 +915,7 @@ export default function App() {
             <div>
               <div className="stars-row">★★★★★</div>
               <p className="t-quote">
-                "We switched from Intercom to LetsTrack and saved over $5,000/year while getting better real-time visitor tracking and zero page load slowdown."
+                "We switched from Intercom to LetsTrack and saved over ₹3,50,000/year while getting better real-time visitor tracking and zero page load slowdown."
               </p>
             </div>
             <div className="t-author-box">
@@ -1203,13 +1197,8 @@ export default function App() {
       <footer className="landing-footer">
         <div className="footer-top">
           <div className="footer-brand">
-            <div className="landing-logo">
-              <div className="landing-logo-icon">
-                <svg viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
-                </svg>
-              </div>
-              <span className="landing-logo-title">LetsTrack</span>
+            <div className="landing-logo" style={{ marginBottom: '12px' }}>
+              <img src="/logo-wide.png" alt="LetsTrack" style={{ height: '42px', width: 'auto', objectFit: 'contain' }} />
             </div>
             <p className="footer-desc">
               Real-time visitor intelligence, instant live chat, and omnichannel CRM for modern websites.

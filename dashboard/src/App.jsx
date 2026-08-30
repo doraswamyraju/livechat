@@ -1630,7 +1630,9 @@ function App() {
             </span>
           </div>
 
-          <div className="auth-title">LetsTrack Console</div>
+          <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+            <img src="/logo-wide.png" alt="LetsTrack" style={{ height: '48px', maxWidth: '100%', objectFit: 'contain' }} />
+          </div>
           <div className="auth-subtitle">Real-time Visitor Tracking & Messaging Platform</div>
 
           {authMode === 'login' ? (
@@ -1753,11 +1755,11 @@ function App() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Admin Email</label>
+                <label className="form-label">Admin Email Address</label>
                 <input
                   type="email"
                   className="form-input"
-                  placeholder="admin@example.com"
+                  placeholder="name@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -1774,12 +1776,12 @@ function App() {
                   required
                 />
               </div>
-              <button type="submit" className="auth-btn">Create Tenant Account</button>
+              <button type="submit" className="auth-btn">Register Free Account</button>
               
               <div className="auth-switch-text">
-                Already have a tenant?{' '}
+                Already have an account?{' '}
                 <span className="auth-link" onClick={() => navigateAuthMode('login')}>
-                  Access Console
+                  Sign In
                 </span>
               </div>
             </form>
@@ -1818,11 +1820,8 @@ function App() {
 
       {/* 1. Sidebar */}
       <div className="sidebar">
-        <div className="sidebar-logo">
-          <div className="logo-icon">
-            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" fill="white"/></svg>
-          </div>
-          <div className="logo-text">LetsTrack</div>
+        <div className="sidebar-logo" style={{ padding: '14px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img src="/logo-wide.png" alt="LetsTrack" style={{ maxHeight: '42px', maxWidth: '100%', objectFit: 'contain' }} />
         </div>
 
         <div className="sidebar-menu">
