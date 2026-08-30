@@ -184,6 +184,357 @@ function App() {
   // Channel Category Tab Filter
   const [channelFilter, setChannelFilter] = useState('all'); // 'all', 'webchat', 'whatsapp-web', 'whatsapp-api', 'social'
 
+  // Billing & Subscriptions State
+  const [billingData, setBillingData] = useState(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+
+  // SuperAdmin Master Console State
+  const [superStats, setSuperStats] = useState(null);
+  const [superTenants, setSuperTenants] = useState([]);
+  const [superUsers, setSuperUsers] = useState([]);
+  const [superPayments, setSuperPayments] = useState([]);
+  const [superLogs, setSuperLogs] = useState([]);
+  const [superActiveTab, setSuperActiveTab] = useState('tenants'); // 'tenants' | 'payments' | 'users' | 'logs'
+  const [superSearch, setSuperSearch] = useState('');
+  const [superLoading, setSuperLoading] = useState(false);
+  const [manualPaymentModal, setManualPaymentModal] = useState(false);
+  const [manualPayTenantId, setManualPayTenantId] = useState('');
+  const [manualPayAmount, setManualPayAmount] = useState('299');
+  const [manualPayPlan, setManualPayPlan] = useState('growth');
+  const [manualPayMethod, setManualPayMethod] = useState('bank_transfer');
+  const [manualPayNotes, setManualPayNotes] = useState('');
+
+  // Dynamically load Razorpay SDK
+  useEffect(() => {
+    if (!document.getElementById('razorpay-checkout-sdk')) {
+      const script = document.createElement('script');
+      script.id = 'razorpay-checkout-sdk';
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
+
+  const fetchBillingData = async () => {
+    if (!token) return;
+    try {
+      setBillingLoading(true);
+      const res = await fetch(`${BACKEND_URL}/api/billing/current`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBillingData(data);
+        if (data.plan && tenant) {
+          setTenant(prev => ({ ...prev, plan: data.plan, maxAgents: data.maxAgents }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch billing info:', err);
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const handleInitiateUpgrade = async (targetPlan) => {
+    if (!token) return;
+    try {
+      setBillingLoading(true);
+      const res = await fetch(`${BACKEND_URL}/api/billing/create-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ plan: targetPlan })
+      });
+
+      const orderData = await res.json();
+      if (!res.ok) {
+        showToast(orderData.error || 'Failed to initialize subscription order', 'error');
+        setBillingLoading(false);
+        return;
+      }
+
+      // If Razorpay SDK is available and live key is configured
+      if (window.Razorpay && orderData.keyId && !orderData.keyId.includes('test_public_demo')) {
+        const options = {
+          key: orderData.keyId,
+          amount: orderData.amountPaise,
+          currency: 'INR',
+          name: 'LetsTrack Platform',
+          description: `${targetPlan.toUpperCase()} Plan (₹${orderData.monthlyPrice}/mo + ₹${orderData.setupFee} Setup Fee)`,
+          order_id: orderData.orderId,
+          prefill: {
+            name: orderData.userName || user?.name,
+            email: orderData.userEmail || user?.email
+          },
+          theme: {
+            color: '#dc2626'
+          },
+          handler: async function (response) {
+            try {
+              const verifyRes = await fetch(`${BACKEND_URL}/api/billing/verify-payment`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                  plan: targetPlan,
+                  paymentMethod: 'razorpay_checkout'
+                })
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok) {
+                showToast(`🎉 Plan upgraded to ${targetPlan.toUpperCase()} successfully!`);
+                fetchBillingData();
+              } else {
+                showToast(verifyData.error || 'Payment verification failed', 'error');
+              }
+            } catch (vErr) {
+              showToast('Error verifying payment response', 'error');
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              setBillingLoading(false);
+            }
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } else {
+        // Instant Simulation / Test Mode Upgrade Confirmation
+        const confirmTest = window.confirm(
+          `⚡ Razorpay Checkout Simulation:\n\nAuthorizing mandate for ${targetPlan.toUpperCase()} Plan:\n• Monthly: ₹${orderData.monthlyPrice}/mo\n• One-Time Setup Fee: ₹${orderData.setupFee}\n• Total Initial: ₹${orderData.amount}\n\nConfirm to activate plan?`
+        );
+        if (confirmTest) {
+          const verifyRes = await fetch(`${BACKEND_URL}/api/billing/verify-payment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              razorpay_order_id: orderData.orderId,
+              razorpay_payment_id: 'pay_simulated_' + Date.now(),
+              plan: targetPlan,
+              paymentMethod: 'upi_autopay_mandate'
+            })
+          });
+          const verifyData = await verifyRes.json();
+          if (verifyRes.ok) {
+            showToast(`🎉 Upgraded to ${targetPlan.toUpperCase()} plan!`);
+            fetchBillingData();
+          } else {
+            showToast(verifyData.error || 'Upgrade failed', 'error');
+          }
+        }
+      }
+    } catch (err) {
+      showToast('Error creating subscription checkout', 'error');
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  // SuperAdmin Data Fetchers & Handlers
+  const fetchSuperAdminData = async () => {
+    if (!token || user?.role !== 'SuperAdmin') return;
+    try {
+      setSuperLoading(true);
+      const [statsRes, tenantsRes, usersRes, paymentsRes, logsRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/superadmin/overview`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BACKEND_URL}/api/superadmin/tenants`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BACKEND_URL}/api/superadmin/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BACKEND_URL}/api/superadmin/payments`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BACKEND_URL}/api/superadmin/audit-logs`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+
+      if (statsRes.ok) setSuperStats(await statsRes.json());
+      if (tenantsRes.ok) setSuperTenants(await tenantsRes.json());
+      if (usersRes.ok) setSuperUsers(await usersRes.json());
+      if (paymentsRes.ok) setSuperPayments(await paymentsRes.json());
+      if (logsRes.ok) setSuperLogs(await logsRes.json());
+    } catch (err) {
+      console.error('SuperAdmin fetch error:', err);
+    } finally {
+      setSuperLoading(false);
+    }
+  };
+
+  const handleSuperUpdateTenantPlan = async (tenantId, newPlan) => {
+    const maxAgents = newPlan === 'growth' ? 3 : newPlan === 'business' ? 6 : newPlan === 'enterprise' ? 20 : 1;
+    const planPrice = newPlan === 'growth' ? 299 : newPlan === 'business' ? 399 : newPlan === 'enterprise' ? 999 : 0;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/tenants/${tenantId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          plan: newPlan,
+          planPrice,
+          maxAgents,
+          features: {
+            liveActivityTracking: newPlan !== 'free',
+            whitelabelBranding: newPlan !== 'free',
+            socialMetaDm: newPlan === 'business' || newPlan === 'enterprise'
+          }
+        })
+      });
+      if (res.ok) {
+        showToast('Tenant plan updated successfully!');
+        fetchSuperAdminData();
+      } else {
+        showToast('Failed to update tenant plan', 'error');
+      }
+    } catch (err) {
+      showToast('Error updating tenant', 'error');
+    }
+  };
+
+  const handleSuperToggleSuspend = async (tenantId, currentSuspended) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/tenants/${tenantId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ isSuspended: !currentSuspended })
+      });
+      if (res.ok) {
+        showToast(`Tenant ${!currentSuspended ? 'Suspended' : 'Activated'}!`);
+        fetchSuperAdminData();
+      }
+    } catch (err) {
+      showToast('Error updating suspension', 'error');
+    }
+  };
+
+  const handleSuperImpersonate = async (tenantId) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/impersonate/${tenantId}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem('letstrack_token', data.token);
+        localStorage.setItem('letstrack_user', JSON.stringify(data.user));
+        localStorage.setItem('letstrack_tenant', JSON.stringify(data.tenant));
+        setToken(data.token);
+        setUser(data.user);
+        setTenant(data.tenant);
+        setActiveTab('analytics');
+        showToast(`Logged in as Admin for ${data.tenant.name}`);
+      } else {
+        showToast(data.error || 'Impersonation failed', 'error');
+      }
+    } catch (err) {
+      showToast('Error impersonating tenant', 'error');
+    }
+  };
+
+  const handleSuperUpdateUserRole = async (userId, newRole) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ role: newRole })
+      });
+      if (res.ok) {
+        showToast('User role updated!');
+        fetchSuperAdminData();
+      }
+    } catch (err) {
+      showToast('Error updating user role', 'error');
+    }
+  };
+
+  const handleSuperToggleBanUser = async (userId, currentBanned) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ isBanned: !currentBanned })
+      });
+      if (res.ok) {
+        showToast(`User ${!currentBanned ? 'banned' : 'unbanned'}!`);
+        fetchSuperAdminData();
+      }
+    } catch (err) {
+      showToast('Error toggling ban status', 'error');
+    }
+  };
+
+  const handleSuperResetPassword = async (userId, email) => {
+    const newPass = window.prompt(`Enter new password for ${email}:`, 'Secret2026!');
+    if (!newPass) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/users/${userId}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ newPassword: newPass })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Password reset successfully!');
+      } else {
+        showToast(data.error || 'Password reset failed', 'error');
+      }
+    } catch (err) {
+      showToast('Error resetting password', 'error');
+    }
+  };
+
+  const handleSuperRecordManualPayment = async (e) => {
+    e.preventDefault();
+    if (!manualPayTenantId || !manualPayAmount) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/payments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          tenantId: manualPayTenantId,
+          amount: manualPayAmount,
+          plan: manualPayPlan,
+          paymentMethod: manualPayMethod,
+          notes: manualPayNotes
+        })
+      });
+      if (res.ok) {
+        showToast('Manual payment recorded & plan adjusted!');
+        setManualPaymentModal(false);
+        fetchSuperAdminData();
+      } else {
+        const d = await res.json();
+        showToast(d.error || 'Failed to record payment', 'error');
+      }
+    } catch (err) {
+      showToast('Error saving payment', 'error');
+    }
+  };
+
   const fetchIntegrations = async () => {
     if (!token) return;
     try {
@@ -931,6 +1282,13 @@ function App() {
 
     // Fetch integration configurations
     fetchIntegrations();
+
+    if (activeTab === 'billing') {
+      fetchBillingData();
+    }
+    if (activeTab === 'superadmin' || user?.role === 'SuperAdmin') {
+      fetchSuperAdminData();
+    }
   }, [token, activeTab]);
 
   // Sync profile editing fields when user details load/change
@@ -1488,17 +1846,27 @@ function App() {
             Widget Customizer
           </button>
 
-          {user.role === 'Admin' && (
-            <button className={`menu-item ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => setActiveTab('agents')}>
-              <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-              Manage Employees
+          {(user.role === 'Admin' || user.role === 'SuperAdmin') && (
+            <button className={`menu-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => { setActiveTab('billing'); fetchBillingData(); }}>
+              <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+              Billing & Plan
             </button>
           )}
 
-          {user.role === 'Admin' && (
-            <button className={`menu-item ${activeTab === 'integrations' ? 'active' : ''}`} onClick={() => setActiveTab('integrations')}>
-              <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 12H4v-2h8v2zm8 0h-6v-2h6v2zm0-4H4V8h16v2z" fill="currentColor"/></svg>
-              Integrations Hub
+          {user.role === 'SuperAdmin' && (
+            <button 
+              className={`menu-item ${activeTab === 'superadmin' ? 'active' : ''}`} 
+              onClick={() => { setActiveTab('superadmin'); fetchSuperAdminData(); }}
+              style={{ 
+                background: activeTab === 'superadmin' ? 'linear-gradient(135deg, #dc2626, #991b1b)' : 'rgba(220, 38, 38, 0.12)', 
+                border: '1px solid rgba(220, 38, 38, 0.4)',
+                color: '#ffffff',
+                fontWeight: 700,
+                marginTop: '10px'
+              }}
+            >
+              <span style={{ fontSize: '15px' }}>👑</span>
+              Super Admin Console
             </button>
           )}
 
@@ -1527,6 +1895,8 @@ function App() {
             {activeTab === 'customize' && 'Widget Configuration Center'}
             {activeTab === 'agents' && 'Employee Administration'}
             {activeTab === 'integrations' && 'Unified Inbox Integrations Hub'}
+            {activeTab === 'billing' && 'Subscription & Billing Mandates'}
+            {activeTab === 'superadmin' && 'Platform Super Admin Command Center'}
             {activeTab === 'profile' && 'Employee Profile Center'}
           </div>
 
@@ -1663,7 +2033,51 @@ function App() {
 
           {/* B. ACTIVE MONITOR */}
           {activeTab === 'monitor' && (
-            <div className="monitor-grid">
+            <div>
+              {(!tenant?.plan || tenant?.plan === 'free') && (
+                <div style={{ 
+                  background: 'linear-gradient(90deg, rgba(220,38,38,0.18), rgba(153,27,27,0.28))', 
+                  border: '1px solid rgba(220,38,38,0.4)', 
+                  borderRadius: '12px', 
+                  padding: '14px 20px', 
+                  marginBottom: '16px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  flexWrap: 'wrap', 
+                  gap: '12px' 
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '22px' }}>🔒</span>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>
+                        Live Activity Radar & Visitor Journeys is a Pro Feature
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#fca5a5', marginTop: '2px' }}>
+                        Upgrade to <strong>Growth (₹299/mo)</strong> or <strong>Business (₹399/mo)</strong> to unlock real-time live page journeys and click tracking.
+                      </div>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => { setActiveTab('billing'); fetchBillingData(); }}
+                    style={{ 
+                      background: '#dc2626', 
+                      color: '#ffffff', 
+                      border: 'none', 
+                      padding: '8px 16px', 
+                      borderRadius: '8px', 
+                      fontWeight: 700, 
+                      fontSize: '12px', 
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(220,38,38,0.4)'
+                    }}
+                  >
+                    ⚡ Upgrade Plan (From ₹299/mo)
+                  </button>
+                </div>
+              )}
+
+              <div className="monitor-grid">
               <div className="monitor-card glass-card">
                 <div className="card-header">
                   <div className="card-title">Active Visitors online now</div>
@@ -1801,7 +2215,8 @@ function App() {
                 )}
               </div>
             </div>
-          )}
+          </div>
+        )}
 
           {/* C. INBOX CONSOLE */}
           {activeTab === 'chat' && (
@@ -3160,6 +3575,662 @@ function App() {
                 </div>
               )}
 
+            </div>
+          )}
+
+          {/* F. BILLING & SUBSCRIPTION VIEW */}
+          {activeTab === 'billing' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Current Active Plan Overview */}
+              <div className="glass-card" style={{ padding: '24px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#ffffff' }}>
+                        Current Subscription: {tenant?.plan ? tenant.plan.toUpperCase() : 'FREE'}
+                      </h3>
+                      <span style={{ 
+                        background: tenant?.plan === 'business' ? '#10b981' : tenant?.plan === 'growth' ? '#dc2626' : '#6b7280', 
+                        color: 'white', 
+                        padding: '3px 10px', 
+                        borderRadius: '20px', 
+                        fontSize: '11px', 
+                        fontWeight: 700 
+                      }}>
+                        {tenant?.subscription?.status === 'active' ? '● Active Mandate' : '● Free Forever'}
+                      </span>
+                    </div>
+                    <p style={{ margin: '8px 0 0 0', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                      {tenant?.plan === 'business' 
+                        ? 'Omnichannel tier with 1 Admin + 5 Employees, Live Activity Radar, and Social Media DMs (Instagram + FB).'
+                        : tenant?.plan === 'growth'
+                        ? 'Growth tier with 1 Admin + 2 Employees, Live Visitor Radar, and Custom Whitelabel Widget.'
+                        : 'Free Single-User Plan with standard Live Chat messaging. Upgrade to unlock Team Seats and Live Radar.'}
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>RECURRING PRICE</div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
+                        ₹{billingData?.planPrice || (tenant?.plan === 'business' ? 399 : tenant?.plan === 'growth' ? 299 : 0)} / month
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quota Progress Bar */}
+                <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                    <span>Team Seats Allocated</span>
+                    <span style={{ fontWeight: 700, color: '#ffffff' }}>
+                      {billingData?.usedSeats || 1} / {tenant?.maxAgents || 1} Seats Used
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ 
+                      width: `${Math.min(100, ((billingData?.usedSeats || 1) / (tenant?.maxAgents || 1)) * 100)}%`, 
+                      height: '100%', 
+                      background: 'linear-gradient(90deg, #dc2626, #ef4444)',
+                      borderRadius: '4px'
+                    }}></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Upgrade Tiers Comparison Grid */}
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', marginBottom: '14px' }}>
+                  Available Subscription Plans
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                  {/* Growth Plan Card */}
+                  <div className="glass-card" style={{ 
+                    padding: '24px', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    justifyContent: 'space-between',
+                    border: tenant?.plan === 'growth' ? '2px solid #dc2626' : '1px solid rgba(255,255,255,0.08)',
+                    position: 'relative'
+                  }}>
+                    {tenant?.plan === 'growth' && (
+                      <span style={{ position: 'absolute', top: '12px', right: '12px', background: '#dc2626', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
+                        CURRENT PLAN
+                      </span>
+                    )}
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 700, textTransform: 'uppercase' }}>
+                        🔥 Special Offer: First 1,000 Users
+                      </div>
+                      <h4 style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>Growth Plan</h4>
+                      <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: '6px 0 16px 0' }}>
+                        Ideal for small teams requiring real-time live visitor radar and custom widget branding.
+                      </p>
+                      
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '16px', color: '#9ca3af', textDecoration: 'line-through' }}>₹999</span>
+                        <span style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff' }}>₹299</span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ month</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#f87171', marginBottom: '16px' }}>
+                        + ₹999 one-time onboarding fee
+                      </div>
+
+                      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 20px 0', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px', color: '#e5e7eb' }}>
+                        <li>✓ <strong>1 Admin + 2 Employees</strong> (3 Team Seats)</li>
+                        <li>✓ <strong>Real-Time Live Visitor Radar</strong> & Journeys</li>
+                        <li>✓ <strong>100% Whitelabel Widget</strong> (Remove Branding)</li>
+                        <li>✓ Custom Colors, Themes & Headers</li>
+                        <li>✓ Mobile Push Notifications (Android & iOS)</li>
+                        <li>✓ Pre-Chat Lead Capture</li>
+                      </ul>
+                    </div>
+
+                    <button 
+                      onClick={() => handleInitiateUpgrade('growth')} 
+                      disabled={billingLoading || tenant?.plan === 'growth'}
+                      className="auth-btn"
+                      style={{ 
+                        background: tenant?.plan === 'growth' ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                        color: 'white',
+                        cursor: tenant?.plan === 'growth' ? 'default' : 'pointer'
+                      }}
+                    >
+                      {tenant?.plan === 'growth' ? 'Active Plan' : 'Subscribe to Growth (₹299/mo)'}
+                    </button>
+                  </div>
+
+                  {/* Business Plan Card */}
+                  <div className="glass-card" style={{ 
+                    padding: '24px', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    justifyContent: 'space-between',
+                    border: tenant?.plan === 'business' ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.08)',
+                    position: 'relative'
+                  }}>
+                    {tenant?.plan === 'business' && (
+                      <span style={{ position: 'absolute', top: '12px', right: '12px', background: '#10b981', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
+                        CURRENT PLAN
+                      </span>
+                    )}
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#34d399', fontWeight: 700, textTransform: 'uppercase' }}>
+                        ⚡ Omnichannel Pro
+                      </div>
+                      <h4 style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>Business Plan</h4>
+                      <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: '6px 0 16px 0' }}>
+                        For modern brands managing Website Chat + Instagram DMs and Facebook Messenger.
+                      </p>
+                      
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '16px', color: '#9ca3af', textDecoration: 'line-through' }}>₹1,499</span>
+                        <span style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff' }}>₹399</span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ month</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#34d399', marginBottom: '16px' }}>
+                        + ₹999 one-time onboarding fee
+                      </div>
+
+                      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 20px 0', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px', color: '#e5e7eb' }}>
+                        <li>✓ <strong>1 Admin + 5 Employees</strong> (6 Team Seats)</li>
+                        <li>✓ <strong>Everything in Growth Plan</strong></li>
+                        <li>✓ <strong>Instagram Direct & Facebook Messenger Sync</strong></li>
+                        <li>✓ <strong>100% Whitelabel & Custom Widget</strong></li>
+                        <li>✓ High Volume Real-Time Routing</li>
+                        <li>✓ Priority Mobile Push & Email Alerts</li>
+                      </ul>
+                    </div>
+
+                    <button 
+                      onClick={() => handleInitiateUpgrade('business')} 
+                      disabled={billingLoading || tenant?.plan === 'business'}
+                      className="auth-btn"
+                      style={{ 
+                        background: tenant?.plan === 'business' ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #10b981, #059669)',
+                        color: 'white',
+                        cursor: tenant?.plan === 'business' ? 'default' : 'pointer'
+                      }}
+                    >
+                      {tenant?.plan === 'business' ? 'Active Plan' : 'Subscribe to Business (₹399/mo)'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment History / Invoices */}
+              <div className="glass-card" style={{ padding: '24px' }}>
+                <h4 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>Payment History & Receipts</h4>
+                {(!billingData?.paymentHistory || billingData.paymentHistory.length === 0) ? (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
+                    No payment transactions recorded yet.
+                  </div>
+                ) : (
+                  <table className="visitor-list-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Amount</th>
+                        <th>Plan</th>
+                        <th>Payment Method</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {billingData.paymentHistory.map(p => (
+                        <tr key={p._id}>
+                          <td>{new Date(p.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                          <td style={{ fontWeight: 700 }}>₹{p.amount}</td>
+                          <td><span style={{ textTransform: 'capitalize' }}>{p.plan}</span></td>
+                          <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>{p.paymentMethod}</td>
+                          <td>
+                            <span style={{ 
+                              color: p.status === 'success' ? '#10b981' : '#ef4444', 
+                              fontWeight: 700, 
+                              fontSize: '12px' 
+                            }}>
+                              ● {p.status.toUpperCase()}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* G. SUPER ADMIN MASTER CONSOLE VIEW */}
+          {activeTab === 'superadmin' && user?.role === 'SuperAdmin' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              {/* SuperAdmin Overview Stat Grid */}
+              <div className="analytics-stats-row">
+                <div className="stat-card glass-card">
+                  <div className="stat-title">Total Businesses</div>
+                  <div className="stat-value">{superStats?.totalTenants || 0}</div>
+                  <div className="stat-footer">Registered Websites</div>
+                </div>
+                <div className="stat-card glass-card">
+                  <div className="stat-title">Global Users</div>
+                  <div className="stat-value">{superStats?.totalUsers || 0}</div>
+                  <div className="stat-footer">Admins & Agents</div>
+                </div>
+                <div className="stat-card glass-card">
+                  <div className="stat-title">Active Mandates</div>
+                  <div className="stat-value" style={{ color: '#10b981' }}>{superStats?.activeMandates || 0}</div>
+                  <div className="stat-footer">Razorpay Auto-Debits</div>
+                </div>
+                <div className="stat-card glass-card">
+                  <div className="stat-title">Total Revenue</div>
+                  <div className="stat-value" style={{ color: '#f59e0b' }}>₹{superStats?.totalRevenueINR || 0}</div>
+                  <div className="stat-footer">Subscriptions & Setup Fees</div>
+                </div>
+                <div className="stat-card glass-card">
+                  <div className="stat-title">Early Bird Quota</div>
+                  <div className="stat-value" style={{ color: '#ef4444' }}>
+                    {superStats?.earlyBird?.claimed || 0} / 1000
+                  </div>
+                  <div className="stat-footer">{superStats?.earlyBird?.remaining || 1000} slots remaining</div>
+                </div>
+              </div>
+
+              {/* SuperAdmin Sub-Navigation Bar */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {[
+                    { key: 'tenants', label: '🏢 Businesses & Tenants', count: superTenants.length },
+                    { key: 'payments', label: '💳 Payment Ledger', count: superPayments.length },
+                    { key: 'users', label: '👥 Global Users', count: superUsers.length },
+                    { key: 'logs', label: '📊 Audit & Telemetry', count: superLogs.length }
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setSuperActiveTab(tab.key)}
+                      style={{
+                        background: superActiveTab === tab.key ? '#dc2626' : 'rgba(255,255,255,0.06)',
+                        color: 'white',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {tab.label} ({tab.count})
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input
+                    type="text"
+                    placeholder="Search records..."
+                    className="form-input"
+                    style={{ width: '220px', padding: '6px 12px', fontSize: '13px' }}
+                    value={superSearch}
+                    onChange={(e) => setSuperSearch(e.target.value)}
+                  />
+                  {superActiveTab === 'payments' && (
+                    <button
+                      onClick={() => setManualPaymentModal(true)}
+                      style={{ background: '#10b981', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      + Record Manual Payment
+                    </button>
+                  )}
+                  <button
+                    onClick={fetchSuperAdminData}
+                    style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* Sub-Tab 1: Tenants List */}
+              {superActiveTab === 'tenants' && (
+                <div className="glass-card" style={{ padding: '20px', overflowX: 'auto' }}>
+                  <table className="visitor-list-table">
+                    <thead>
+                      <tr>
+                        <th>Business Name</th>
+                        <th>Domain / API Key</th>
+                        <th>Plan & Seats</th>
+                        <th>Admin Email</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {superTenants
+                        .filter(t => !superSearch || t.name.toLowerCase().includes(superSearch.toLowerCase()) || t.domain?.toLowerCase().includes(superSearch.toLowerCase()) || t.adminEmail?.toLowerCase().includes(superSearch.toLowerCase()))
+                        .map(t => (
+                          <tr key={t.id}>
+                            <td>
+                              <div style={{ fontWeight: 700, color: '#ffffff' }}>{t.name}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Created: {new Date(t.createdAt).toLocaleDateString()}</div>
+                            </td>
+                            <td>
+                              <div style={{ fontSize: '13px' }}>{t.domain || 'N/A'}</div>
+                              <div style={{ fontSize: '10px', fontFamily: 'monospace', color: 'var(--primary)' }}>{t.apiKey}</div>
+                            </td>
+                            <td>
+                              <select
+                                value={t.plan}
+                                onChange={(e) => handleSuperUpdateTenantPlan(t.id, e.target.value)}
+                                style={{ background: '#1f2937', color: 'white', border: '1px solid #374151', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', outline: 'none' }}
+                              >
+                                <option value="free">Free (1 Seat)</option>
+                                <option value="growth">Growth - ₹299 (3 Seats)</option>
+                                <option value="business">Business - ₹399 (6 Seats)</option>
+                                <option value="enterprise">Enterprise - Custom</option>
+                              </select>
+                              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                Seats: {t.userCount} / {t.maxAgents}
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ fontSize: '13px' }}>{t.adminEmail}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.adminName}</div>
+                            </td>
+                            <td>
+                              <span style={{ 
+                                background: t.isSuspended ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)', 
+                                color: t.isSuspended ? '#ef4444' : '#10b981', 
+                                padding: '3px 8px', 
+                                borderRadius: '4px', 
+                                fontSize: '11px', 
+                                fontWeight: 700 
+                              }}>
+                                {t.isSuspended ? 'SUSPENDED' : 'ACTIVE'}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button
+                                  onClick={() => handleSuperImpersonate(t.id)}
+                                  title="Login as Tenant Admin"
+                                  style={{ background: 'rgba(59,130,246,0.2)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.4)', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                                >
+                                  🔑 Login As
+                                </button>
+                                <button
+                                  onClick={() => handleSuperToggleSuspend(t.id, t.isSuspended)}
+                                  style={{ background: t.isSuspended ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', color: t.isSuspended ? '#34d399' : '#f87171', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                                >
+                                  {t.isSuspended ? 'Activate' : 'Suspend'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Sub-Tab 2: Payment Ledger */}
+              {superActiveTab === 'payments' && (
+                <div className="glass-card" style={{ padding: '20px', overflowX: 'auto' }}>
+                  <table className="visitor-list-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Business</th>
+                        <th>Amount (INR)</th>
+                        <th>Plan</th>
+                        <th>Method / Txn ID</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {superPayments
+                        .filter(p => !superSearch || p.tenantId?.name?.toLowerCase().includes(superSearch.toLowerCase()) || p.razorpayPaymentId?.toLowerCase().includes(superSearch.toLowerCase()))
+                        .map(p => (
+                          <tr key={p._id}>
+                            <td>{new Date(p.createdAt).toLocaleString()}</td>
+                            <td>
+                              <div style={{ fontWeight: 700 }}>{p.tenantId?.name || 'Deleted Tenant'}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{p.tenantId?.domain}</div>
+                            </td>
+                            <td style={{ fontWeight: 800, fontSize: '14px', color: '#ffffff' }}>₹{p.amount}</td>
+                            <td><span style={{ textTransform: 'capitalize' }}>{p.plan}</span> ({p.type})</td>
+                            <td>
+                              <div style={{ fontSize: '12px' }}>{p.paymentMethod}</div>
+                              <div style={{ fontSize: '10px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{p.razorpayPaymentId}</div>
+                            </td>
+                            <td>
+                              <span style={{ 
+                                color: p.status === 'success' ? '#10b981' : '#ef4444', 
+                                fontWeight: 700, 
+                                fontSize: '12px' 
+                              }}>
+                                ● {p.status.toUpperCase()}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Sub-Tab 3: Global Users */}
+              {superActiveTab === 'users' && (
+                <div className="glass-card" style={{ padding: '20px', overflowX: 'auto' }}>
+                  <table className="visitor-list-table">
+                    <thead>
+                      <tr>
+                        <th>User Name</th>
+                        <th>Email</th>
+                        <th>Associated Business</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {superUsers
+                        .filter(u => !superSearch || u.name?.toLowerCase().includes(superSearch.toLowerCase()) || u.email?.toLowerCase().includes(superSearch.toLowerCase()) || u.tenantId?.name?.toLowerCase().includes(superSearch.toLowerCase()))
+                        .map(u => (
+                          <tr key={u._id}>
+                            <td>
+                              <div style={{ fontWeight: 700, color: '#ffffff' }}>{u.name}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Last Active: {new Date(u.lastActive || u.createdAt).toLocaleDateString()}</div>
+                            </td>
+                            <td>{u.email}</td>
+                            <td>{u.tenantId?.name || 'Platform Admin'}</td>
+                            <td>
+                              <select
+                                value={u.role}
+                                onChange={(e) => handleSuperUpdateUserRole(u._id, e.target.value)}
+                                style={{ background: '#1f2937', color: 'white', border: '1px solid #374151', padding: '3px 6px', borderRadius: '4px', fontSize: '11px' }}
+                              >
+                                <option value="SuperAdmin">SuperAdmin</option>
+                                <option value="Admin">Admin</option>
+                                <option value="Agent">Agent</option>
+                              </select>
+                            </td>
+                            <td>
+                              <span style={{ 
+                                background: u.isBanned ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)', 
+                                color: u.isBanned ? '#ef4444' : '#10b981', 
+                                padding: '2px 6px', 
+                                borderRadius: '4px', 
+                                fontSize: '11px', 
+                                fontWeight: 700 
+                              }}>
+                                {u.isBanned ? 'BANNED' : u.status}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button
+                                  onClick={() => handleSuperResetPassword(u._id, u.email)}
+                                  style={{ background: 'rgba(255,255,255,0.08)', color: 'white', border: 'none', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+                                >
+                                  🔑 Reset Pass
+                                </button>
+                                <button
+                                  onClick={() => handleSuperToggleBanUser(u._id, u.isBanned)}
+                                  style={{ background: u.isBanned ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', color: u.isBanned ? '#34d399' : '#f87171', border: 'none', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+                                >
+                                  {u.isBanned ? 'Unban' : 'Ban'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Sub-Tab 4: Security & Audit Logs */}
+              {superActiveTab === 'logs' && (
+                <div className="glass-card" style={{ padding: '20px', overflowX: 'auto' }}>
+                  <table className="visitor-list-table">
+                    <thead>
+                      <tr>
+                        <th>Timestamp</th>
+                        <th>Action</th>
+                        <th>Business</th>
+                        <th>Actor</th>
+                        <th>Event Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {superLogs.map(l => (
+                        <tr key={l._id}>
+                          <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>{new Date(l.createdAt).toLocaleString()}</td>
+                          <td>
+                            <span style={{ background: 'rgba(220,38,38,0.2)', color: '#fca5a5', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                              {l.action}
+                            </span>
+                          </td>
+                          <td>{l.tenantId?.name || 'System / Platform'}</td>
+                          <td style={{ fontSize: '12px' }}>{l.actorEmail || 'system'}</td>
+                          <td style={{ fontSize: '11px', fontFamily: 'monospace', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {JSON.stringify(l.details || {})}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {/* Manual Offline Payment Modal for SuperAdmin */}
+          {manualPaymentModal && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(5px)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 99999
+            }}>
+              <div className="glass-card" style={{ padding: '24px', width: '420px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '18px', fontWeight: '700' }}>Record Offline / Manual Payment</h3>
+                
+                <form onSubmit={handleSuperRecordManualPayment} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '11px' }}>Select Business / Tenant</label>
+                    <select
+                      className="form-input"
+                      value={manualPayTenantId}
+                      onChange={(e) => setManualPayTenantId(e.target.value)}
+                      required
+                      style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', outline: 'none' }}
+                    >
+                      <option value="">-- Choose Tenant --</option>
+                      {superTenants.map(t => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.domain || t.adminEmail})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '11px' }}>Amount (INR)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={manualPayAmount}
+                      onChange={(e) => setManualPayAmount(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '11px' }}>Upgrade Plan Target</label>
+                    <select
+                      className="form-input"
+                      value={manualPayPlan}
+                      onChange={(e) => setManualPayPlan(e.target.value)}
+                      style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', outline: 'none' }}
+                    >
+                      <option value="growth">Growth (₹299/mo - 3 Seats)</option>
+                      <option value="business">Business (₹399/mo - 6 Seats + Social DM)</option>
+                      <option value="enterprise">Enterprise (Custom Seats)</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '11px' }}>Payment Method</label>
+                    <select
+                      className="form-input"
+                      value={manualPayMethod}
+                      onChange={(e) => setManualPayMethod(e.target.value)}
+                      style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', outline: 'none' }}
+                    >
+                      <option value="bank_transfer">Direct Bank Transfer / NEFT / IMPS</option>
+                      <option value="upi_manual">Manual UPI QR</option>
+                      <option value="cash">Cash / Cheque</option>
+                      <option value="complimentary">Complimentary / VIP Sponsorship</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '11px' }}>Reference Notes</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Invoice #102, Bank UTR 918239120"
+                      value={manualPayNotes}
+                      onChange={(e) => setManualPayNotes(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button
+                      type="button"
+                      className="claim-btn"
+                      onClick={() => setManualPaymentModal(false)}
+                      style={{ flex: 1, backgroundColor: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="claim-btn"
+                      style={{ flex: 1, backgroundColor: '#10b981' }}
+                    >
+                      Save & Activate Plan
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 

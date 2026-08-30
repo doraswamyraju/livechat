@@ -11,7 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 
-import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, Integration } from './models.js';
+import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, Integration, Payment, AuditLog } from './models.js';
 import { initializeSocket, dashboardNamespace } from './socket.js';
 import { 
   initializeWhatsAppClient, 
@@ -36,13 +36,14 @@ app.use(express.json());
 const PORT = process.env.PORT || 5004;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/letstrack';
 const JWT_SECRET = process.env.JWT_SECRET || 'letstrack_super_secret_session_key';
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || '';
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '';
+const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || '';
 
 // Connect MongoDB
 mongoose.connect(MONGO_URI)
   .then(() => {
     console.log('Successfully connected to MongoDB database.');
-    // Auto-start active WhatsApp Web clients (disabled temporarily)
-    // autoStartWhatsAppWebClients().catch(err => console.error('Error auto-starting WhatsApp clients:', err));
   })
   .catch(err => console.error('MongoDB database connection error:', err));
 
@@ -59,11 +60,39 @@ const authenticateToken = (req, res, next) => {
 
   if (!token) return res.status(401).json({ error: 'Access token missing' });
 
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+  jwt.verify(token, JWT_SECRET, async (err, decoded) => {
     if (err) return res.status(403).json({ error: 'Invalid or expired token' });
     req.user = decoded;
+
+    try {
+      const dbUser = await User.findById(decoded.userId);
+      if (dbUser && dbUser.isBanned) {
+        return res.status(403).json({ error: 'User account is suspended. Please contact platform support.' });
+      }
+      if (dbUser) {
+        dbUser.lastActive = new Date();
+        await dbUser.save();
+      }
+
+      if (decoded.tenantId && decoded.role !== 'SuperAdmin') {
+        const dbTenant = await Tenant.findById(decoded.tenantId);
+        if (dbTenant && dbTenant.isSuspended) {
+          return res.status(403).json({ error: 'Organization account is suspended. Please contact billing support.' });
+        }
+      }
+    } catch (dbErr) {
+      console.warn('Auth user lookup warning:', dbErr.message);
+    }
+
     next();
   });
+};
+
+const requireSuperAdmin = (req, res, next) => {
+  if (req.user?.role !== 'SuperAdmin') {
+    return res.status(403).json({ error: 'Forbidden: Platform SuperAdmin privilege required' });
+  }
+  next();
 };
 
 // ============================================
@@ -384,7 +413,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 app.post('/api/auth/register-agent', authenticateToken, async (req, res) => {
   const { name, email, password } = req.body;
 
-  if (req.user.role !== 'Admin') {
+  if (req.user.role !== 'Admin' && req.user.role !== 'SuperAdmin') {
     return res.status(403).json({ error: 'Forbidden: Admins only' });
   }
 
@@ -393,6 +422,16 @@ app.post('/api/auth/register-agent', authenticateToken, async (req, res) => {
   }
 
   try {
+    const tenant = await Tenant.findById(req.user.tenantId);
+    const currentAgentsCount = await User.countDocuments({ tenantId: req.user.tenantId });
+    const maxAllowedSeats = tenant?.maxAgents || 1;
+
+    if (currentAgentsCount >= maxAllowedSeats && req.user.role !== 'SuperAdmin') {
+      return res.status(403).json({ 
+        error: `Team seat limit reached (${currentAgentsCount}/${maxAllowedSeats} used). Upgrade to Growth (₹299/mo for 3 seats) or Business (₹399/mo for 6 seats) to add more agents.` 
+      });
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
@@ -408,6 +447,15 @@ app.post('/api/auth/register-agent', authenticateToken, async (req, res) => {
       status: 'Offline'
     });
     await agent.save();
+
+    // Log action
+    await AuditLog.create({
+      tenantId: req.user.tenantId,
+      userId: req.user.userId,
+      actorEmail: req.user.email || 'Admin',
+      action: 'AGENT_CREATED',
+      details: { agentId: agent._id, agentEmail: agent.email }
+    });
 
     res.status(201).json({
       message: 'Agent created successfully',
@@ -426,41 +474,87 @@ app.post('/api/auth/register-agent', authenticateToken, async (req, res) => {
   }
 });
 
+// 3b. Get All Agents for Active Tenant
+app.get('/api/agents', authenticateToken, async (req, res) => {
+  try {
+    const agents = await User.find({ tenantId: req.user.tenantId }, '-passwordHash').sort({ createdAt: -1 });
+    const tenant = await Tenant.findById(req.user.tenantId);
+    res.status(200).json({
+      agents,
+      seatInfo: {
+        used: agents.length,
+        max: tenant?.maxAgents || 1,
+        plan: tenant?.plan || 'free'
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching agents:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 3c. Delete Agent (Admin only)
+app.delete('/api/agents/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'Admin' && req.user.role !== 'SuperAdmin') {
+    return res.status(403).json({ error: 'Forbidden: Admins only' });
+  }
+
+  try {
+    const targetUser = await User.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+    if (!targetUser) return res.status(404).json({ error: 'Agent not found' });
+    if (targetUser.role === 'Admin' || targetUser.role === 'SuperAdmin') {
+      return res.status(400).json({ error: 'Cannot delete primary Admin account' });
+    }
+
+    await targetUser.deleteOne();
+    res.status(200).json({ message: 'Agent removed successfully' });
+  } catch (err) {
+    console.error('Error deleting agent:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // 4. Retrieve Active Tenant Widget Settings
 app.get('/api/settings/widget', async (req, res) => {
   const { apiKey, tenantId } = req.query;
 
   try {
     let settings = null;
-    let resolvedTenantId = null;
+    let resolvedTenant = null;
 
     if (apiKey) {
-      const tenant = await Tenant.findOne({ apiKey });
-      if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-      resolvedTenantId = tenant._id;
-      settings = await WidgetSettings.findOne({ tenantId: resolvedTenantId });
+      resolvedTenant = await Tenant.findOne({ apiKey });
+      if (!resolvedTenant) return res.status(404).json({ error: 'Tenant not found' });
+      settings = await WidgetSettings.findOne({ tenantId: resolvedTenant._id });
     } else if (tenantId) {
-      resolvedTenantId = tenantId;
-      if (!mongoose.Types.ObjectId.isValid(tenantId)) {
-        const tenant = await Tenant.findOne({ apiKey: tenantId });
-        if (tenant) {
-          resolvedTenantId = tenant._id;
-        } else {
-          return res.status(400).json({ error: 'Invalid tenantId format' });
-        }
+      if (mongoose.Types.ObjectId.isValid(tenantId)) {
+        resolvedTenant = await Tenant.findById(tenantId);
       }
-      settings = await WidgetSettings.findOne({ tenantId: resolvedTenantId });
+      if (!resolvedTenant) {
+        resolvedTenant = await Tenant.findOne({ apiKey: tenantId });
+      }
+      if (!resolvedTenant) return res.status(404).json({ error: 'Tenant not found' });
+      settings = await WidgetSettings.findOne({ tenantId: resolvedTenant._id });
     } else {
       return res.status(400).json({ error: 'apiKey or tenantId required' });
     }
 
-    if (!settings && resolvedTenantId) {
+    if (!settings && resolvedTenant) {
       settings = new WidgetSettings({
-        tenantId: resolvedTenantId
+        tenantId: resolvedTenant._id
       });
       await settings.save();
     }
-    res.status(200).json(settings);
+
+    const responseData = settings.toObject();
+    // Enforce Whitelabel Branding Rule:
+    // If tenant is on 'free' plan and does not have whitelabel feature enabled, force hideBranding = false
+    const whitelabelAllowed = resolvedTenant.features?.whitelabelBranding === true || ['growth', 'business', 'enterprise'].includes(resolvedTenant.plan);
+    if (!whitelabelAllowed) {
+      responseData.hideBranding = false;
+    }
+
+    res.status(200).json(responseData);
 
   } catch (err) {
     console.error('Error retrieving settings:', err);
@@ -470,9 +564,10 @@ app.get('/api/settings/widget', async (req, res) => {
 
 // 5. Update Widget Settings (Admin only)
 app.put('/api/settings/widget', authenticateToken, async (req, res) => {
-  const { primaryColor, headingText, welcomeMessage, preChatEnabled, position, headerTextColor, gradientColor, useGradient, statusText, borderRadius, launcherText } = req.body;
+  const { primaryColor, headingText, welcomeMessage, preChatEnabled, position, headerTextColor, gradientColor, useGradient, statusText, borderRadius, launcherText, hideBranding } = req.body;
 
   try {
+    const tenant = await Tenant.findById(req.user.tenantId);
     let settings = await WidgetSettings.findOne({ tenantId: req.user.tenantId });
     if (!settings) {
       settings = new WidgetSettings({ tenantId: req.user.tenantId });
@@ -488,6 +583,13 @@ app.put('/api/settings/widget', authenticateToken, async (req, res) => {
     if (statusText !== undefined) settings.statusText = statusText;
     if (borderRadius !== undefined) settings.borderRadius = borderRadius;
     if (launcherText !== undefined) settings.launcherText = launcherText;
+
+    // Check whitelabel permissions
+    const whitelabelAllowed = tenant?.features?.whitelabelBranding === true || ['growth', 'business', 'enterprise'].includes(tenant?.plan);
+    if (hideBranding !== undefined) {
+      settings.hideBranding = whitelabelAllowed ? Boolean(hideBranding) : false;
+    }
+
     await settings.save();
     res.status(200).json(settings);
   } catch (err) {
@@ -1064,7 +1166,6 @@ app.get('/api/debug/logs', authenticateToken, (req, res) => {
         '/root/.pm2/logs/livechat-backend-error.log'
       ];
       
-      let combinedLogs = '';
       for (const logPath of logPaths) {
         if (fs.existsSync(logPath)) {
           const stats = fs.statSync(logPath);
@@ -1077,15 +1178,599 @@ app.get('/api/debug/logs', authenticateToken, (req, res) => {
           combinedLogs += `\n--- LOG FILE: ${logPath} ---\n${buffer.toString()}\n`;
         }
       }
-      
-      if (!combinedLogs) {
-        return res.status(500).json({ error: 'Could not fetch logs via pm2 or log files', details: error.message });
-      }
-      return res.type('text/plain').send(combinedLogs);
+      return res.status(200).send(combinedLogs || 'No logs available.');
     }
-    
-    res.type('text/plain').send(stdout || stderr);
+    res.status(200).send(stdout || stderr || 'No PM2 output.');
   });
+});
+
+// ============================================
+// BILLING & RAZORPAY SUBSCRIPTION ENDPOINTS
+// ============================================
+
+// 1. Get Current Tenant Billing State
+app.get('/api/billing/current', authenticateToken, async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.user.tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const usedSeats = await User.countDocuments({ tenantId: req.user.tenantId });
+    const payments = await Payment.find({ tenantId: req.user.tenantId }).sort({ createdAt: -1 }).limit(10);
+
+    res.status(200).json({
+      plan: tenant.plan || 'free',
+      planPrice: tenant.planPrice || 0,
+      maxAgents: tenant.maxAgents || 1,
+      usedSeats,
+      features: tenant.features || {
+        liveActivityTracking: false,
+        whitelabelBranding: false,
+        socialMetaDm: false
+      },
+      subscription: tenant.subscription || {
+        status: 'free',
+        setupFeePaid: false
+      },
+      razorpayKeyId: RAZORPAY_KEY_ID || 'rzp_test_public_key',
+      paymentHistory: payments
+    });
+  } catch (err) {
+    console.error('Error fetching billing info:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 2. Create Razorpay Subscription / Order
+app.post('/api/billing/create-order', authenticateToken, async (req, res) => {
+  const { plan } = req.body; // 'growth' (₹299) or 'business' (₹399)
+
+  if (!['growth', 'business'].includes(plan)) {
+    return res.status(400).json({ error: 'Invalid plan selected. Choose growth or business.' });
+  }
+
+  const tenant = await Tenant.findById(req.user.tenantId);
+  if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+  const monthlyPrice = plan === 'growth' ? 299 : 399;
+  const setupFee = tenant.subscription?.setupFeePaid ? 0 : 999;
+  const totalPayableINR = monthlyPrice + setupFee;
+  const totalPayablePaise = totalPayableINR * 100;
+
+  try {
+    let orderId = 'order_test_' + Date.now();
+    
+    // If Razorpay live keys are configured, call Razorpay API
+    if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
+      const basicAuth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64');
+      const rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${basicAuth}`
+        },
+        body: JSON.stringify({
+          amount: totalPayablePaise,
+          currency: 'INR',
+          receipt: `rcpt_${tenant._id.toString().substring(0, 10)}_${Date.now()}`,
+          notes: {
+            tenantId: tenant._id.toString(),
+            tenantName: tenant.name,
+            plan,
+            monthlyPrice,
+            setupFee
+          }
+        })
+      });
+
+      if (rzpRes.ok) {
+        const rzpData = await rzpRes.json();
+        orderId = rzpData.id;
+      } else {
+        const errorData = await rzpRes.json();
+        console.warn('Razorpay order creation warning:', errorData);
+      }
+    }
+
+    res.status(200).json({
+      orderId,
+      amount: totalPayableINR,
+      amountPaise: totalPayablePaise,
+      currency: 'INR',
+      plan,
+      monthlyPrice,
+      setupFee,
+      keyId: RAZORPAY_KEY_ID || 'rzp_test_public_demo',
+      tenantName: tenant.name,
+      tenantDomain: tenant.domain,
+      userEmail: req.user.email,
+      userName: req.user.name
+    });
+
+  } catch (err) {
+    console.error('Error creating billing order:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 3. Verify Payment & Activate Plan Mandate
+app.post('/api/billing/verify-payment', authenticateToken, async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan, paymentMethod } = req.body;
+
+  try {
+    const tenant = await Tenant.findById(req.user.tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    // Validate Signature if keys are set
+    if (RAZORPAY_KEY_SECRET && razorpay_signature && razorpay_order_id) {
+      const generated_signature = crypto
+        .createHmac('sha256', RAZORPAY_KEY_SECRET)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest('hex');
+
+      if (generated_signature !== razorpay_signature) {
+        return res.status(400).json({ error: 'Invalid payment signature. Verification failed.' });
+      }
+    }
+
+    const selectedPlan = ['growth', 'business'].includes(plan) ? plan : 'growth';
+    const planPrice = selectedPlan === 'growth' ? 299 : 399;
+    const maxAgents = selectedPlan === 'growth' ? 3 : 6;
+
+    // Update Tenant
+    tenant.plan = selectedPlan;
+    tenant.planPrice = planPrice;
+    tenant.maxAgents = maxAgents;
+    tenant.features = {
+      liveActivityTracking: true,
+      whitelabelBranding: true,
+      socialMetaDm: selectedPlan === 'business'
+    };
+    tenant.subscription = {
+      razorpaySubscriptionId: razorpay_payment_id || `sub_${Date.now()}`,
+      status: 'active',
+      setupFeePaid: true,
+      currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      lastPaymentDate: new Date()
+    };
+    await tenant.save();
+
+    // Create Payment Record
+    const payment = new Payment({
+      tenantId: tenant._id,
+      razorpayPaymentId: razorpay_payment_id || `pay_${Date.now()}`,
+      razorpaySubscriptionId: tenant.subscription.razorpaySubscriptionId,
+      amount: planPrice + (tenant.subscription.setupFeePaid ? 0 : 999),
+      currency: 'INR',
+      plan: selectedPlan,
+      type: 'recurring_subscription',
+      status: 'success',
+      paymentMethod: paymentMethod || 'upi_autopay'
+    });
+    await payment.save();
+
+    // Create Audit Log
+    await AuditLog.create({
+      tenantId: tenant._id,
+      userId: req.user.userId,
+      actorEmail: req.user.email || 'Admin',
+      action: 'PLAN_UPGRADE_SUCCESS',
+      details: {
+        plan: selectedPlan,
+        amount: payment.amount,
+        paymentId: payment.razorpayPaymentId
+      }
+    });
+
+    res.status(200).json({
+      message: `Successfully upgraded to ${selectedPlan.toUpperCase()} plan!`,
+      tenant: {
+        id: tenant._id,
+        plan: tenant.plan,
+        planPrice: tenant.planPrice,
+        maxAgents: tenant.maxAgents,
+        features: tenant.features,
+        subscription: tenant.subscription
+      }
+    });
+
+  } catch (err) {
+    console.error('Error verifying payment:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 4. Public Webhook - Razorpay Auto-Debit & Recurring Subscriptions
+app.post('/api/billing/webhook', async (req, res) => {
+  const webhookSignature = req.headers['x-razorpay-signature'];
+  const eventPayload = req.body;
+
+  try {
+    // Verify Webhook Signature if configured
+    if (RAZORPAY_WEBHOOK_SECRET && webhookSignature) {
+      const expectedSignature = crypto
+        .createHmac('sha256', RAZORPAY_WEBHOOK_SECRET)
+        .update(JSON.stringify(eventPayload))
+        .digest('hex');
+
+      if (expectedSignature !== webhookSignature) {
+        return res.status(400).json({ error: 'Invalid webhook signature' });
+      }
+    }
+
+    const event = eventPayload.event;
+    const paymentEntity = eventPayload.payload?.payment?.entity || eventPayload.payload?.subscription?.entity;
+    const notes = paymentEntity?.notes || {};
+    const tenantId = notes.tenantId;
+
+    if (tenantId && mongoose.Types.ObjectId.isValid(tenantId)) {
+      const tenant = await Tenant.findById(tenantId);
+      if (tenant) {
+        if (event === 'subscription.charged' || event === 'payment.captured') {
+          tenant.subscription.status = 'active';
+          tenant.subscription.lastPaymentDate = new Date();
+          tenant.subscription.currentPeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+          await tenant.save();
+
+          await Payment.create({
+            tenantId: tenant._id,
+            razorpayPaymentId: paymentEntity.id || `pay_${Date.now()}`,
+            amount: (paymentEntity.amount || 29900) / 100,
+            currency: 'INR',
+            plan: tenant.plan,
+            type: 'recurring_subscription',
+            status: 'success',
+            paymentMethod: paymentEntity.method || 'upi_autopay'
+          });
+
+          await AuditLog.create({
+            tenantId: tenant._id,
+            action: 'RECURRING_CHARGE_SUCCESS',
+            details: { event, amount: (paymentEntity.amount || 29900) / 100 }
+          });
+
+        } else if (['subscription.halted', 'subscription.cancelled', 'payment.failed'].includes(event)) {
+          // AUTO-DOWNGRADE TO FREE PLAN UPON FAILED MANDATE
+          const previousPlan = tenant.plan;
+          tenant.plan = 'free';
+          tenant.planPrice = 0;
+          tenant.maxAgents = 1;
+          tenant.features = {
+            liveActivityTracking: false,
+            whitelabelBranding: false,
+            socialMetaDm: false
+          };
+          tenant.subscription.status = 'halted';
+          await tenant.save();
+
+          await Payment.create({
+            tenantId: tenant._id,
+            razorpayPaymentId: paymentEntity.id || `fail_${Date.now()}`,
+            amount: (paymentEntity.amount || 29900) / 100,
+            currency: 'INR',
+            plan: previousPlan,
+            type: 'recurring_subscription',
+            status: 'failed',
+            failureReason: paymentEntity.error_description || 'Auto-debit mandate failed'
+          });
+
+          await AuditLog.create({
+            tenantId: tenant._id,
+            action: 'AUTO_DOWNGRADE_TO_FREE',
+            details: { event, reason: 'Recurring payment failed or mandate cancelled' }
+          });
+        }
+      }
+    }
+
+    res.status(200).json({ status: 'ok' });
+  } catch (err) {
+    console.error('Error handling Razorpay webhook:', err);
+    res.status(500).json({ error: 'Webhook processing error' });
+  }
+});
+
+// ============================================
+// SUPER ADMIN MANAGEMENT ENDPOINTS (Role: SuperAdmin)
+// ============================================
+
+// 1. SuperAdmin Platform Overview Statistics
+app.get('/api/superadmin/overview', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const totalTenants = await Tenant.countDocuments({});
+    const totalUsers = await User.countDocuments({});
+    const totalVisitors = await Visitor.countDocuments({});
+    const activeMandates = await Tenant.countDocuments({ 'subscription.status': 'active' });
+    
+    // Revenue calculations
+    const successPayments = await Payment.find({ status: 'success' });
+    const totalRevenueINR = successPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    // Plan distributions
+    const freeTenants = await Tenant.countDocuments({ plan: 'free' });
+    const growthTenants = await Tenant.countDocuments({ plan: 'growth' });
+    const businessTenants = await Tenant.countDocuments({ plan: 'business' });
+
+    // Early Bird Offer Quota: Paid users counter out of first 1,000
+    const earlyBirdClaimed = growthTenants + businessTenants;
+
+    res.status(200).json({
+      totalTenants,
+      totalUsers,
+      totalVisitors,
+      activeMandates,
+      totalRevenueINR,
+      earlyBird: {
+        claimed: earlyBirdClaimed,
+        totalLimit: 1000,
+        remaining: Math.max(0, 1000 - earlyBirdClaimed)
+      },
+      planBreakdown: {
+        free: freeTenants,
+        growth: growthTenants,
+        business: businessTenants
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching SuperAdmin overview:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 2. SuperAdmin - List All Tenants
+app.get('/api/superadmin/tenants', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const tenants = await Tenant.find({}).sort({ createdAt: -1 });
+    
+    const enrichedTenants = await Promise.all(
+      tenants.map(async (t) => {
+        const userCount = await User.countDocuments({ tenantId: t._id });
+        const visitorCount = await Visitor.countDocuments({ tenantId: t._id });
+        const adminUser = await User.findOne({ tenantId: t._id, role: 'Admin' }, 'name email status');
+        return {
+          id: t._id,
+          name: t.name,
+          domain: t.domain,
+          apiKey: t.apiKey,
+          plan: t.plan || 'free',
+          planPrice: t.planPrice || 0,
+          maxAgents: t.maxAgents || 1,
+          isSuspended: !!t.isSuspended,
+          features: t.features,
+          subscription: t.subscription,
+          userCount,
+          visitorCount,
+          adminEmail: adminUser?.email || 'N/A',
+          adminName: adminUser?.name || 'N/A',
+          createdAt: t.createdAt
+        };
+      })
+    );
+
+    res.status(200).json(enrichedTenants);
+  } catch (err) {
+    console.error('Error fetching tenants list:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 3. SuperAdmin - Update Tenant Plan / Quota / Status
+app.put('/api/superadmin/tenants/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { plan, planPrice, maxAgents, isSuspended, features } = req.body;
+
+  try {
+    const tenant = await Tenant.findById(req.params.id);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    if (plan !== undefined) tenant.plan = plan;
+    if (planPrice !== undefined) tenant.planPrice = Number(planPrice);
+    if (maxAgents !== undefined) tenant.maxAgents = Number(maxAgents);
+    if (isSuspended !== undefined) tenant.isSuspended = Boolean(isSuspended);
+    if (features !== undefined) {
+      tenant.features = { ...tenant.features, ...features };
+    }
+
+    await tenant.save();
+
+    await AuditLog.create({
+      tenantId: tenant._id,
+      userId: req.user.userId,
+      actorEmail: req.user.email || 'SuperAdmin',
+      action: 'TENANT_UPDATED_BY_SUPERADMIN',
+      details: { plan: tenant.plan, maxAgents: tenant.maxAgents, isSuspended: tenant.isSuspended }
+    });
+
+    res.status(200).json({ message: 'Tenant updated successfully', tenant });
+  } catch (err) {
+    console.error('Error updating tenant:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 4. SuperAdmin - List All Users & Agents
+app.get('/api/superadmin/users', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const users = await User.find({}, '-passwordHash').populate('tenantId', 'name domain plan').sort({ createdAt: -1 });
+    res.status(200).json(users);
+  } catch (err) {
+    console.error('Error fetching global users:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 5. SuperAdmin - Update User Role / Ban Status
+app.put('/api/superadmin/users/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { role, isBanned, name, email } = req.body;
+
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (role && ['SuperAdmin', 'Admin', 'Agent'].includes(role)) {
+      user.role = role;
+    }
+    if (isBanned !== undefined) user.isBanned = Boolean(isBanned);
+    if (name) user.name = name;
+    if (email) user.email = email;
+
+    await user.save();
+
+    await AuditLog.create({
+      tenantId: user.tenantId,
+      userId: req.user.userId,
+      actorEmail: req.user.email || 'SuperAdmin',
+      action: 'USER_UPDATED_BY_SUPERADMIN',
+      details: { targetUserId: user._id, role: user.role, isBanned: user.isBanned }
+    });
+
+    res.status(200).json({ message: 'User updated successfully', user });
+  } catch (err) {
+    console.error('Error updating user:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 6. SuperAdmin - Force Reset User Password
+app.post('/api/superadmin/users/:id/reset-password', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    await AuditLog.create({
+      tenantId: user.tenantId,
+      userId: req.user.userId,
+      actorEmail: req.user.email || 'SuperAdmin',
+      action: 'USER_PASSWORD_FORCED_RESET',
+      details: { targetEmail: user.email }
+    });
+
+    res.status(200).json({ message: `Password reset successfully for ${user.email}` });
+  } catch (err) {
+    console.error('Error resetting password:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 7. SuperAdmin - Master Payment Transactions Ledger
+app.get('/api/superadmin/payments', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const payments = await Payment.find({}).populate('tenantId', 'name domain').sort({ createdAt: -1 }).limit(100);
+    res.status(200).json(payments);
+  } catch (err) {
+    console.error('Error fetching payments ledger:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 8. SuperAdmin - Record Manual / Offline Payment
+app.post('/api/superadmin/payments', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { tenantId, amount, plan, paymentMethod, notes } = req.body;
+
+  if (!tenantId || !amount) {
+    return res.status(400).json({ error: 'Tenant and amount are required' });
+  }
+
+  try {
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const payment = new Payment({
+      tenantId: tenant._id,
+      razorpayPaymentId: `manual_${Date.now()}`,
+      amount: Number(amount),
+      currency: 'INR',
+      plan: plan || tenant.plan,
+      type: 'manual_adjustment',
+      status: 'success',
+      paymentMethod: paymentMethod || 'bank_transfer',
+      failureReason: notes || ''
+    });
+    await payment.save();
+
+    // If upgrading plan manually
+    if (plan && ['growth', 'business', 'enterprise'].includes(plan)) {
+      tenant.plan = plan;
+      tenant.planPrice = plan === 'growth' ? 299 : plan === 'business' ? 399 : 999;
+      tenant.maxAgents = plan === 'growth' ? 3 : plan === 'business' ? 6 : 20;
+      tenant.features = {
+        liveActivityTracking: true,
+        whitelabelBranding: true,
+        socialMetaDm: plan === 'business' || plan === 'enterprise'
+      };
+      tenant.subscription.status = 'active';
+      tenant.subscription.setupFeePaid = true;
+      tenant.subscription.currentPeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await tenant.save();
+    }
+
+    res.status(201).json({ message: 'Payment recorded successfully', payment });
+  } catch (err) {
+    console.error('Error recording payment:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 9. SuperAdmin - Master Audit & Security Stream
+app.get('/api/superadmin/audit-logs', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const logs = await AuditLog.find({}).populate('tenantId', 'name domain').sort({ createdAt: -1 }).limit(150);
+    res.status(200).json(logs);
+  } catch (err) {
+    console.error('Error fetching audit logs:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 10. SuperAdmin - One-Click Support Impersonation (Login as Tenant Admin)
+app.post('/api/superadmin/impersonate/:tenantId', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.params.tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    let adminUser = await User.findOne({ tenantId: tenant._id, role: 'Admin' });
+    if (!adminUser) {
+      adminUser = await User.findOne({ tenantId: tenant._id });
+    }
+
+    if (!adminUser) {
+      return res.status(404).json({ error: 'No user found for this tenant to impersonate' });
+    }
+
+    const impersonationToken = jwt.sign(
+      { userId: adminUser._id, tenantId: tenant._id, role: adminUser.role, isImpersonated: true },
+      JWT_SECRET,
+      { expiresIn: '4h' }
+    );
+
+    res.status(200).json({
+      token: impersonationToken,
+      user: {
+        id: adminUser._id,
+        name: adminUser.name,
+        email: adminUser.email,
+        role: adminUser.role,
+        status: adminUser.status
+      },
+      tenant: {
+        id: tenant._id,
+        name: tenant.name,
+        domain: tenant.domain,
+        apiKey: tenant.apiKey,
+        plan: tenant.plan
+      }
+    });
+
+  } catch (err) {
+    console.error('Error impersonating tenant:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
 });
 
 // ============================================

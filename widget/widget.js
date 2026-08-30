@@ -539,6 +539,12 @@
           </svg>
         </button>
       </div>
+      ${!settings.hideBranding ? `
+        <div class="lt-branding-footer" style="padding: 6px 12px; background: #f3f4f6; text-align: center; font-size: 11px; color: #6b7280; border-top: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: center; gap: 4px;">
+          <span>⚡ Powered by</span>
+          <a href="https://letstrack.manacity.in" target="_blank" rel="noopener noreferrer" style="color: #4f46e5; text-decoration: none; font-weight: 600;">LetsTrack</a>
+        </div>
+      ` : ''}
     `;
 
     // Trigger Button

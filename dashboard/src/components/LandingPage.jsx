@@ -123,7 +123,7 @@ export default function App() {
               Access Console
             </button>
             <button className="btn-primary-cta" onClick={onNavigateToRegister}>
-              Start Free Trial
+              Get Started Free
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M5 12h14M12 5l7 7-7 7"/>
               </svg>
@@ -149,21 +149,21 @@ export default function App() {
 
         <div className="hero-buttons">
           <button className="btn-primary-cta btn-hero-lg" onClick={onNavigateToRegister}>
-            Start 14-Day Free Trial
+            Get Started Free
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M5 12h14M12 5l7 7-7 7"/>
             </svg>
           </button>
 
-          <button className="btn-primary-cta btn-hero-lg" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 20px rgba(16, 185, 129, 0.35)' }} onClick={on1ClickDemoLogin}>
-            🚀 Launch Full Console (1-Click Demo)
-          </button>
-
-          <button className="btn-secondary-hero" onClick={onNavigateToDemo}>
+          <button className="btn-secondary-hero btn-hero-lg" onClick={onNavigateToDemo}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
-            Playground Sandbox
+            🎮 Play in Sandbox
+          </button>
+
+          <button className="btn-primary-cta btn-hero-lg" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 20px rgba(16, 185, 129, 0.35)' }} onClick={on1ClickDemoLogin}>
+            🚀 1-Click Console Demo
           </button>
         </div>
 
@@ -1018,112 +1018,123 @@ export default function App() {
       {/* Pricing Section */}
       <section id="pricing" className="section-padding">
         <div className="section-header">
-          <span className="section-tag">Simple Pricing</span>
-          <h2 className="section-title">Start Free, Scale as You Grow</h2>
+          <span className="section-tag">Early Bird Offer</span>
+          <h2 className="section-title">Transparent Plans for Modern Teams</h2>
           <p className="section-desc">
-            No credit card required to start. Predictable plans for every stage.
+            Special Launch Offer for the first 1,000 businesses. Test drive our interactive sandbox with zero commitment.
           </p>
         </div>
 
-        <div className="pricing-toggle-container">
-          <span style={{ fontSize: '14px', color: !isAnnual ? '#ffffff' : '#9ca3af', fontWeight: 600 }}>Monthly</span>
-          <div className={`toggle-switch ${isAnnual ? 'active' : ''}`} onClick={() => setIsAnnual(!isAnnual)}>
-            <div className="toggle-knob"></div>
-          </div>
-          <span style={{ fontSize: '14px', color: isAnnual ? '#ffffff' : '#9ca3af', fontWeight: 600 }}>
-            Annual <span style={{ color: '#ef4444', fontSize: '12px' }}>(Save 20%)</span>
-          </span>
-        </div>
-
         <div className="pricing-grid">
-          {/* Starter Plan */}
+          {/* Free Forever Plan */}
           <div className="pricing-card">
-            <h3 className="plan-name">Starter</h3>
-            <p className="plan-desc">Perfect for blogs & small sites getting started with visitor tracking.</p>
+            <h3 className="plan-name">Free Forever</h3>
+            <p className="plan-desc">Perfect for single founders & individual websites getting started.</p>
             <div className="plan-price">
-              $0 <span className="plan-period">/ forever</span>
+              ₹0 <span className="plan-period">/ forever</span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>
+              No credit card or setup fee required
             </div>
             <ul className="plan-features">
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> 1 Website Domain
+                <span className="check-icon">✓</span> <strong>1 User Account</strong> (Single Admin)
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> Real-Time Visitor Radar (500 monthly)
+                <span className="check-icon">✓</span> Standard Live Chat Messaging
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> 1 Agent Account
+                <span className="check-icon">✓</span> Real-Time User Notifications & Entry Alerts
+              </li>
+              <li className="plan-feature-item" style={{ opacity: 0.65 }}>
+                <span style={{ color: '#ef4444', marginRight: '8px' }}>✕</span> Live Visitor Activity Radar (Gated)
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> Standard Live Chat Widget
+                <span className="check-icon">🔒</span> Mandatory "Powered by LetsTrack"
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> WordPress Plugin
+                <span className="check-icon">✓</span> WordPress Plugin & JS SDK
               </li>
             </ul>
             <button className="btn-console" style={{ width: '100%' }} onClick={onNavigateToRegister}>
-              Start Free
+              Get Started Free
             </button>
           </div>
 
-          {/* Pro Plan */}
+          {/* Growth Plan - 299 */}
           <div className="pricing-card featured">
-            <span className="pricing-badge">Most Popular</span>
-            <h3 className="plan-name">Pro Growth</h3>
-            <p className="plan-desc">For growing businesses needing live sales engagement & mobile push alerts.</p>
-            <div className="plan-price">
-              {isAnnual ? '$24' : '$29'} <span className="plan-period">/ month</span>
+            <span className="pricing-badge">🔥 First 1,000 Users Offer</span>
+            <h3 className="plan-name">Growth</h3>
+            <p className="plan-desc">For growing businesses needing live visitor radar journeys & team collaboration.</p>
+            <div className="plan-price" style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span style={{ fontSize: '20px', color: '#9ca3af', textDecoration: 'line-through', fontWeight: 600 }}>₹999</span>
+              <span>₹299</span> <span className="plan-period">/ month</span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#f87171', fontWeight: 600, marginBottom: '16px' }}>
+              + ₹999 one-time onboarding & setup fee
             </div>
             <ul className="plan-features">
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> Unlimited Website Domains
+                <span className="check-icon">✓</span> <strong>1 Admin + 2 Employees</strong> (3 Team Seats)
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> Unlimited Real-Time Visitors
+                <span className="check-icon">✓</span> <strong>Live Visitor Activity Radar</strong> & Journey Tracking
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> Up to 5 Agent Accounts
+                <span className="check-icon">✓</span> <strong>100% Whitelabel Widget</strong> (Remove Branding)
+              </li>
+              <li className="plan-feature-item">
+                <span className="check-icon">✓</span> Custom Colors, Gradients & Avatars
               </li>
               <li className="plan-feature-item">
                 <span className="check-icon">✓</span> Mobile Push Alerts (Android & iOS)
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> Custom Widget Branding & Colors
+                <span className="check-icon">✓</span> Pre-Chat Forms & Lead Capture
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> Pre-Chat Forms & Lead Capture
+                <span className="check-icon">✓</span> Auto-Debit Mandate (UPI Autopay / Card)
               </li>
             </ul>
             <button className="btn-primary-cta" style={{ width: '100%', justifyContent: 'center' }} onClick={onNavigateToRegister}>
-              Start 14-Day Free Trial
+              Claim Growth Offer (₹299/mo)
             </button>
           </div>
 
-          {/* Enterprise Plan */}
+          {/* Business Omnichannel Plan - 399 */}
           <div className="pricing-card">
-            <h3 className="plan-name">Enterprise</h3>
-            <p className="plan-desc">Dedicated server instances, custom SLA, and high-volume routing.</p>
-            <div className="plan-price">
-              {isAnnual ? '$79' : '$99'} <span className="plan-period">/ month</span>
+            <span className="pricing-badge" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>⚡ Omnichannel Pro</span>
+            <h3 className="plan-name">Business</h3>
+            <p className="plan-desc">For modern brands managing Website Visitors + Instagram & Facebook DMs.</p>
+            <div className="plan-price" style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span style={{ fontSize: '20px', color: '#9ca3af', textDecoration: 'line-through', fontWeight: 600 }}>₹1,499</span>
+              <span>₹399</span> <span className="plan-period">/ month</span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#34d399', fontWeight: 600, marginBottom: '16px' }}>
+              + ₹999 one-time onboarding & setup fee
             </div>
             <ul className="plan-features">
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> Everything in Pro
+                <span className="check-icon">✓</span> <strong>1 Admin + 5 Employees</strong> (6 Team Seats)
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> Unlimited Agents & Seats
+                <span className="check-icon">✓</span> <strong>Everything in Growth Plan</strong>
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> Webhook Integrations & API Access
+                <span className="check-icon">✓</span> <strong>Social Media DMs (Instagram + FB Sync)</strong>
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> Dedicated Isolated Database Option
+                <span className="check-icon">✓</span> <strong>100% Whitelabel & Custom Widget</strong>
               </li>
               <li className="plan-feature-item">
-                <span className="check-icon">✓</span> 99.9% Uptime Guarantee & Support
+                <span className="check-icon">✓</span> Priority Push Notifications & Routing
+              </li>
+              <li className="plan-feature-item">
+                <span className="check-icon">✓</span> Auto-Debit Mandate (UPI Autopay / Card)
               </li>
             </ul>
             <button className="btn-console" style={{ width: '100%' }} onClick={onNavigateToRegister}>
-              Contact Sales
+              Claim Business Offer (₹399/mo)
             </button>
           </div>
         </div>
@@ -1139,24 +1150,24 @@ export default function App() {
         <div className="faq-list">
           {[
             {
-              q: 'How does LetsTrack capture visitors in real-time?',
-              a: 'LetsTrack establishes a lightweight WebSocket connection from the visitor web page to our high-speed server. As long as a visitor keeps your website open, their active URL, referral source, and session state are streamed directly to your team console.'
+              q: 'How does the Razorpay Auto-Debit mandate work?',
+              a: 'When you subscribe to a paid plan, you authorize a monthly recurring mandate via UPI Autopay, Credit/Debit Card, or Netbanking along with the one-time ₹999 onboarding fee. Payments are automatically processed each month.'
             },
             {
-              q: 'Will the widget slow down my website load speed?',
-              a: 'Not at all. The script is less than 15KB in size and loads asynchronously after your primary website assets render. It has zero impact on Google PageSpeed ratings.'
+              q: 'What happens if a monthly mandate payment fails?',
+              a: 'If a payment fails or is cancelled, our system will notify you. If not renewed, your account will be seamlessly reverted to the Free tier (1 user account with standard live chat and default branding).'
             },
             {
-              q: 'Can I receive live chat notifications on my mobile phone?',
-              a: 'Yes! LetsTrack supports web push and mobile push notifications for both Android and iOS devices so you can answer visitor chats anywhere.'
+              q: 'Can I remove the "Powered by LetsTrack" branding?',
+              a: 'Yes! On both the ₹299 (Growth) and ₹399 (Business) plans, you have full whitelabel control to customize widget branding, themes, colors, and headers. The Free plan includes default LetsTrack branding.'
             },
             {
-              q: 'How do I connect LetsTrack to WordPress?',
-              a: 'Simply download our official letstrack-wp-plugin.zip file from the Integrations tab, upload it in WP Admin under Plugins, and input your Tenant Key.'
+              q: 'Can I test the platform before paying?',
+              a: 'Yes! Instead of a restrictive time trial, you can test drive our interactive live Sandbox environment right on this website, or register for our Free Forever plan to test on your own website.'
             },
             {
-              q: 'Can I customize the chat widget design?',
-              a: 'Yes, you can customize header text, launcher text, primary accent colors, gradients, welcome messages, and pre-chat lead forms right from your LetsTrack Console.'
+              q: 'How does Social Media DM integration work?',
+              a: 'On the Business (₹399/mo) plan, you can connect your Instagram Business Account and Facebook Page via Meta API to receive and reply to all direct messages from one unified inbox.'
             }
           ].map((item, idx) => (
             <div key={idx} className={`faq-item ${openFaq === idx ? 'open' : ''}`}>
@@ -1177,9 +1188,14 @@ export default function App() {
           <p className="cta-subtitle">
             Set up LetsTrack in less than 2 minutes and start engaging high-intent leads in real-time.
           </p>
-          <button className="btn-primary-cta btn-hero-lg" style={{ background: '#ffffff', color: '#dc2626', fontWeight: 800 }} onClick={onNavigateToRegister}>
-            Create Free Account Now
-          </button>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button className="btn-primary-cta btn-hero-lg" style={{ background: '#ffffff', color: '#dc2626', fontWeight: 800 }} onClick={onNavigateToRegister}>
+              Create Free Account
+            </button>
+            <button className="btn-secondary-hero btn-hero-lg" style={{ background: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)' }} onClick={onNavigateToDemo}>
+              🎮 Open Live Sandbox
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1196,7 +1212,7 @@ export default function App() {
               <span className="landing-logo-title">LetsTrack</span>
             </div>
             <p className="footer-desc">
-              Real-time visitor intelligence and instant live chat module for modern web apps and WordPress.
+              Real-time visitor intelligence, instant live chat, and omnichannel CRM for modern websites.
             </p>
           </div>
 
@@ -1205,9 +1221,19 @@ export default function App() {
               <div className="footer-column-title">Product</div>
               <ul className="footer-links">
                 <li><a href="#features" className="footer-link">Features</a></li>
-                <li><a href="#demo" className="footer-link">Interactive Demo</a></li>
+                <li><span className="footer-link" onClick={onNavigateToDemo} style={{ cursor: 'pointer' }}>Interactive Sandbox</span></li>
                 <li><a href="#integrations" className="footer-link">WordPress Plugin</a></li>
                 <li><a href="#pricing" className="footer-link">Pricing Plans</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="footer-column-title">Legal & Compliance</div>
+              <ul className="footer-links">
+                <li><span className="footer-link" style={{ cursor: 'pointer' }} onClick={() => alert('Terms of Service: LetsTrack provides SaaS live chat and real-time visitor intelligence services. Subscriptions are billed monthly.')}>Terms of Service</span></li>
+                <li><span className="footer-link" style={{ cursor: 'pointer' }} onClick={() => alert('Privacy Policy: LetsTrack complies with standard data privacy regulations. Visitor IP and session telemetry is encrypted.')}>Privacy Policy</span></li>
+                <li><span className="footer-link" style={{ cursor: 'pointer' }} onClick={() => alert('Cancellation & Refund: You may cancel your subscription mandate at any time. Setup fees are non-refundable once onboarded.')}>Cancellation & Refund</span></li>
+                <li><span className="footer-link" style={{ cursor: 'pointer' }} onClick={() => alert('Contact: support@manacity.in | ManaCity Platform Support, India')}>Contact Us</span></li>
               </ul>
             </div>
 
@@ -1215,8 +1241,7 @@ export default function App() {
               <div className="footer-column-title">Console</div>
               <ul className="footer-links">
                 <li><span className="footer-link" onClick={onNavigateToLogin} style={{ cursor: 'pointer' }}>Access Console</span></li>
-                <li><span className="footer-link" onClick={onNavigateToRegister} style={{ cursor: 'pointer' }}>Create Tenant Account</span></li>
-                <li><span className="footer-link" onClick={onNavigateToLogin} style={{ cursor: 'pointer' }}>Agent Login</span></li>
+                <li><span className="footer-link" onClick={onNavigateToRegister} style={{ cursor: 'pointer' }}>Create Account</span></li>
               </ul>
             </div>
           </div>
@@ -1224,7 +1249,7 @@ export default function App() {
 
         <div className="footer-bottom">
           <span>© {new Date().getFullYear()} LetsTrack Platform. All rights reserved.</span>
-          <span>Powered by ManaCity Engine</span>
+          <span>Secured with Razorpay Payments & ManaCity Engine</span>
         </div>
       </footer>
 
