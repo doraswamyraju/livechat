@@ -477,10 +477,25 @@ app.post('/api/auth/register-agent', authenticateToken, async (req, res) => {
 // 3b. Get All Agents for Active Tenant
 app.get('/api/agents', authenticateToken, async (req, res) => {
   try {
-    const agents = await User.find({ tenantId: req.user.tenantId }, '-passwordHash').sort({ createdAt: -1 });
+    const agents = await User.find({ tenantId: req.user.tenantId }, '-passwordHash').sort({ createdAt: -1 }).lean();
     const tenant = await Tenant.findById(req.user.tenantId);
+    
+    // Attach active conversation count for each agent
+    const agentsWithCounts = await Promise.all(agents.map(async (agent) => {
+      const activeChatsCount = await Conversation.countDocuments({
+        tenantId: req.user.tenantId,
+        assignedAgentId: agent._id,
+        status: { $ne: 'Archived' },
+        isArchived: { $ne: true }
+      });
+      return {
+        ...agent,
+        activeChatsCount
+      };
+    }));
+
     res.status(200).json({
-      agents,
+      agents: agentsWithCounts,
       seatInfo: {
         used: agents.length,
         max: tenant?.maxAgents || 1,
@@ -507,9 +522,73 @@ app.delete('/api/agents/:id', authenticateToken, async (req, res) => {
     }
 
     await targetUser.deleteOne();
+    
+    // Unassign any conversations currently assigned to this deleted agent
+    await Conversation.updateMany(
+      { tenantId: req.user.tenantId, assignedAgentId: targetUser._id },
+      { $unset: { assignedAgentId: '' }, $set: { status: 'Unassigned' } }
+    );
+
     res.status(200).json({ message: 'Agent removed successfully' });
   } catch (err) {
     console.error('Error deleting agent:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 3d. Admin Reset Agent Password
+app.post('/api/agents/:id/reset-password', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'Admin' && req.user.role !== 'SuperAdmin') {
+    return res.status(403).json({ error: 'Forbidden: Admins only' });
+  }
+
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  try {
+    const targetUser = await User.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+    if (!targetUser) return res.status(404).json({ error: 'Agent not found' });
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    targetUser.passwordHash = passwordHash;
+    await targetUser.save();
+
+    await AuditLog.create({
+      tenantId: req.user.tenantId,
+      userId: req.user.userId,
+      actorEmail: req.user.email || 'Admin',
+      action: 'AGENT_PASSWORD_RESET',
+      details: { agentId: targetUser._id, agentEmail: targetUser.email }
+    });
+
+    res.status(200).json({ message: `Password reset successfully for ${targetUser.name}` });
+  } catch (err) {
+    console.error('Error resetting agent password:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 3e. Clean Demo / Orphaned Test Accounts
+app.post('/api/agents/cleanup-demo', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'Admin' && req.user.role !== 'SuperAdmin') {
+    return res.status(403).json({ error: 'Forbidden: Admins only' });
+  }
+
+  try {
+    const deleted = await User.deleteMany({
+      tenantId: req.user.tenantId,
+      _id: { $ne: req.user.userId },
+      $or: [
+        { email: { $regex: /demo@/i } },
+        { name: { $regex: /Razorpay Verification/i } }
+      ]
+    });
+
+    res.status(200).json({ message: `Cleaned up ${deleted.deletedCount} demo accounts` });
+  } catch (err) {
+    console.error('Error cleaning demo accounts:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

@@ -143,6 +143,9 @@ function App() {
   const [agentInviteName, setAgentInviteName] = useState('');
   const [agentInviteEmail, setAgentInviteEmail] = useState('');
   const [agentInvitePassword, setAgentInvitePassword] = useState('');
+  const [agentInviteRole, setAgentInviteRole] = useState('Agent');
+  const [seatInfo, setSeatInfo] = useState({ used: 1, max: 1, plan: 'free' });
+  const [inboxSearchQuery, setInboxSearchQuery] = useState('');
 
   // UI Toast feedback
   const [toast, setToast] = useState(null);
@@ -950,10 +953,34 @@ function App() {
     showToast(`📸 Incoming Instagram DM from @user_${id}!`);
   };
 
+  const fetchAgentsData = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/agents`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAgents(data.agents || []);
+        if (data.seatInfo) {
+          setSeatInfo(data.seatInfo);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching agents data:', err);
+    }
+  };
+
   const handleInviteAgent = async (e) => {
     e.preventDefault();
     if (!agentInviteName || !agentInviteEmail || !agentInvitePassword) {
-      return showToast('Fill all fields to invite agent', 'error');
+      return showToast('Fill all fields to invite staff member', 'error');
+    }
+
+    if (seatInfo.used >= seatInfo.max && user?.role !== 'SuperAdmin') {
+      showToast(`Team seat limit reached (${seatInfo.used}/${seatInfo.max} seats used). Upgrade plan to add more agents!`, 'error');
+      setActiveTab('billing');
+      return;
     }
 
     try {
@@ -966,21 +993,78 @@ function App() {
         body: JSON.stringify({
           name: agentInviteName,
           email: agentInviteEmail,
-          password: agentInvitePassword
+          password: agentInvitePassword,
+          role: agentInviteRole
         })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create agent');
 
-      showToast('New Agent successfully registered!');
+      showToast(`Staff member ${agentInviteName} added successfully!`);
       setAgentInviteName('');
       setAgentInviteEmail('');
       setAgentInvitePassword('');
+      setAgentInviteRole('Agent');
+      fetchAgentsData();
       
-      // Update Agent List manually or wait for WS update
+      // Update Agent List via WebSocket
       if (socketRef.current) {
         socketRef.current.emit('agent-init', { tenantId: tenant.id, agentId: user.id });
       }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleDeleteAgent = async (agentId, agentName) => {
+    if (!window.confirm(`Are you sure you want to remove "${agentName}"? This will reclaim 1 team seat.`)) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/agents/${agentId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete agent');
+      showToast(data.message || 'Staff member removed successfully');
+      fetchAgentsData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleResetAgentPassword = async (agentId, agentName) => {
+    const newPass = window.prompt(`Enter new password for ${agentName} (minimum 6 characters):`, 'Secret2026!');
+    if (!newPass) return;
+    if (newPass.length < 6) return showToast('Password must be at least 6 characters', 'error');
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/agents/${agentId}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ newPassword: newPass })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to reset password');
+      showToast(data.message || 'Password reset successfully!');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleCleanupDemoAccounts = async () => {
+    if (!window.confirm('Clean up and remove all demo/test accounts created during initial testing?')) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/agents/cleanup-demo`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to cleanup demo accounts');
+      showToast(data.message || 'Demo accounts cleaned up');
+      fetchAgentsData();
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -1282,9 +1366,13 @@ function App() {
 
     // Fetch integration configurations
     fetchIntegrations();
+    fetchAgentsData();
 
     if (activeTab === 'billing') {
       fetchBillingData();
+    }
+    if (activeTab === 'agents') {
+      fetchAgentsData();
     }
     if (activeTab === 'superadmin' || user?.role === 'SuperAdmin') {
       fetchSuperAdminData();
@@ -1840,6 +1928,22 @@ function App() {
             Inbox Console
           </button>
 
+          <button className={`menu-item ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => { setActiveTab('agents'); fetchAgentsData(); }}>
+            <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            <span>Team & Staff</span>
+            <span style={{ 
+              marginLeft: 'auto', 
+              fontSize: '10px', 
+              fontWeight: 700, 
+              background: seatInfo.used >= seatInfo.max ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.08)', 
+              color: seatInfo.used >= seatInfo.max ? '#F87171' : 'var(--text-secondary)',
+              padding: '2px 7px', 
+              borderRadius: '10px' 
+            }}>
+              {seatInfo.used}/{seatInfo.max}
+            </span>
+          </button>
+
           <button className={`menu-item ${activeTab === 'customize' ? 'active' : ''}`} onClick={() => setActiveTab('customize')}>
             <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
             Widget Customizer
@@ -2222,7 +2326,7 @@ function App() {
             <div className="inbox-container">
               {/* 1. Chats Rooms List */}
               <div className="pane-rooms">
-                <div className="rooms-filter-tabs" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', borderBottom: '1px solid var(--border-color)' }}>
+                <div className="rooms-filter-tabs" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', borderBottom: '1px solid var(--border-color)' }}>
                   <button 
                     onClick={() => setShowNewChatModal(true)}
                     style={{
@@ -2239,7 +2343,7 @@ function App() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '6px',
-                      boxShadow: '0 0 10px rgba(139, 92, 246, 0.2)',
+                      boxShadow: '0 0 10px rgba(220, 38, 38, 0.25)',
                       transition: 'all 0.2s'
                     }}
                     onMouseOver={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
@@ -2247,6 +2351,29 @@ function App() {
                   >
                     💬 + New Chat
                   </button>
+
+                  {/* Search Filter Input */}
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <input
+                      type="text"
+                      className="inbox-search-input"
+                      placeholder="Search name, phone, message..."
+                      value={inboxSearchQuery}
+                      onChange={(e) => setInboxSearchQuery(e.target.value)}
+                      style={{ width: '100%', paddingLeft: '28px', paddingRight: inboxSearchQuery ? '24px' : '10px' }}
+                    />
+                    <span style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-muted)' }}>
+                      🔍
+                    </span>
+                    {inboxSearchQuery && (
+                      <button
+                        onClick={() => setInboxSearchQuery('')}
+                        style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '11px' }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                   
                   {/* Channel categories tabs */}
                   <div style={{ 
@@ -2295,6 +2422,24 @@ function App() {
                       Web
                     </button>
                     <button
+                      onClick={() => setChannelFilter('whatsapp-web')}
+                      style={{
+                        padding: '6px 2px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: channelFilter === 'whatsapp-web' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                        color: channelFilter === 'whatsapp-web' ? '#34D399' : 'var(--text-secondary)',
+                        fontSize: '10.5px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.2s'
+                      }}
+                      title="WhatsApp Linked"
+                    >
+                      WA
+                    </button>
+                    <button
                       onClick={() => setChannelFilter('whatsapp-api')}
                       style={{
                         padding: '6px 2px',
@@ -2332,37 +2477,49 @@ function App() {
                     </button>
                   </div>
                   
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <button 
-                      className={`filter-tab ${inboxFilter === 'all' ? 'active' : ''}`} 
-                      onClick={() => setInboxFilter('all')}
-                      style={{ flex: 1, padding: '8px 4px' }}
-                    >
-                      All
-                    </button>
-                    <button 
-                      className={`filter-tab ${inboxFilter === 'mine' ? 'active' : ''}`} 
-                      onClick={() => setInboxFilter('mine')}
-                      style={{ flex: 1, padding: '8px 4px' }}
-                    >
-                      Mine
-                    </button>
-                    <button 
-                      className={`filter-tab ${inboxFilter === 'unassigned' ? 'active' : ''}`} 
-                      onClick={() => setInboxFilter('unassigned')}
-                      style={{ flex: 1, padding: '8px 4px' }}
-                    >
-                      Queue
-                    </button>
-                    <button 
-                      className={`filter-tab ${inboxFilter === 'archived' ? 'active' : ''}`} 
-                      onClick={() => setInboxFilter('archived')}
-                      style={{ flex: 1, padding: '8px 4px' }}
-                    >
-                      Archived
-                    </button>
-                  </div>
+                  {/* Filter Sub-Tabs with Counts */}
+                  {(() => {
+                    const activeConvs = conversations.filter(c => !c.isArchived && c.status !== 'Archived');
+                    const countAll = activeConvs.length;
+                    const countMine = activeConvs.filter(c => c.assignedAgentId && (c.assignedAgentId._id === user.id || c.assignedAgentId === user.id)).length;
+                    const countQueue = activeConvs.filter(c => c.status === 'Unassigned' || !c.assignedAgentId).length;
+                    const countArchived = conversations.filter(c => c.isArchived || c.status === 'Archived').length;
+
+                    return (
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button 
+                          className={`filter-tab ${inboxFilter === 'all' ? 'active' : ''}`} 
+                          onClick={() => setInboxFilter('all')}
+                          style={{ flex: 1, padding: '7px 2px', fontSize: '11.5px' }}
+                        >
+                          All <span className="inbox-count-badge">{countAll}</span>
+                        </button>
+                        <button 
+                          className={`filter-tab ${inboxFilter === 'mine' ? 'active' : ''}`} 
+                          onClick={() => setInboxFilter('mine')}
+                          style={{ flex: 1, padding: '7px 2px', fontSize: '11.5px' }}
+                        >
+                          Mine <span className="inbox-count-badge">{countMine}</span>
+                        </button>
+                        <button 
+                          className={`filter-tab ${inboxFilter === 'unassigned' ? 'active' : ''}`} 
+                          onClick={() => setInboxFilter('unassigned')}
+                          style={{ flex: 1, padding: '7px 2px', fontSize: '11.5px' }}
+                        >
+                          Queue <span className="inbox-count-badge">{countQueue}</span>
+                        </button>
+                        <button 
+                          className={`filter-tab ${inboxFilter === 'archived' ? 'active' : ''}`} 
+                          onClick={() => setInboxFilter('archived')}
+                          style={{ flex: 1, padding: '7px 2px', fontSize: '11.5px' }}
+                        >
+                          Archived <span className="inbox-count-badge">{countArchived}</span>
+                        </button>
+                      </div>
+                    );
+                  })()}
                   
+                  {/* Supervisor Filter by Employee */}
                   <select
                     value={inboxFilter.startsWith('agent-') ? inboxFilter : ''}
                     onChange={(e) => setInboxFilter(e.target.value || 'all')}
@@ -2371,21 +2528,23 @@ function App() {
                       color: 'var(--text-primary)',
                       border: '1px solid var(--border-color)',
                       borderRadius: '8px',
-                      padding: '8px 12px',
-                      fontSize: '12px',
+                      padding: '7px 10px',
+                      fontSize: '11.5px',
                       outline: 'none',
                       cursor: 'pointer',
                       width: '100%'
                     }}
                   >
-                    <option value="">Filter by Employee...</option>
+                    <option value="">👤 Filter by Staff Member...</option>
                     {agents.map(a => (
                       <option key={a._id} value={`agent-${a._id}`}>
-                        👤 {a.name} ({a.role})
+                        👤 {a.name} ({a.role}) {a.status === 'Online' ? '🟢' : '⚪'}
                       </option>
                     ))}
                   </select>
                 </div>
+
+                {/* Conversation List */}
                 <div className="rooms-list">
                   {(() => {
                     let filtered = [...conversations];
@@ -2405,17 +2564,30 @@ function App() {
                     if (inboxFilter === 'archived') {
                       filtered = filtered.filter(c => c.isArchived || c.status === 'Archived');
                     } else {
-                      // Hide archived conversations in normal tabs unless requested
                       filtered = filtered.filter(c => !c.isArchived && c.status !== 'Archived');
                       
                       if (inboxFilter === 'mine') {
                         filtered = filtered.filter(c => c.assignedAgentId && (c.assignedAgentId._id === user.id || c.assignedAgentId === user.id));
                       } else if (inboxFilter === 'unassigned') {
-                        filtered = filtered.filter(c => c.status === 'Unassigned');
+                        filtered = filtered.filter(c => c.status === 'Unassigned' || !c.assignedAgentId);
                       } else if (inboxFilter.startsWith('agent-')) {
                         const agentId = inboxFilter.split('agent-')[1];
                         filtered = filtered.filter(c => c.assignedAgentId && (c.assignedAgentId._id === agentId || c.assignedAgentId === agentId));
                       }
+                    }
+
+                    // Real-time Search Query Filter
+                    if (inboxSearchQuery.trim()) {
+                      const q = inboxSearchQuery.toLowerCase().trim();
+                      filtered = filtered.filter(c => {
+                        const vis = typeof c.visitorId === 'object' ? c.visitorId : visitors.find(v => v._id === c.visitorId);
+                        const visName = vis?.name?.toLowerCase() || '';
+                        const visEmail = vis?.email?.toLowerCase() || '';
+                        const visPhone = vis?.phoneNumber?.toLowerCase() || '';
+                        const lastMsg = c.lastMessageText?.toLowerCase() || '';
+                        const agentName = c.assignedAgentId?.name?.toLowerCase() || '';
+                        return visName.includes(q) || visEmail.includes(q) || visPhone.includes(q) || lastMsg.includes(q) || agentName.includes(q);
+                      });
                     }
                     
                     // Sort conversations: Live/online users and latest messages/activity ALWAYS on top
@@ -2427,28 +2599,36 @@ function App() {
                       const isOnlineB = visB?.isOnline ? 1 : 0;
 
                       if (isOnlineA !== isOnlineB) {
-                        return isOnlineB - isOnlineA; // Live online users first
+                        return isOnlineB - isOnlineA;
                       }
 
-                      // Primary timestamp sorting by latest updated activity
                       const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
                       const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
                       return timeB - timeA;
                     });
+
+                    if (sorted.length === 0) {
+                      return (
+                        <div style={{ padding: '30px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                          <p>No conversations found.</p>
+                          {inboxSearchQuery && <span style={{ fontSize: '11px' }}>Try clearing the search filter</span>}
+                        </div>
+                      );
+                    }
 
                     return sorted.map(conv => {
                       const vis = typeof conv.visitorId === 'object' ? conv.visitorId : visitors.find(v => v._id === conv.visitorId);
                       const agentName = conv.assignedAgentId ? conv.assignedAgentId.name : 'Unassigned';
                       
                       const renderSourceBadge = () => {
-                        let text = 'Web Chat';
+                        let text = 'Web';
                         let bg = 'rgba(99, 102, 241, 0.15)'; 
                         let color = '#818CF8';
                         let icon = '💬';
 
                         switch (conv.source) {
                           case 'whatsapp-web':
-                            text = 'WA Linked';
+                            text = 'WhatsApp';
                             bg = 'rgba(16, 185, 129, 0.15)'; 
                             color = '#34D399';
                             icon = '🟢';
@@ -2482,7 +2662,6 @@ function App() {
                               color: color, 
                               fontSize: '10px', 
                               fontWeight: '600',
-                              marginLeft: '8px',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '3px'
@@ -2501,21 +2680,59 @@ function App() {
                           style={{ position: 'relative' }}
                         >
                           <div className="room-card-header">
-                            <span className="room-name">
-                              {vis?.isOnline && <span title="Live Online" style={{ marginRight: '4px', color: '#10B981', fontSize: '10px' }}>🟢</span>}
-                              {vis?.name || 'VisitorSession'}
-                              {renderSourceBadge()}
-                              {vis?.isMuted && <span title="Muted" style={{ marginLeft: '4px', color: '#EF4444' }}>🔇</span>}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                              <div style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                background: vis?.isOnline ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--bg-accent)',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 700,
+                                fontSize: '12px',
+                                position: 'relative',
+                                flexShrink: 0
+                              }}>
+                                {(vis?.name || 'V')[0]?.toUpperCase()}
+                                {vis?.isOnline && (
+                                  <span style={{ position: 'absolute', bottom: '-1px', right: '-1px', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981', border: '2px solid var(--bg-secondary)' }}></span>
+                                )}
+                              </div>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span className="room-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {vis?.name || 'Visitor'}
+                                  </span>
+                                  {renderSourceBadge()}
+                                </div>
+                              </div>
+                            </div>
                             <span className="room-time">
-                              {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(conv.updatedAt || conv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
-                          <div className="room-preview">
-                            {conv.status === 'Unassigned' ? 'Waiting for agent...' : conv.status === 'Archived' || conv.isArchived ? 'Archived conversation' : 'Active chat in progress'}
+
+                          <div className="room-preview" style={{ paddingLeft: '40px' }}>
+                            {conv.status === 'Unassigned' ? (
+                              <span style={{ color: '#F59E0B' }}>⚡ Waiting for agent...</span>
+                            ) : conv.status === 'Archived' || conv.isArchived ? (
+                              <span style={{ color: 'var(--text-muted)' }}>📦 Archived conversation</span>
+                            ) : (
+                              conv.lastMessageText || 'Active chat in progress'
+                            )}
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                            <span className="room-assignee" style={{ borderLeft: `2px solid ${conv.assignedAgentId ? 'var(--primary)' : 'var(--warning)'}` }}>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingLeft: '40px' }}>
+                            <span 
+                              className="room-assignee" 
+                              style={{ 
+                                borderLeft: `2px solid ${conv.assignedAgentId ? 'var(--success)' : 'var(--warning)'}`,
+                                color: conv.assignedAgentId ? 'var(--text-primary)' : 'var(--warning)',
+                                fontWeight: 500
+                              }}
+                            >
                               👤 {agentName}
                             </span>
                             <div style={{ display: 'flex', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
@@ -2547,68 +2764,110 @@ function App() {
                 {selectedConversation ? (
                   <>
                     <div className="chat-pane-header">
-                      <div>
-                        <div style={{ fontWeight: '700', fontSize: '15px', display: 'flex', alignItems: 'center' }}>
-                          {selectedVisitor?.isOnline && <span title="Live Online" style={{ marginRight: '6px', color: '#10B981' }}>🟢</span>}
-                          {selectedVisitor?.name || 'Visitor Conversation'}
-                          {(() => {
-                            let text = 'Web Chat';
-                            let bg = 'rgba(99, 102, 241, 0.15)'; 
-                            let color = '#818CF8';
-                            let icon = '💬';
-
-                            switch (selectedConversation.source) {
-                              case 'whatsapp-web':
-                                text = 'WA Linked';
-                                bg = 'rgba(16, 185, 129, 0.15)'; 
-                                color = '#34D399';
-                                icon = '🟢';
-                                break;
-                              case 'whatsapp-api':
-                                text = 'WA API';
-                                bg = 'rgba(20, 184, 166, 0.15)'; 
-                                color = '#2DD4BF';
-                                icon = '🧪';
-                                break;
-                              case 'instagram':
-                                text = 'Instagram';
-                                bg = 'rgba(236, 72, 153, 0.15)'; 
-                                color = '#F472B6';
-                                icon = '📸';
-                                break;
-                              case 'facebook':
-                                text = 'Messenger';
-                                bg = 'rgba(59, 130, 246, 0.15)'; 
-                                color = '#60A5FA';
-                                icon = '🔵';
-                                break;
-                            }
-
-                            return (
-                              <span 
-                                style={{ 
-                                  padding: '2px 6px', 
-                                  borderRadius: '4px', 
-                                  backgroundColor: bg, 
-                                  color: color, 
-                                  fontSize: '10px', 
-                                  fontWeight: '600',
-                                  marginLeft: '8px',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '3px'
-                                }}
-                              >
-                                {icon} {text}
-                              </span>
-                            );
-                          })()}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '50%',
+                          background: selectedVisitor?.isOnline ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--bg-accent)',
+                          color: 'white',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: '14px'
+                        }}>
+                          {(selectedVisitor?.name || 'V')[0]?.toUpperCase()}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                          Status:{' '}
-                          <span style={{ color: selectedConversation.assignedAgentId ? 'var(--success)' : 'var(--warning)', fontWeight: '600' }}>
-                            {selectedConversation.assignedAgentId ? `Assigned to ${selectedConversation.assignedAgentId.name}` : 'Unassigned in Queue'}
-                          </span>
+                        <div>
+                          <div style={{ fontWeight: '700', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {selectedVisitor?.isOnline && <span title="Live Online" style={{ color: '#10B981', fontSize: '10px' }}>🟢</span>}
+                            <span>{selectedVisitor?.name || 'Visitor Conversation'}</span>
+                            {(() => {
+                              let text = 'Web';
+                              let bg = 'rgba(99, 102, 241, 0.15)'; 
+                              let color = '#818CF8';
+                              let icon = '💬';
+
+                              switch (selectedConversation.source) {
+                                case 'whatsapp-web':
+                                  text = 'WhatsApp';
+                                  bg = 'rgba(16, 185, 129, 0.15)'; 
+                                  color = '#34D399';
+                                  icon = '🟢';
+                                  break;
+                                case 'whatsapp-api':
+                                  text = 'WA API';
+                                  bg = 'rgba(20, 184, 166, 0.15)'; 
+                                  color = '#2DD4BF';
+                                  icon = '🧪';
+                                  break;
+                                case 'instagram':
+                                  text = 'Instagram';
+                                  bg = 'rgba(236, 72, 153, 0.15)'; 
+                                  color = '#F472B6';
+                                  icon = '📸';
+                                  break;
+                                case 'facebook':
+                                  text = 'Messenger';
+                                  bg = 'rgba(59, 130, 246, 0.15)'; 
+                                  color = '#60A5FA';
+                                  icon = '🔵';
+                                  break;
+                              }
+
+                              return (
+                                <span 
+                                  style={{ 
+                                    padding: '2px 6px', 
+                                    borderRadius: '4px', 
+                                    backgroundColor: bg, 
+                                    color: color, 
+                                    fontSize: '10px', 
+                                    fontWeight: '600',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px'
+                                  }}
+                                >
+                                  {icon} {text}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          
+                          {/* Live Supervisor Quick Reassign */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', fontSize: '11.5px' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>Assigned to:</span>
+                            <select
+                              value={selectedConversation.assignedAgentId?._id || selectedConversation.assignedAgentId || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val) {
+                                  handleDelegateChat(val);
+                                } else {
+                                  handleReleaseChat();
+                                }
+                              }}
+                              style={{
+                                background: 'var(--bg-tertiary)',
+                                color: selectedConversation.assignedAgentId ? 'var(--success)' : 'var(--warning)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                padding: '2px 8px',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <option value="">⚠️ Unassigned (In Queue)</option>
+                              {agents.map(a => (
+                                <option key={a._id} value={a._id}>
+                                  👤 {a.name} ({a.role}) {a.status === 'Online' ? '🟢' : '⚪'}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                       </div>
 
@@ -2622,7 +2881,7 @@ function App() {
                             padding: '6px 12px',
                             borderRadius: '6px',
                             fontSize: '12px',
-                            fontWeight: '605',
+                            fontWeight: '600',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
@@ -2640,7 +2899,7 @@ function App() {
                             padding: '6px 12px',
                             borderRadius: '6px',
                             fontSize: '12px',
-                            fontWeight: '605',
+                            fontWeight: '600',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
@@ -2685,7 +2944,7 @@ function App() {
                               padding: '4px 10px',
                               borderRadius: '12px',
                               border: '1px solid var(--primary)',
-                              backgroundColor: 'rgba(124, 58, 237, 0.05)',
+                              backgroundColor: 'rgba(220, 38, 38, 0.08)',
                               color: 'var(--primary)',
                               fontSize: '11px',
                               fontWeight: '500',
@@ -2730,120 +2989,126 @@ function App() {
                 )}
               </div>
 
-              {/* 3. Right Details & Employee Allocator Drawer */}
+              {/* 3. Right Details & Customer 360 Drawer */}
               <div className="pane-details">
                 {selectedConversation ? (
                   <>
-                    <div>
-                      <div className="detail-section-title">Visitor Contact Info</div>
-                      <div className="form-group" style={{ marginBottom: '8px', padding: '0 12px' }}>
+                    {/* Card 1: Contact Identity */}
+                    <div className="detail-card">
+                      <div className="detail-card-title">
+                        <span>👤 Customer Profile</span>
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '4px' }}>
                         <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Full Name</label>
                         <input type="text" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorName} onChange={(e) => setEditVisitorName(e.target.value)} />
                       </div>
-                      <div className="form-group" style={{ marginBottom: '8px', padding: '0 12px' }}>
+                      <div className="form-group" style={{ marginBottom: '4px' }}>
                         <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Email Address</label>
                         <input type="email" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorEmail} onChange={(e) => setEditVisitorEmail(e.target.value)} />
                       </div>
-                      <div className="form-group" style={{ marginBottom: '8px', padding: '0 12px' }}>
-                        <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Phone Number</label>
-                        <input type="tel" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorPhone} onChange={(e) => setEditVisitorPhone(e.target.value)} placeholder="e.g. +1 234 567 890" />
+                      <div className="form-group" style={{ marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Phone Number</label>
+                          {editVisitorPhone && (
+                            <a
+                              href={`https://wa.me/${editVisitorPhone.replace(/[^0-9]/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ fontSize: '11px', color: '#10B981', textDecoration: 'none', fontWeight: '600' }}
+                            >
+                              📱 Open WhatsApp
+                            </a>
+                          )}
+                        </div>
+                        <input type="tel" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorPhone} onChange={(e) => setEditVisitorPhone(e.target.value)} placeholder="e.g. +91 98765 43210" />
                       </div>
-                      <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', padding: '0 12px' }}>
+                      <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' }}>
                         <input type="checkbox" id="visitor-muted-check-2" checked={editVisitorMuted} onChange={(e) => setEditVisitorMuted(e.target.checked)} style={{ cursor: 'pointer' }} />
                         <label htmlFor="visitor-muted-check-2" className="form-label" style={{ fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', margin: 0 }}>Mute & Suppress Alerts</label>
                       </div>
-                      <div style={{ padding: '0 12px', marginBottom: '12px' }}>
-                        <button className="claim-btn" style={{ padding: '6px 12px', fontSize: '12px', marginTop: '4px', width: '100%', backgroundColor: 'var(--primary)' }} onClick={handleUpdateVisitor}>Save Contact Info</button>
-                      </div>
+                      <button className="claim-btn" style={{ padding: '6px 12px', fontSize: '12px', width: '100%', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }} onClick={handleUpdateVisitor}>
+                        Save Profile
+                      </button>
                     </div>
 
-                    <div>
-                      <div className="detail-section-title">Visitor Location</div>
+                    {/* Card 2: Live Location & Journey */}
+                    <div className="detail-card">
+                      <div className="detail-card-title">
+                        <span>📍 Live Telemetry & Device</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-item-label">Location</span>
+                        <span className="info-item-value">🌍 {selectedVisitor?.country || 'Unknown'}, {selectedVisitor?.city || 'Local'}</span>
+                      </div>
                       <div className="info-item">
                         <span className="info-item-label">IP Address</span>
-                        <span className="info-item-value">{selectedVisitor?.ipAddress || '127.0.0.1'}</span>
+                        <span className="info-item-value" style={{ fontFamily: 'monospace', fontSize: '11.5px' }}>{selectedVisitor?.ipAddress || '127.0.0.1'}</span>
                       </div>
                       <div className="info-item">
-                        <span className="info-item-label">Country</span>
-                        <span className="info-item-value">🌍 {selectedVisitor?.country || 'Unknown'}</span>
-                      </div>
-                      <div className="info-item">
-                        <span className="info-item-label">City</span>
-                        <span className="info-item-value">{selectedVisitor?.city || 'Unknown'}</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="detail-section-title">System Data</div>
-                      <div className="info-item">
-                        <span className="info-item-label">Current URL</span>
-                        <span className="info-item-value" style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px', whiteSpace: 'nowrap' }} title={selectedVisitor?.currentUrl}>
+                        <span className="info-item-label">Current Page</span>
+                        <span className="info-item-value" style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px', whiteSpace: 'nowrap', color: 'var(--primary)' }} title={selectedVisitor?.currentUrl}>
                           {selectedVisitor?.currentUrl || '/'}
                         </span>
                       </div>
                       <div className="info-item">
-                        <span className="info-item-label">Device Type</span>
-                        <span className="info-item-value">{selectedVisitor?.deviceType || 'Desktop'}</span>
+                        <span className="info-item-label">Device & OS</span>
+                        <span className="info-item-value">{selectedVisitor?.deviceType || 'Desktop'} • {selectedVisitor?.os || 'Windows'}</span>
                       </div>
                       <div className="info-item">
-                        <span className="info-item-label">OS/Browser</span>
-                        <span className="info-item-value">{selectedVisitor?.os} / {selectedVisitor?.browser}</span>
+                        <span className="info-item-label">Browser</span>
+                        <span className="info-item-value">{selectedVisitor?.browser || 'Chrome'}</span>
                       </div>
                       <div className="info-item">
                         <span className="info-item-label">First Seen</span>
                         <span className="info-item-value">
-                          {selectedVisitor?.firstSeen ? new Date(selectedVisitor.firstSeen).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Never'}
-                        </span>
-                      </div>
-                      <div className="info-item">
-                        <span className="info-item-label">Last Active</span>
-                        <span className="info-item-value">
-                          {selectedVisitor?.lastSeen ? new Date(selectedVisitor.lastSeen).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Never'}
+                          {selectedVisitor?.firstSeen ? new Date(selectedVisitor.firstSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                         </span>
                       </div>
                     </div>
 
-                    <div>
-                      <div className="detail-section-title">Staff Assignment</div>
-                      <div className="assignee-box">
+                    {/* Card 3: Staff Assignment & Delegation */}
+                    <div className="detail-card">
+                      <div className="detail-card-title">
+                        <span>🎯 Staff Delegation</span>
+                      </div>
+                      <div className="assignee-box" style={{ padding: '10px' }}>
                         {selectedConversation.assignedAgentId ? (
                           <>
-                            <div style={{ fontSize: '13px' }}>
-                              Assigned to:{' '}
-                              <strong style={{ color: 'var(--primary)' }}>
-                                {selectedConversation.assignedAgentId._id === user.id ? 'You (Mine)' : selectedConversation.assignedAgentId.name}
-                              </strong>
+                            <div style={{ fontSize: '12.5px' }}>
+                              Assigned to: <strong style={{ color: '#10B981' }}>{selectedConversation.assignedAgentId._id === user.id ? 'You (Mine)' : selectedConversation.assignedAgentId.name}</strong>
                             </div>
-                            <button className="claim-btn" style={{ borderColor: 'var(--danger)', color: 'var(--danger)', background: 'transparent' }} onClick={handleReleaseChat}>
+                            <button className="claim-btn" style={{ borderColor: 'var(--danger)', color: 'var(--danger)', background: 'transparent', padding: '5px 10px', fontSize: '11px' }} onClick={handleReleaseChat}>
                               Release back to queue
                             </button>
                           </>
                         ) : (
                           <>
-                            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Chat is currently unassigned.</p>
-                            <button className="claim-btn" onClick={handleClaimChat}>Claim Chat</button>
+                            <p style={{ fontSize: '11.5px', color: 'var(--warning)', margin: 0 }}>⚠️ Chat is currently unassigned in queue.</p>
+                            <button className="claim-btn" style={{ padding: '6px 10px', fontSize: '12px', fontWeight: '600' }} onClick={handleClaimChat}>
+                              Claim Chat
+                            </button>
                           </>
                         )}
                       </div>
-                    </div>
 
-                    {/* Agent invitation/delegation list */}
-                    <div>
-                      <div className="detail-section-title">Delegate Chat to Staff</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {agents
-                          .filter(a => a._id !== selectedConversation.assignedAgentId?._id)
-                          .map(agent => (
-                            <div key={agent._id} className="agent-assign-row">
-                              <div>
-                                <strong>{agent.name}</strong>{' '}
-                                <span className={`status-dot ${agent.status.toLowerCase()}`} style={{ width: '6px', height: '6px' }}></span>
+                      <div style={{ marginTop: '4px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600' }}>Quick Re-Assign to Staff:</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {agents
+                            .filter(a => a._id !== (selectedConversation.assignedAgentId?._id || selectedConversation.assignedAgentId))
+                            .map(agent => (
+                              <div key={agent._id} className="agent-assign-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+                                  <span style={{ fontSize: '8px' }}>{agent.status === 'Online' ? '🟢' : '⚪'}</span>
+                                  <strong>{agent.name}</strong>
+                                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>({agent.role})</span>
+                                </div>
+                                <button className="assign-action-btn" style={{ padding: '3px 8px', fontSize: '11px' }} onClick={() => handleDelegateChat(agent._id)}>
+                                  Assign
+                                </button>
                               </div>
-                              <button className="assign-action-btn" onClick={() => handleDelegateChat(agent._id)}>
-                                Assign
-                              </button>
-                            </div>
-                          ))}
+                            ))}
+                        </div>
                       </div>
                     </div>
                   </>
@@ -3117,100 +3382,272 @@ function App() {
             </div>
           )}
 
-          {/* E. MANAGE EMPLOYEES VIEW */}
+          {/* E. MANAGE EMPLOYEES / TEAM & STAFF VIEW */}
           {activeTab === 'agents' && (
-            <div className="monitor-grid">
-              <div className="monitor-card glass-card">
-                <div className="card-header">
-                  <div className="card-title">Registered Employees</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              {/* 1. Subscription Capacity Banner */}
+              <div className="team-capacity-card glass-card">
+                <div style={{ flex: 1, minWidth: '280px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>Team & Staff Seats</h3>
+                    <span style={{ 
+                      backgroundColor: 'rgba(220, 38, 38, 0.15)', 
+                      color: '#F87171', 
+                      border: '1px solid rgba(220, 38, 38, 0.3)',
+                      padding: '2px 8px', 
+                      borderRadius: '6px', 
+                      fontSize: '11px', 
+                      fontWeight: 700, 
+                      textTransform: 'uppercase' 
+                    }}>
+                      {seatInfo.plan ? `${seatInfo.plan} Plan` : 'Free Plan'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    Support agents can log in, claim chats from the queue, and respond to live visitors.
+                  </p>
+                  
+                  {/* Capacity Bar */}
+                  <div style={{ marginTop: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600 }}>
+                      <span style={{ color: 'var(--text-primary)' }}>
+                        {seatInfo.used} of {seatInfo.max} Seats Allocated
+                      </span>
+                      <span style={{ color: seatInfo.used >= seatInfo.max ? '#F87171' : '#10B981' }}>
+                        {seatInfo.max - seatInfo.used} Seat{seatInfo.max - seatInfo.used === 1 ? '' : 's'} Remaining
+                      </span>
+                    </div>
+                    <div className="capacity-meter-bar">
+                      <div 
+                        className="capacity-meter-fill" 
+                        style={{ 
+                          width: `${Math.min(100, (seatInfo.used / seatInfo.max) * 100)}%`,
+                          background: seatInfo.used >= seatInfo.max 
+                            ? 'linear-gradient(90deg, #F59E0B, #DC2626)' 
+                            : 'linear-gradient(90deg, #10B981, #059669)'
+                        }}
+                      ></div>
+                    </div>
+                  </div>
                 </div>
-                <div className="card-body-scroll">
-                  <table className="visitor-list-table">
-                     <thead>
-                       <tr>
-                         <th>Employee Name</th>
-                         <th>Email Username</th>
-                         <th>Role</th>
-                         <th>Active Chats Handled</th>
-                         <th>Status</th>
-                       </tr>
-                     </thead>
-                     <tbody>
-                       {agents.map(agent => (
-                         <tr key={agent._id}>
-                           <td>
-                             <div className="visitor-badge-info">
-                               <div className="agent-avatar" style={{ width: '28px', height: '28px', fontSize: '11px' }}>{agent.name[0]}</div>
-                               <div style={{ fontWeight: '600' }}>{agent.name} {agent._id === user.id ? '(You)' : ''}</div>
-                             </div>
-                           </td>
-                           <td style={{ color: 'var(--text-secondary)' }}>{agent.email}</td>
-                           <td>
-                             <span className="path-tag" style={{ color: agent.role === 'Admin' ? '#EF4444' : 'var(--primary)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                               {agent.role}
-                             </span>
-                           </td>
-                           <td>
-                             <span className="path-tag" style={{ color: '#10B981', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '2px 8px', borderRadius: '4px' }}>
-                               {conversations.filter(c => c.assignedAgentId && (c.assignedAgentId._id === agent._id || c.assignedAgentId === agent._id)).length} active
-                             </span>
-                           </td>
-                           <td>
-                             <span className={`status-dot ${agent.status.toLowerCase()}`} style={{ marginRight: '6px' }}></span>
-                             {agent.status}
-                           </td>
-                         </tr>
-                       ))}
-                     </tbody>
-                   </table>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {seatInfo.used >= seatInfo.max && (
+                    <button
+                      onClick={() => { setActiveTab('billing'); fetchBillingData(); }}
+                      style={{
+                        background: 'linear-gradient(135deg, #DC2626, #B91C1C)',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 18px',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 0 15px rgba(220, 38, 38, 0.4)'
+                      }}
+                    >
+                      ⚡ Upgrade for More Seats
+                    </button>
+                  )}
+                  <button
+                    onClick={handleCleanupDemoAccounts}
+                    title="Remove all orphaned test accounts from verification tests"
+                    style={{
+                      background: 'var(--bg-tertiary)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-color)',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    🧹 Clean Demo Accounts
+                  </button>
                 </div>
               </div>
 
-              {/* Invite Employee Form */}
-              <div className="glass-card" style={{ padding: '24px' }}>
-                <h3 className="card-title" style={{ marginBottom: '20px' }}>Register New Employee</h3>
+              {/* 2. Grid with Table + Add Form */}
+              <div className="monitor-grid">
                 
-                <form className="auth-form" onSubmit={handleInviteAgent}>
-                  <div className="form-group">
-                    <label className="form-label">Employee Name</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Jane Watson"
-                      value={agentInviteName}
-                      onChange={(e) => setAgentInviteName(e.target.value)}
-                      required
-                    />
+                {/* Staff List Table */}
+                <div className="monitor-card glass-card">
+                  <div className="card-header">
+                    <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>👥 Active Staff Members</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({agents.length})</span>
+                    </div>
                   </div>
+                  <div className="card-body-scroll">
+                    <table className="visitor-list-table">
+                      <thead>
+                        <tr>
+                          <th>Staff Member</th>
+                          <th>Email Username</th>
+                          <th>Role</th>
+                          <th>Live Workload</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {agents.map(agent => {
+                          const activeChats = conversations.filter(c => c.assignedAgentId && (c.assignedAgentId._id === agent._id || c.assignedAgentId === agent._id) && !c.isArchived && c.status !== 'Archived').length;
 
-                  <div className="form-group">
-                    <label className="form-label">Email address</label>
-                    <input
-                      type="email"
-                      className="form-input"
-                      placeholder="jane@company.com"
-                      value={agentInviteEmail}
-                      onChange={(e) => setAgentInviteEmail(e.target.value)}
-                      required
-                    />
+                          return (
+                            <tr key={agent._id}>
+                              <td>
+                                <div className="visitor-badge-info">
+                                  <div className="agent-avatar" style={{ width: '30px', height: '30px', fontSize: '12px', background: agent.status === 'Online' ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--bg-accent)' }}>
+                                    {agent.name[0]?.toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: '600' }}>
+                                      {agent.name} {agent._id === user.id ? '<span style="color: var(--primary); font-size: 11px;">(You)</span>' : ''}
+                                    </div>
+                                    <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                                      Joined {agent.createdAt ? new Date(agent.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>{agent.email}</td>
+                              <td>
+                                <span className="path-tag" style={{ color: agent.role === 'Admin' ? '#EF4444' : 'var(--primary)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                  {agent.role}
+                                </span>
+                              </td>
+                              <td>
+                                <span className="path-tag" style={{ color: activeChats > 0 ? '#10B981' : 'var(--text-muted)', border: activeChats > 0 ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-color)', padding: '2px 8px', borderRadius: '4px' }}>
+                                  💬 {activeChats} Active
+                                </span>
+                              </td>
+                              <td>
+                                <span className={`status-dot ${agent.status.toLowerCase()}`} style={{ marginRight: '6px' }}></span>
+                                <span style={{ fontSize: '12px', color: agent.status === 'Online' ? '#10B981' : 'var(--text-muted)' }}>{agent.status}</span>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                  <button
+                                    onClick={() => handleResetAgentPassword(agent._id, agent.name)}
+                                    title="Reset Password"
+                                    className="staff-action-btn"
+                                  >
+                                    🔑 Reset Pass
+                                  </button>
+                                  {agent._id !== user.id && agent.role !== 'Admin' && agent.role !== 'SuperAdmin' && (
+                                    <button
+                                      onClick={() => handleDeleteAgent(agent._id, agent.name)}
+                                      title="Remove staff member"
+                                      className="staff-action-btn danger"
+                                    >
+                                      🗑️ Remove
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
+                </div>
 
-                  <div className="form-group">
-                    <label className="form-label">Password credentials</label>
-                    <input
-                      type="password"
-                      className="form-input"
-                      placeholder="At least 6 characters"
-                      value={agentInvitePassword}
-                      onChange={(e) => setAgentInvitePassword(e.target.value)}
-                      required
-                    />
-                  </div>
+                {/* Invite Employee Form */}
+                <div className="glass-card" style={{ padding: '24px' }}>
+                  <h3 className="card-title" style={{ marginBottom: '8px' }}>Invite New Team Member</h3>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '18px' }}>
+                    Create login credentials for support agents to handle chat conversations.
+                  </p>
 
-                  <button type="submit" className="auth-btn" style={{ marginTop: '10px' }}>
-                    Register Employee Account
-                  </button>
-                </form>
+                  {seatInfo.used >= seatInfo.max && user?.role !== 'SuperAdmin' ? (
+                    <div style={{
+                      backgroundColor: 'rgba(220, 38, 38, 0.08)',
+                      border: '1px solid rgba(220, 38, 38, 0.3)',
+                      borderRadius: '10px',
+                      padding: '18px',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔒</div>
+                      <h4 style={{ color: '#F87171', fontSize: '14px', marginBottom: '6px' }}>Team Seat Capacity Reached</h4>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+                        Your current <strong>{seatInfo.plan ? seatInfo.plan.toUpperCase() : 'FREE'}</strong> plan allows maximum {seatInfo.max} seat(s).
+                      </p>
+                      <button
+                        onClick={() => { setActiveTab('billing'); fetchBillingData(); }}
+                        className="auth-btn"
+                        style={{ background: 'linear-gradient(135deg, #DC2626, #B91C1C)' }}
+                      >
+                        ⚡ Upgrade to Growth (3 Seats) or Business (6 Seats)
+                      </button>
+                    </div>
+                  ) : (
+                    <form className="auth-form" onSubmit={handleInviteAgent}>
+                      <div className="form-group">
+                        <label className="form-label">Full Name</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. Sarah Connor"
+                          value={agentInviteName}
+                          onChange={(e) => setAgentInviteName(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Email Address (Login ID)</label>
+                        <input
+                          type="email"
+                          className="form-input"
+                          placeholder="sarah@company.com"
+                          value={agentInviteEmail}
+                          onChange={(e) => setAgentInviteEmail(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Temporary Password</label>
+                        <input
+                          type="password"
+                          className="form-input"
+                          placeholder="At least 6 characters"
+                          value={agentInvitePassword}
+                          onChange={(e) => setAgentInvitePassword(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Access Role</label>
+                        <select
+                          className="form-input"
+                          value={agentInviteRole}
+                          onChange={(e) => setAgentInviteRole(e.target.value)}
+                          style={{ background: 'var(--bg-tertiary)' }}
+                        >
+                          <option value="Agent">Support Agent (Chat Inbox Only)</option>
+                          <option value="Admin">Tenant Admin (Full Management Access)</option>
+                        </select>
+                      </div>
+
+                      <button type="submit" className="auth-btn" style={{ marginTop: '10px' }}>
+                        ➕ Register & Allocate Team Seat
+                      </button>
+                    </form>
+                  )}
+                </div>
               </div>
             </div>
           )}
