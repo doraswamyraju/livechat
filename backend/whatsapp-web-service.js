@@ -299,12 +299,12 @@ export async function initializeWhatsAppClient(tenantId) {
           name: contactName,
           phoneNumber: phoneNo,
           source: 'whatsapp-web',
-          isOnline: true
+          isOnline: false
         });
       } else {
         visitor.name = contactName;
         visitor.phoneNumber = phoneNo;
-        visitor.isOnline = true;
+        visitor.isOnline = false;
         visitor.source = 'whatsapp-web';
       }
       await visitor.save();
@@ -316,17 +316,24 @@ export async function initializeWhatsAppClient(tenantId) {
         status: { $ne: 'Closed' }
       });
 
+      const msgText = msg.body || '[Media/Non-text message]';
+
       if (!conversation) {
         conversation = new Conversation({
           tenantId: tId,
           visitorId: visitorId,
           status: 'Unassigned',
           source: 'whatsapp-web',
+          unreadCount: 1,
+          lastMessageText: msgText,
           assignedAgentId: null
         });
         await conversation.save();
-      } else if (conversation.source !== 'whatsapp-web') {
+      } else {
+        conversation.unreadCount = (conversation.unreadCount || 0) + 1;
+        conversation.lastMessageText = msgText;
         conversation.source = 'whatsapp-web';
+        conversation.updatedAt = new Date();
         await conversation.save();
       }
 
@@ -336,16 +343,12 @@ export async function initializeWhatsAppClient(tenantId) {
         senderType: 'Visitor',
         senderId: visitorId,
         senderName: contactName,
-        text: msg.body || '[Media/Non-text message]',
+        text: msgText,
         timestamp: new Date()
       });
       await message.save();
 
-      // 5. Update Conversation updatedAt
-      conversation.updatedAt = new Date();
-      await conversation.save();
-
-      // 6. Broadcast to dashboard agents
+      // 5. Broadcast to dashboard agents
       if (dashboardNamespace) {
         dashboardNamespace.to(`tenant_${tId}`).emit('visitor-msg', {
           conversation,

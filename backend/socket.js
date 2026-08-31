@@ -401,7 +401,9 @@ export const initializeSocket = (httpServer) => {
         });
         await message.save();
 
-        // 3. Update Conversation updatedAt
+        // 3. Update Conversation unreadCount, lastMessageText and updatedAt
+        conversation.unreadCount = (conversation.unreadCount || 0) + 1;
+        conversation.lastMessageText = text;
         conversation.updatedAt = new Date();
         await conversation.save();
 
@@ -584,6 +586,8 @@ export const initializeSocket = (httpServer) => {
         const conv = await Conversation.findById(conversationId);
         if (conv) {
           conv.status = 'Active';
+          conv.unreadCount = 0;
+          conv.lastMessageText = text;
           conv.updatedAt = new Date();
           await conv.save();
 
@@ -620,6 +624,18 @@ export const initializeSocket = (httpServer) => {
 
       } catch (err) {
         console.error('Error in agent-msg:', err);
+      }
+    });
+
+    // Handle Marking Conversation as Read
+    socket.on('mark-conversation-read', async (data) => {
+      const { conversationId } = data;
+      if (!conversationId || !currentTenantId) return;
+      try {
+        await Conversation.findByIdAndUpdate(conversationId, { unreadCount: 0 });
+        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('conversation-read', { conversationId });
+      } catch (err) {
+        console.error('Error in mark-conversation-read:', err);
       }
     });
 

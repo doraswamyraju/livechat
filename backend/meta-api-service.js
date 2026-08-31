@@ -182,19 +182,19 @@ export async function handleMetaWebhook(req, res) {
               name = await fetchMetaUserProfile(senderId, pageAccessToken, isInstagram);
             }
 
-            // Create or update Visitor
+            // Create or update Visitor (Meta users do not have real-time web socket, so isOnline: false)
             if (!visitor) {
               visitor = new Visitor({
                 _id: visitorId,
                 tenantId: objTenantId,
                 name,
                 source,
-                isOnline: true
+                isOnline: false
               });
             } else {
               visitor.tenantId = objTenantId;
               visitor.name = name;
-              visitor.isOnline = true;
+              visitor.isOnline = false;
             }
             await visitor.save();
 
@@ -205,18 +205,24 @@ export async function handleMetaWebhook(req, res) {
               status: { $ne: 'Closed' }
             });
 
-
             if (!conversation) {
               conversation = new Conversation({
                 tenantId: objTenantId,
                 visitorId,
                 status: 'Unassigned',
                 source,
+                unreadCount: 1,
+                lastMessageText: textContent,
                 assignedAgentId: null
               });
               await conversation.save();
+            } else {
+              conversation.unreadCount = (conversation.unreadCount || 0) + 1;
+              conversation.lastMessageText = textContent;
+              conversation.updatedAt = new Date();
+              if (conversation.source !== source) conversation.source = source;
+              await conversation.save();
             }
-
 
             // Save Message
             const message = new Message({

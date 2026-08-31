@@ -53,6 +53,81 @@ function App() {
   const [agents, setAgents] = useState([]);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
+
+  const selectedConversationRef = useRef(selectedConversation);
+  useEffect(() => {
+    selectedConversationRef.current = selectedConversation;
+  }, [selectedConversation]);
+
+  // Channel SVG Icon Component Helper
+  const renderChannelIcon = (source, size = 14) => {
+    switch (source) {
+      case 'whatsapp-web':
+      case 'whatsapp-api':
+        return (
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="#25D366" style={{ flexShrink: 0 }}>
+            <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c4.54 0 8.24 3.7 8.24 8.24 0 2.2-.86 4.27-2.42 5.82a8.19 8.19 0 0 1-5.82 2.42c-1.46 0-2.89-.39-4.14-1.13l-.3-.18-3.11.82.83-3.03-.2-.31a8.21 8.21 0 0 1-1.26-4.41c0-4.54 3.7-8.24 8.24-8.24zm4.8 11.66c-.2-.1-.7-.35-.8-.4-.1-.05-.18-.08-.25.08-.08.15-.3.4-.38.48-.08.08-.15.1-.25.05-.7-.35-1.35-.76-1.89-1.32-.42-.44-.75-.95-.98-1.5-.08-.18.08-.27.18-.37.09-.09.2-.23.3-.35.1-.12.13-.2.2-.33.07-.13.03-.25-.02-.35-.05-.1-.45-1.08-.62-1.48-.16-.39-.33-.34-.45-.34h-.38c-.13 0-.35.05-.53.25-.18.2-.7.68-.7 1.66 0 .98.71 1.93.81 2.06.1.13 1.4 2.14 3.39 3 1.99.86 1.99.57 2.35.54.36-.03 1.16-.47 1.32-.93.16-.46.16-.85.11-.93-.05-.08-.18-.13-.38-.23z"/>
+          </svg>
+        );
+      case 'facebook':
+        return (
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="#0084FF" style={{ flexShrink: 0 }}>
+            <path d="M12 2C6.48 2 2 6.03 2 11c0 2.87 1.47 5.43 3.77 7.05V22l3.78-2.08c.79.22 1.61.34 2.45.34 5.52 0 10-4.03 10-9s-4.48-9-10-9zm1.06 12.14l-2.73-2.91-5.33 2.91 5.86-6.22 2.78 2.91 5.28-2.91-5.86 6.22z"/>
+          </svg>
+        );
+      case 'instagram':
+        return (
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="#E1306C" style={{ flexShrink: 0 }}>
+            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+          </svg>
+        );
+      case 'webchat':
+      default:
+        return (
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="#818CF8" style={{ flexShrink: 0 }}>
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+          </svg>
+        );
+    }
+  };
+
+  const renderSourceBadge = (source) => {
+    let label = 'Web';
+    let bg = 'rgba(99, 102, 241, 0.12)';
+    let color = '#818CF8';
+
+    switch (source) {
+      case 'whatsapp-web':
+        label = 'WhatsApp';
+        bg = 'rgba(37, 211, 102, 0.12)';
+        color = '#25D366';
+        break;
+      case 'whatsapp-api':
+        label = 'WA API';
+        bg = 'rgba(20, 184, 166, 0.12)';
+        color = '#2DD4BF';
+        break;
+      case 'facebook':
+        label = 'Messenger';
+        bg = 'rgba(0, 132, 255, 0.12)';
+        color = '#60A5FA';
+        break;
+      case 'instagram':
+        label = 'Instagram';
+        bg = 'rgba(225, 48, 108, 0.12)';
+        color = '#F472B6';
+        break;
+    }
+
+    return (
+      <span 
+        className="channel-tag-pill" 
+        style={{ backgroundColor: bg, color: color }}
+      >
+        {renderChannelIcon(source, 12)} {label}
+      </span>
+    );
+  };
   const [messages, setMessages] = useState([]);
   const [inboxFilter, setInboxFilter] = useState('all'); // all, mine, unassigned, agent-<id>
   
@@ -1196,19 +1271,29 @@ function App() {
     socket.on('visitor-msg', (data) => {
       const { conversation, message, visitor } = data;
       
-      // Sync conversation in list
+      const isCurrentlyActive = selectedConversationRef.current && selectedConversationRef.current._id === conversation._id && activeTab === 'chat' && document.hasFocus();
+
+      // Sync conversation in list and update unread count
       setConversations(prev => {
         const index = prev.findIndex(c => c._id === conversation._id);
+        const unreadInc = isCurrentlyActive ? 0 : (conversation.unreadCount || 1);
+
         if (index > -1) {
           const updated = [...prev];
-          updated[index] = { ...updated[index], status: conversation.status, updatedAt: conversation.updatedAt };
+          updated[index] = { 
+            ...updated[index], 
+            status: conversation.status, 
+            updatedAt: conversation.updatedAt || new Date(),
+            lastMessageText: message.text,
+            unreadCount: isCurrentlyActive ? 0 : ((updated[index].unreadCount || 0) + 1)
+          };
           return updated;
         }
-        return [...prev, { ...conversation, visitorId: visitor }];
+        return [...prev, { ...conversation, visitorId: visitor, lastMessageText: message.text, unreadCount: unreadInc }];
       });
 
       // Show native notification if page is backgrounded or not actively viewing this conversation
-      const isWindowActive = document.hasFocus() && activeTab === 'chat' && selectedConversation && selectedConversation._id === conversation._id;
+      const isWindowActive = document.hasFocus() && activeTab === 'chat' && selectedConversationRef.current && selectedConversationRef.current._id === conversation._id;
       const shouldNotify = !isWindowActive && (!visitor || !visitor.isMuted) && 
         (conversation.status === 'Unassigned' || 
          (conversation.assignedAgentId && (conversation.assignedAgentId === user.id || conversation.assignedAgentId._id === user.id)));
@@ -1253,13 +1338,18 @@ function App() {
         } catch (e) {}
       }
 
-      // If active conversation matches, append message
-      if (selectedConversation && selectedConversation._id === conversation._id) {
+      // If active conversation, append message to message board immediately
+      if (selectedConversationRef.current && selectedConversationRef.current._id === conversation._id) {
         setMessages(prev => [...prev, message]);
       }
     });
 
-    // 7. Incoming message acknowledgment from other agents
+    // 7. Conversation Marked as Read
+    socket.on('conversation-read', (data) => {
+      setConversations(prev => prev.map(c => c._id === data.conversationId ? { ...c, unreadCount: 0 } : c));
+    });
+
+    // 8. Incoming message acknowledgment from other agents
     socket.on('agent-msg-received', (data) => {
       const { conversationId, message } = data;
       if (selectedConversation && selectedConversation._id === conversationId) {
@@ -1465,6 +1555,21 @@ function App() {
     const visId = typeof conv.visitorId === 'object' ? conv.visitorId?._id : conv.visitorId;
     const vis = visitors.find(v => v._id === visId) || (typeof conv.visitorId === 'object' ? conv.visitorId : { _id: visId, name: visId });
     setSelectedVisitor(vis);
+
+    // Immediately mark conversation as read in state
+    setConversations(prev => prev.map(c => c._id === conv._id ? { ...c, unreadCount: 0 } : c));
+
+    // Emit socket event to notify other agent dashboards
+    if (socketRef.current) {
+      socketRef.current.emit('mark-conversation-read', { conversationId: conv._id });
+    }
+
+    // Persist read state to backend
+    fetch(`${BACKEND_URL}/api/conversations/${conv._id}/read`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).catch(err => console.error('Error marking conversation read:', err));
+
     await fetchConversationMessages(conv._id);
   };
 
@@ -2375,7 +2480,7 @@ function App() {
                     )}
                   </div>
                   
-                  {/* Channel categories tabs */}
+                  {/* Channel categories tabs with Official Icons */}
                   <div style={{ 
                     display: 'grid', 
                     gridTemplateColumns: 'repeat(5, 1fr)', 
@@ -2393,10 +2498,13 @@ function App() {
                         border: 'none',
                         background: channelFilter === 'all' ? 'var(--bg-secondary)' : 'transparent',
                         color: channelFilter === 'all' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                        fontSize: '10.5px',
+                        fontSize: '11px',
                         fontWeight: '600',
                         cursor: 'pointer',
-                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '3px',
                         transition: 'all 0.2s'
                       }}
                       title="All Channels"
@@ -2411,69 +2519,85 @@ function App() {
                         border: 'none',
                         background: channelFilter === 'webchat' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
                         color: channelFilter === 'webchat' ? '#818CF8' : 'var(--text-secondary)',
-                        fontSize: '10.5px',
+                        fontSize: '11px',
                         fontWeight: '600',
                         cursor: 'pointer',
-                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '3px',
                         transition: 'all 0.2s'
                       }}
                       title="Web Chat"
                     >
-                      Web
+                      {renderChannelIcon('webchat', 13)}
+                      <span>Web</span>
                     </button>
                     <button
-                      onClick={() => setChannelFilter('whatsapp-web')}
+                      onClick={() => setChannelFilter('whatsapp')}
                       style={{
                         padding: '6px 2px',
                         borderRadius: '6px',
                         border: 'none',
-                        background: channelFilter === 'whatsapp-web' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                        color: channelFilter === 'whatsapp-web' ? '#34D399' : 'var(--text-secondary)',
-                        fontSize: '10.5px',
+                        background: channelFilter === 'whatsapp' ? 'rgba(37, 211, 102, 0.15)' : 'transparent',
+                        color: channelFilter === 'whatsapp' ? '#25D366' : 'var(--text-secondary)',
+                        fontSize: '11px',
                         fontWeight: '600',
                         cursor: 'pointer',
-                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '3px',
                         transition: 'all 0.2s'
                       }}
-                      title="WhatsApp Linked"
+                      title="WhatsApp (Linked & API)"
                     >
-                      WA
+                      {renderChannelIcon('whatsapp-web', 13)}
+                      <span>WA</span>
                     </button>
                     <button
-                      onClick={() => setChannelFilter('whatsapp-api')}
+                      onClick={() => setChannelFilter('facebook')}
                       style={{
                         padding: '6px 2px',
                         borderRadius: '6px',
                         border: 'none',
-                        background: channelFilter === 'whatsapp-api' ? 'rgba(20, 184, 166, 0.15)' : 'transparent',
-                        color: channelFilter === 'whatsapp-api' ? '#2DD4BF' : 'var(--text-secondary)',
-                        fontSize: '10.5px',
+                        background: channelFilter === 'facebook' ? 'rgba(0, 132, 255, 0.15)' : 'transparent',
+                        color: channelFilter === 'facebook' ? '#60A5FA' : 'var(--text-secondary)',
+                        fontSize: '11px',
                         fontWeight: '600',
                         cursor: 'pointer',
-                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '3px',
                         transition: 'all 0.2s'
                       }}
-                      title="WhatsApp Official API"
+                      title="Facebook Messenger"
                     >
-                      API
+                      {renderChannelIcon('facebook', 13)}
+                      <span>FB</span>
                     </button>
                     <button
-                      onClick={() => setChannelFilter('social')}
+                      onClick={() => setChannelFilter('instagram')}
                       style={{
                         padding: '6px 2px',
                         borderRadius: '6px',
                         border: 'none',
-                        background: channelFilter === 'social' ? 'rgba(236, 72, 153, 0.15)' : 'transparent',
-                        color: channelFilter === 'social' ? '#F472B6' : 'var(--text-secondary)',
-                        fontSize: '10.5px',
+                        background: channelFilter === 'instagram' ? 'rgba(225, 48, 108, 0.15)' : 'transparent',
+                        color: channelFilter === 'instagram' ? '#F472B6' : 'var(--text-secondary)',
+                        fontSize: '11px',
                         fontWeight: '600',
                         cursor: 'pointer',
-                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '3px',
                         transition: 'all 0.2s'
                       }}
-                      title="Messenger & Instagram"
+                      title="Instagram DM"
                     >
-                      Social
+                      {renderChannelIcon('instagram', 13)}
+                      <span>Insta</span>
                     </button>
                   </div>
                   
@@ -2552,12 +2676,12 @@ function App() {
                     // Filter by Channel Type
                     if (channelFilter === 'webchat') {
                       filtered = filtered.filter(c => !c.source || c.source === 'webchat');
-                    } else if (channelFilter === 'whatsapp-web') {
-                      filtered = filtered.filter(c => c.source === 'whatsapp-web');
-                    } else if (channelFilter === 'whatsapp-api') {
-                      filtered = filtered.filter(c => c.source === 'whatsapp-api');
-                    } else if (channelFilter === 'social') {
-                      filtered = filtered.filter(c => c.source === 'facebook' || c.source === 'instagram');
+                    } else if (channelFilter === 'whatsapp') {
+                      filtered = filtered.filter(c => c.source === 'whatsapp-web' || c.source === 'whatsapp-api');
+                    } else if (channelFilter === 'facebook') {
+                      filtered = filtered.filter(c => c.source === 'facebook');
+                    } else if (channelFilter === 'instagram') {
+                      filtered = filtered.filter(c => c.source === 'instagram');
                     }
 
                     // Archive filter logic
@@ -2590,18 +2714,29 @@ function App() {
                       });
                     }
                     
-                    // Sort conversations: Live/online users and latest messages/activity ALWAYS on top
+                    // Sort conversations:
+                    // 1. Pending unread messages ALWAYS on top
+                    // 2. Live Web visitors (ONLY for webchat with active socket)
+                    // 3. WhatsApp/Meta follow offline order and are sorted by most recent chat time
                     const sorted = filtered.sort((a, b) => {
                       const visA = typeof a.visitorId === 'object' ? a.visitorId : visitors.find(v => v._id === a.visitorId);
                       const visB = typeof b.visitorId === 'object' ? b.visitorId : visitors.find(v => v._id === b.visitorId);
-                      
-                      const isOnlineA = visA?.isOnline ? 1 : 0;
-                      const isOnlineB = visB?.isOnline ? 1 : 0;
 
-                      if (isOnlineA !== isOnlineB) {
-                        return isOnlineB - isOnlineA;
+                      // Priority 1: Unread pending messages count
+                      const unreadA = a.unreadCount || 0;
+                      const unreadB = b.unreadCount || 0;
+                      if (unreadA !== unreadB) {
+                        return unreadB - unreadA;
                       }
 
+                      // Priority 2: Real-time Live Web visitors (only webchat has active online presence)
+                      const isLiveWebA = (!a.source || a.source === 'webchat') && visA?.isOnline ? 1 : 0;
+                      const isLiveWebB = (!b.source || b.source === 'webchat') && visB?.isOnline ? 1 : 0;
+                      if (isLiveWebA !== isLiveWebB) {
+                        return isLiveWebB - isLiveWebA;
+                      }
+
+                      // Priority 3: Latest chat timestamp
                       const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
                       const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
                       return timeB - timeA;
@@ -2619,103 +2754,70 @@ function App() {
                     return sorted.map(conv => {
                       const vis = typeof conv.visitorId === 'object' ? conv.visitorId : visitors.find(v => v._id === conv.visitorId);
                       const agentName = conv.assignedAgentId ? conv.assignedAgentId.name : 'Unassigned';
-                      
-                      const renderSourceBadge = () => {
-                        let text = 'Web';
-                        let bg = 'rgba(99, 102, 241, 0.15)'; 
-                        let color = '#818CF8';
-                        let icon = '💬';
-
-                        switch (conv.source) {
-                          case 'whatsapp-web':
-                            text = 'WhatsApp';
-                            bg = 'rgba(16, 185, 129, 0.15)'; 
-                            color = '#34D399';
-                            icon = '🟢';
-                            break;
-                          case 'whatsapp-api':
-                            text = 'WA API';
-                            bg = 'rgba(20, 184, 166, 0.15)'; 
-                            color = '#2DD4BF';
-                            icon = '🧪';
-                            break;
-                          case 'instagram':
-                            text = 'Instagram';
-                            bg = 'rgba(236, 72, 153, 0.15)'; 
-                            color = '#F472B6';
-                            icon = '📸';
-                            break;
-                          case 'facebook':
-                            text = 'Messenger';
-                            bg = 'rgba(59, 130, 246, 0.15)'; 
-                            color = '#60A5FA';
-                            icon = '🔵';
-                            break;
-                        }
-
-                        return (
-                          <span 
-                            style={{ 
-                              padding: '2px 6px', 
-                              borderRadius: '4px', 
-                              backgroundColor: bg, 
-                              color: color, 
-                              fontSize: '10px', 
-                              fontWeight: '600',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px'
-                            }}
-                          >
-                            {icon} {text}
-                          </span>
-                        );
-                      };
+                      const isLiveWeb = (!conv.source || conv.source === 'webchat') && vis?.isOnline;
+                      const hasUnread = (conv.unreadCount || 0) > 0;
 
                       return (
                         <div
                           key={conv._id}
                           className={`room-card ${selectedConversation?._id === conv._id ? 'active' : ''}`}
                           onClick={() => handleSelectConversation(conv)}
-                          style={{ position: 'relative' }}
+                          style={{ 
+                            position: 'relative',
+                            borderLeft: hasUnread ? '3px solid #DC2626' : undefined,
+                            background: hasUnread ? 'rgba(220, 38, 38, 0.05)' : undefined
+                          }}
                         >
                           <div className="room-card-header">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                               <div style={{
-                                width: '32px',
-                                height: '32px',
+                                width: '34px',
+                                height: '34px',
                                 borderRadius: '50%',
-                                background: vis?.isOnline ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--bg-accent)',
+                                background: isLiveWeb ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--bg-accent)',
                                 color: 'white',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 fontWeight: 700,
-                                fontSize: '12px',
+                                fontSize: '13px',
                                 position: 'relative',
-                                flexShrink: 0
+                                flexShrink: 0,
+                                border: isLiveWeb ? '1.5px solid #10B981' : '1px solid var(--border-color)'
                               }}>
                                 {(vis?.name || 'V')[0]?.toUpperCase()}
-                                {vis?.isOnline && (
-                                  <span style={{ position: 'absolute', bottom: '-1px', right: '-1px', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981', border: '2px solid var(--bg-secondary)' }}></span>
+                                {isLiveWeb ? (
+                                  <span style={{ position: 'absolute', bottom: '-1px', right: '-1px', width: '9px', height: '9px', borderRadius: '50%', backgroundColor: '#10B981', border: '2px solid var(--bg-secondary)' }}></span>
+                                ) : (
+                                  <span style={{ position: 'absolute', bottom: '-2px', right: '-2px', width: '14px', height: '14px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {renderChannelIcon(conv.source, 10)}
+                                  </span>
                                 )}
                               </div>
                               <div style={{ minWidth: 0, flex: 1 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span className="room-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <span className="room-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: hasUnread ? 700 : 600, color: hasUnread ? 'var(--text-primary)' : undefined }}>
                                     {vis?.name || 'Visitor'}
                                   </span>
-                                  {renderSourceBadge()}
+                                  {renderSourceBadge(conv.source)}
                                 </div>
                               </div>
                             </div>
-                            <span className="room-time">
-                              {new Date(conv.updatedAt || conv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span className="room-time" style={{ color: hasUnread ? '#F87171' : undefined, fontWeight: hasUnread ? 700 : undefined }}>
+                                {new Date(conv.updatedAt || conv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              {hasUnread && (
+                                <span className="unread-pill-badge" title={`${conv.unreadCount} unread message(s)`}>
+                                  {conv.unreadCount}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="room-preview" style={{ paddingLeft: '40px' }}>
-                            {conv.status === 'Unassigned' ? (
+                          <div className="room-preview" style={{ paddingLeft: '42px', fontWeight: hasUnread ? 600 : 400, color: hasUnread ? 'var(--text-primary)' : undefined }}>
+                            {conv.status === 'Unassigned' && !hasUnread ? (
                               <span style={{ color: '#F59E0B' }}>⚡ Waiting for agent...</span>
                             ) : conv.status === 'Archived' || conv.isArchived ? (
                               <span style={{ color: 'var(--text-muted)' }}>📦 Archived conversation</span>
@@ -2724,7 +2826,7 @@ function App() {
                             )}
                           </div>
 
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingLeft: '40px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingLeft: '42px' }}>
                             <span 
                               className="room-assignee" 
                               style={{ 
@@ -2765,75 +2867,41 @@ function App() {
                   <>
                     <div className="chat-pane-header">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{
-                          width: '38px',
-                          height: '38px',
-                          borderRadius: '50%',
-                          background: selectedVisitor?.isOnline ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--bg-accent)',
-                          color: 'white',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 700,
-                          fontSize: '14px'
-                        }}>
-                          {(selectedVisitor?.name || 'V')[0]?.toUpperCase()}
-                        </div>
+                        {(() => {
+                          const isLiveWeb = (!selectedConversation.source || selectedConversation.source === 'webchat') && selectedVisitor?.isOnline;
+                          return (
+                            <div style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '50%',
+                              background: isLiveWeb ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--bg-accent)',
+                              color: 'white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 700,
+                              fontSize: '14px',
+                              position: 'relative',
+                              border: isLiveWeb ? '1.5px solid #10B981' : '1px solid var(--border-color)'
+                            }}>
+                              {(selectedVisitor?.name || 'V')[0]?.toUpperCase()}
+                              {isLiveWeb ? (
+                                <span style={{ position: 'absolute', bottom: '-1px', right: '-1px', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10B981', border: '2px solid var(--bg-secondary)' }}></span>
+                              ) : (
+                                <span style={{ position: 'absolute', bottom: '-2px', right: '-2px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {renderChannelIcon(selectedConversation.source, 11)}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                         <div>
                           <div style={{ fontWeight: '700', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            {selectedVisitor?.isOnline && <span title="Live Online" style={{ color: '#10B981', fontSize: '10px' }}>🟢</span>}
+                            {((!selectedConversation.source || selectedConversation.source === 'webchat') && selectedVisitor?.isOnline) && (
+                              <span title="Live Online" style={{ color: '#10B981', fontSize: '10px' }}>🟢</span>
+                            )}
                             <span>{selectedVisitor?.name || 'Visitor Conversation'}</span>
-                            {(() => {
-                              let text = 'Web';
-                              let bg = 'rgba(99, 102, 241, 0.15)'; 
-                              let color = '#818CF8';
-                              let icon = '💬';
-
-                              switch (selectedConversation.source) {
-                                case 'whatsapp-web':
-                                  text = 'WhatsApp';
-                                  bg = 'rgba(16, 185, 129, 0.15)'; 
-                                  color = '#34D399';
-                                  icon = '🟢';
-                                  break;
-                                case 'whatsapp-api':
-                                  text = 'WA API';
-                                  bg = 'rgba(20, 184, 166, 0.15)'; 
-                                  color = '#2DD4BF';
-                                  icon = '🧪';
-                                  break;
-                                case 'instagram':
-                                  text = 'Instagram';
-                                  bg = 'rgba(236, 72, 153, 0.15)'; 
-                                  color = '#F472B6';
-                                  icon = '📸';
-                                  break;
-                                case 'facebook':
-                                  text = 'Messenger';
-                                  bg = 'rgba(59, 130, 246, 0.15)'; 
-                                  color = '#60A5FA';
-                                  icon = '🔵';
-                                  break;
-                              }
-
-                              return (
-                                <span 
-                                  style={{ 
-                                    padding: '2px 6px', 
-                                    borderRadius: '4px', 
-                                    backgroundColor: bg, 
-                                    color: color, 
-                                    fontSize: '10px', 
-                                    fontWeight: '600',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '3px'
-                                  }}
-                                >
-                                  {icon} {text}
-                                </span>
-                              );
-                            })()}
+                            {renderSourceBadge(selectedConversation.source)}
                           </div>
                           
                           {/* Live Supervisor Quick Reassign */}

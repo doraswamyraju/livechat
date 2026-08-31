@@ -776,6 +776,28 @@ app.delete('/api/conversations/:conversationId', authenticateToken, async (req, 
   }
 });
 
+// 7d. Mark Conversation as Read (Reset unreadCount)
+app.post('/api/conversations/:conversationId/read', authenticateToken, async (req, res) => {
+  const { conversationId } = req.params;
+
+  try {
+    const conv = await Conversation.findOne({ _id: conversationId, tenantId: req.user.tenantId });
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+    conv.unreadCount = 0;
+    await conv.save();
+
+    if (dashboardNamespace) {
+      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversation-read', { conversationId });
+    }
+
+    res.status(200).json({ message: 'Conversation marked as read', conversationId });
+  } catch (err) {
+    console.error('Error marking conversation as read:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // 8. Register Agent FCM Token for push notifications
 app.post('/api/auth/fcm-token', authenticateToken, async (req, res) => {
   const { fcmToken } = req.body;

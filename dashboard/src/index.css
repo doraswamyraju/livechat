@@ -729,6 +729,38 @@ h1, h2, h3, h4, h5, h6 {
   color: #F87171;
 }
 
+.unread-pill-badge {
+  background: linear-gradient(135deg, #DC2626, #EF4444);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  animation: pulse-unread 2s infinite ease-in-out;
+}
+
+@keyframes pulse-unread {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 8px rgba(220, 38, 38, 0.4); }
+  50% { transform: scale(1.08); box-shadow: 0 0 14px rgba(220, 38, 38, 0.7); }
+}
+
+.channel-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
 /* Detail Accordion Cards */
 .detail-card {
   background: rgba(255, 255, 255, 0.02);

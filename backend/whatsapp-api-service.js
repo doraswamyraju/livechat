@@ -111,12 +111,12 @@ export async function handleWhatsAppApiWebhook(req, res) {
                 name: senderName,
                 phoneNumber: fromPhone,
                 source: 'whatsapp-api',
-                isOnline: true
+                isOnline: false
               });
             } else {
               visitor.name = senderName;
               visitor.phoneNumber = fromPhone;
-              visitor.isOnline = true;
+              visitor.isOnline = false;
             }
             await visitor.save();
 
@@ -133,8 +133,16 @@ export async function handleWhatsAppApiWebhook(req, res) {
                 visitorId,
                 status: 'Unassigned',
                 source: 'whatsapp-api',
+                unreadCount: 1,
+                lastMessageText: textContent,
                 assignedAgentId: null
               });
+              await conversation.save();
+            } else {
+              conversation.unreadCount = (conversation.unreadCount || 0) + 1;
+              conversation.lastMessageText = textContent;
+              conversation.updatedAt = new Date();
+              if (conversation.source !== 'whatsapp-api') conversation.source = 'whatsapp-api';
               await conversation.save();
             }
 
@@ -148,10 +156,6 @@ export async function handleWhatsAppApiWebhook(req, res) {
               timestamp: new Date(parseInt(msg.timestamp) * 1000)
             });
             await message.save();
-
-            // Update Conversation updatedAt
-            conversation.updatedAt = new Date();
-            await conversation.save();
 
             // Broadcast message to agents dashboard
             if (dashboardNamespace) {

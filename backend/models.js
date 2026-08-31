@@ -88,6 +88,8 @@ const ConversationSchema = new mongoose.Schema({
   status: { type: String, enum: ['Unassigned', 'Active', 'Closed', 'Archived'], default: 'Unassigned' },
   isArchived: { type: Boolean, default: false },
   source: { type: String, enum: ['webchat', 'whatsapp-web', 'whatsapp-api', 'instagram', 'facebook'], default: 'webchat' },
+  unreadCount: { type: Number, default: 0 },
+  lastMessageText: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
