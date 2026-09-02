@@ -1096,6 +1096,7 @@ export default function SuperAdminDashboard({
                       <div><strong>🛡️ App Review:</strong> <span style={{ color: '#1d4ed8', fontWeight: 700 }}>pages_messaging, pages_manage_metadata</span></div>
                     </div>
 
+                    <div style={{ display: 'flex', gap: '8px' }}>
                       <button
                         onClick={async () => {
                           try {
