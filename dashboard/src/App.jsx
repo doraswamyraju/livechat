@@ -3116,7 +3116,109 @@ function App() {
                       </div>
                     </div>
 
+                    {/* Live Activity Radar & Journey Strip inside Chat */}
+                    <div style={{
+                      background: '#f8fafc',
+                      borderBottom: '1px solid var(--border-color)',
+                      padding: '9px 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      fontSize: '12px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '5px', 
+                          background: '#fee2e2', 
+                          color: '#dc2626', 
+                          padding: '2px 8px', 
+                          borderRadius: '6px', 
+                          fontWeight: 800, 
+                          fontSize: '10.5px',
+                          letterSpacing: '0.04em'
+                        }}>
+                          <span className="v-pulse" style={{ backgroundColor: '#dc2626', width: '6px', height: '6px' }}></span>
+                          LIVE RADAR
+                        </span>
+                        <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+                          Viewing:
+                        </span>
+                        <span className="path-tag" style={{ fontSize: '11.5px', padding: '2px 8px' }}>
+                          {selectedVisitor?.currentUrl || '/pricing'}
+                        </span>
+                        <span style={{ color: 'var(--text-muted)' }}>•</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '11.5px' }}>
+                          ⏱️ {selectedVisitor?.duration ? `${selectedVisitor.duration}s on page` : 'Active on site'}
+                        </span>
+                        <span style={{ color: 'var(--text-muted)' }}>•</span>
+                        <span style={{ color: '#059669', background: '#ecfdf5', padding: '2px 7px', borderRadius: '4px', fontWeight: 700, fontSize: '10.5px' }}>
+                          ⚡ High Intent
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Trail:</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontFamily: 'monospace' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>/</span>
+                          <span style={{ color: 'var(--text-muted)' }}>➔</span>
+                          <span style={{ color: 'var(--text-muted)' }}>/features</span>
+                          <span style={{ color: 'var(--text-muted)' }}>➔</span>
+                          <span style={{ color: '#dc2626', fontWeight: 700, background: '#fee2e2', padding: '1px 5px', borderRadius: '4px' }}>
+                            {selectedVisitor?.currentUrl || '/pricing'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="chat-messages-board" ref={messagesContainerRef}>
+                      {/* Initial Real-Time Footprint Summary in Chat Stream */}
+                      <div style={{ 
+                        background: '#ffffff', 
+                        border: '1px solid var(--border-color)', 
+                        borderRadius: '12px', 
+                        padding: '12px 16px', 
+                        margin: '0 auto 8px auto', 
+                        width: '100%', 
+                        maxWidth: '92%', 
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            <span>🛰️ Live Visitor Telemetry & Origin</span>
+                            <span style={{ background: '#dcfce7', color: '#16a34a', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>Active Online</span>
+                          </div>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                            🌍 {selectedVisitor?.city || 'Toronto'}, {selectedVisitor?.country || 'Canada'}
+                          </span>
+                        </div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', fontSize: '11.5px' }}>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)' }}>Device: </span>
+                            <strong>{selectedVisitor?.deviceType || 'Desktop'} ({selectedVisitor?.os || 'macOS'})</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)' }}>Browser: </span>
+                            <strong>{selectedVisitor?.browser || 'Chrome'}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)' }}>Referral: </span>
+                            <strong style={{ color: 'var(--primary)' }}>{selectedVisitor?.referrer || 'Direct / Organic'}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)' }}>Current Page: </span>
+                            <strong style={{ fontFamily: 'monospace', color: '#dc2626' }}>{selectedVisitor?.currentUrl || '/pricing'}</strong>
+                          </div>
+                        </div>
+                      </div>
+
                       {messages.map((msg, i) => {
                         const senderType = (msg.senderType || msg.sender || 'visitor').toLowerCase();
                         const time = msg.timestamp || msg.createdAt || new Date();
@@ -3209,11 +3311,11 @@ function App() {
                       </div>
                       <div className="form-group" style={{ marginBottom: '4px' }}>
                         <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Full Name</label>
-                        <input type="text" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorName} onChange={(e) => setEditVisitorName(e.target.value)} />
+                        <input type="text" className="form-input" style={{ padding: '7px 10px', fontSize: '13px' }} value={editVisitorName} onChange={(e) => setEditVisitorName(e.target.value)} />
                       </div>
                       <div className="form-group" style={{ marginBottom: '4px' }}>
                         <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Email Address</label>
-                        <input type="email" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorEmail} onChange={(e) => setEditVisitorEmail(e.target.value)} />
+                        <input type="email" className="form-input" style={{ padding: '7px 10px', fontSize: '13px' }} value={editVisitorEmail} onChange={(e) => setEditVisitorEmail(e.target.value)} />
                       </div>
                       <div className="form-group" style={{ marginBottom: '4px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3229,14 +3331,32 @@ function App() {
                             </a>
                           )}
                         </div>
-                        <input type="tel" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorPhone} onChange={(e) => setEditVisitorPhone(e.target.value)} placeholder="e.g. +91 98765 43210" />
+                        <input type="tel" className="form-input" style={{ padding: '7px 10px', fontSize: '13px' }} value={editVisitorPhone} onChange={(e) => setEditVisitorPhone(e.target.value)} placeholder="e.g. +91 98765 43210" />
                       </div>
                       <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' }}>
                         <input type="checkbox" id="visitor-muted-check-2" checked={editVisitorMuted} onChange={(e) => setEditVisitorMuted(e.target.checked)} style={{ cursor: 'pointer' }} />
                         <label htmlFor="visitor-muted-check-2" className="form-label" style={{ fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', margin: 0 }}>Mute & Suppress Alerts</label>
                       </div>
-                      <button className="claim-btn" style={{ padding: '6px 12px', fontSize: '12px', width: '100%', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }} onClick={handleUpdateVisitor}>
-                        Save Profile
+                      <button 
+                        style={{ 
+                          padding: '9px 14px', 
+                          fontSize: '12.5px', 
+                          width: '100%', 
+                          background: 'linear-gradient(135deg, #dc2626, #b91c1c)', 
+                          color: '#ffffff', 
+                          border: 'none', 
+                          borderRadius: '8px', 
+                          cursor: 'pointer', 
+                          fontWeight: 700,
+                          boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }} 
+                        onClick={handleUpdateVisitor}
+                      >
+                        💾 Save Profile
                       </button>
                     </div>
 
