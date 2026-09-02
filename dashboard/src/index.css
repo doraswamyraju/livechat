@@ -568,7 +568,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .inbox-container.details-collapsed {
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 320px 1fr !important;
 }
 
 .pane-rooms {
