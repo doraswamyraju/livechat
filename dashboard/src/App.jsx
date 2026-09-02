@@ -1062,8 +1062,10 @@ function App() {
       {
         _id: `m_${id}`,
         conversationId: `c_${id}`,
-        sender: 'visitor',
+        senderType: 'visitor',
+        senderName: `Visitor #${id}`,
         text: 'Hi! I am browsing the /pricing page and have a question about the Growth plan.',
+        timestamp: new Date().toISOString(),
         createdAt: new Date().toISOString()
       }
     ]);
@@ -1072,9 +1074,20 @@ function App() {
 
   const handleSimulateInstagramDM = () => {
     const id = Math.floor(1000 + Math.random() * 9000);
+    const newVisitor = {
+      _id: `v_${id}`,
+      name: `@user_${id} (Instagram DM)`,
+      source: 'instagram',
+      city: 'Direct',
+      country: 'Instagram',
+      deviceType: 'Instagram App',
+      browser: 'In-App Browser',
+      os: 'iOS/Android',
+      isOnline: true
+    };
     const newConv = {
       _id: `c_${id}`,
-      visitorId: { _id: `v_${id}`, name: `@user_${id} (Instagram DM)` },
+      visitorId: newVisitor,
       status: 'Unassigned',
       source: 'instagram',
       channel: 'instagram',
@@ -1082,7 +1095,21 @@ function App() {
       lastMessageText: 'Hey! Saw your story about LetsTrack. How fast is the WordPress setup?',
       updatedAt: new Date().toISOString()
     };
+    setVisitors(prev => [newVisitor, ...prev]);
     setConversations(prev => [newConv, ...prev]);
+    setSelectedVisitor(newVisitor);
+    setSelectedConversation(newConv);
+    setMessages([
+      {
+        _id: `m_${id}`,
+        conversationId: `c_${id}`,
+        senderType: 'visitor',
+        senderName: `@user_${id}`,
+        text: 'Hey! Saw your story about LetsTrack. How fast is the WordPress setup?',
+        timestamp: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      }
+    ]);
     showToast(`📸 Incoming Instagram DM from @user_${id}!`);
   };
 
@@ -3090,17 +3117,21 @@ function App() {
                     </div>
 
                     <div className="chat-messages-board" ref={messagesContainerRef}>
-                      {messages.map((msg, i) => (
-                        <div key={i} className={`db-msg-row ${msg.senderType.toLowerCase()}`}>
-                          <div className="db-msg-bubble">{formatMessageText(msg.text)}</div>
-                          <div className="db-msg-time">
-                            {msg.senderName} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {messages.map((msg, i) => {
+                        const senderType = (msg.senderType || msg.sender || 'visitor').toLowerCase();
+                        const time = msg.timestamp || msg.createdAt || new Date();
+                        return (
+                          <div key={msg._id || i} className={`db-msg-row ${senderType}`}>
+                            <div className="db-msg-bubble">{formatMessageText(msg.text || msg.content || '')}</div>
+                            <div className="db-msg-time">
+                              {msg.senderName || (senderType === 'agent' ? 'Agent' : 'Visitor')} • {new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       
                       {/* Visitor typing indicator */}
-                      {visitorTypingStatus[selectedConversation.visitorId._id || selectedConversation.visitorId] && (
+                      {selectedConversation?.visitorId && visitorTypingStatus[selectedConversation.visitorId._id || selectedConversation.visitorId] && (
                         <div className="db-msg-row visitor">
                           <div className="db-msg-bubble" style={{ display: 'flex', gap: '4px', padding: '10px 14px' }}>
                             <span className="typing-dot" style={{ animationDelay: '0s' }}></span>
