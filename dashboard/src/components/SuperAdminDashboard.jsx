@@ -88,21 +88,30 @@ export default function SuperAdminDashboard({
     fetchOverviewData();
     fetchMetaAssets();
     fetchAdCampaigns();
+    fetchConversations();
 
-    // Connect to WebSocket for Real-Time Meta Messages Ingestion
+    // Connect to WebSocket /dashboard Namespace for Real-Time Meta Messages Ingestion
     if (token) {
-      const socket = io(BACKEND_URL, {
-        auth: { token },
+      const socket = io(`${BACKEND_URL}/dashboard`, {
         transports: ['websocket', 'polling']
       });
       socketRef.current = socket;
 
-      socket.on('init', (data) => {
-        if (data.conversations) setConversations(data.conversations);
-        if (data.visitors) setActiveVisitors(data.visitors);
-        if (data.conversations && data.conversations.length > 0 && !selectedConvId) {
-          setSelectedConvId(data.conversations[0]._id);
+      socket.on('connect', () => {
+        socket.emit('agent-init', {
+          tenantId: user?.tenantId,
+          agentId: user?._id || user?.userId
+        });
+      });
+
+      socket.on('dashboard-sync', (data) => {
+        if (data.conversations && data.conversations.length > 0) {
+          setConversations(data.conversations);
+          if (!selectedConvId) {
+            setSelectedConvId(data.conversations[0]._id);
+          }
         }
+        if (data.visitors) setActiveVisitors(data.visitors);
       });
 
       socket.on('visitor-msg', (data) => {
@@ -149,7 +158,25 @@ export default function SuperAdminDashboard({
         socket.disconnect();
       };
     }
-  }, [token]);
+  }, [token, user]);
+
+  const fetchConversations = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/conversations`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setConversations(data);
+          setSelectedConvId(prev => prev || data[0]._id);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching conversations:', err);
+    }
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

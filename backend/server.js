@@ -1789,6 +1789,30 @@ app.get('/api/superadmin/users', authenticateToken, requireSuperAdmin, async (re
   }
 });
 
+// 10. SuperAdmin Live Conversations List
+app.get('/api/superadmin/conversations', authenticateToken, async (req, res) => {
+  try {
+    const conversations = await Conversation.find({ status: { $ne: 'Closed' } })
+      .populate('visitorId')
+      .populate('assignedAgentId', 'name email avatarUrl status')
+      .sort({ updatedAt: -1 })
+      .limit(60);
+
+    const populated = await Promise.all(conversations.map(async (c) => {
+      const messages = await Message.find({ conversationId: c._id }).sort({ timestamp: 1 });
+      return {
+        ...c.toObject(),
+        messages
+      };
+    }));
+
+    res.status(200).json(populated);
+  } catch (err) {
+    console.error('Error fetching superadmin conversations:', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch conversations' });
+  }
+});
+
 // 5. SuperAdmin - Update User Role / Ban Status
 app.put('/api/superadmin/users/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { role, isBanned, name, email } = req.body;
