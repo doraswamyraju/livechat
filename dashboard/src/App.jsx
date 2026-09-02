@@ -1393,13 +1393,8 @@ function App() {
           }
         }
 
-        const index = prev.findIndex(v => v._id === visitor._id);
-        if (index > -1) {
-          const updated = [...prev];
-          updated[index] = visitor;
-          return updated;
-        }
-        return [...prev, visitor];
+        const filtered = prev.filter(v => v._id !== visitor._id);
+        return [visitor, ...filtered];
       });
     });
 
@@ -1418,13 +1413,8 @@ function App() {
       setVisitorTypingStatus(prev => ({ ...prev, [data.visitorId]: data.isTyping }));
     });
 
-    // 6. Incoming messages from Visitor
+    // 6. Incoming message from visitor
     socket.on('visitor-msg', (data) => {
-      const { conversation, message, visitor } = data;
-      
-      const isCurrentlyActive = selectedConversationRef.current && selectedConversationRef.current._id === conversation._id && activeTab === 'chat' && document.hasFocus();
-
-      // Sync conversation in list and update unread count
       setConversations(prev => {
         const index = prev.findIndex(c => c._id === conversation._id);
         const unreadInc = isCurrentlyActive ? 0 : (conversation.unreadCount || 1);
@@ -2781,35 +2771,55 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {visitors.map(visitor => (
-                        <tr
-                          key={visitor._id}
-                          className={`visitor-row ${selectedVisitor?._id === visitor._id ? 'selected' : ''}`}
-                          onClick={() => setSelectedVisitor(visitor)}
-                        >
-                          <td>
-                            <div className="visitor-badge-info">
-                              <div className="visitor-status-indicator">
-                                <span className={`v-pulse ${visitor.isOnline ? 'anim' : ''}`} style={{ backgroundColor: visitor.isOnline ? 'var(--success)' : 'var(--text-muted)' }}></span>
-                                <span className="v-pulse" style={{ backgroundColor: visitor.isOnline ? 'var(--success)' : 'var(--text-muted)' }}></span>
+                      {(() => {
+                        const sortedVisitors = [...visitors].sort((a, b) => {
+                          if (a.isOnline && !b.isOnline) return -1;
+                          if (!a.isOnline && b.isOnline) return 1;
+                          const timeA = new Date(a.lastSeen || a.updatedAt || a.firstSeen || 0).getTime();
+                          const timeB = new Date(b.lastSeen || b.updatedAt || b.firstSeen || 0).getTime();
+                          return timeB - timeA;
+                        });
+
+                        if (sortedVisitors.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan="4" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                                No active visitors online right now.
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return sortedVisitors.map(visitor => (
+                          <tr
+                            key={visitor._id}
+                            className={`visitor-row ${selectedVisitor?._id === visitor._id ? 'selected' : ''}`}
+                            onClick={() => setSelectedVisitor(visitor)}
+                          >
+                            <td>
+                              <div className="visitor-badge-info">
+                                <div className="visitor-status-indicator">
+                                  <span className={`v-pulse ${visitor.isOnline ? 'anim' : ''}`} style={{ backgroundColor: visitor.isOnline ? 'var(--success)' : 'var(--text-muted)' }}></span>
+                                  <span className="v-pulse" style={{ backgroundColor: visitor.isOnline ? 'var(--success)' : 'var(--text-muted)' }}></span>
+                                </div>
+                                <div className="visitor-meta-text">
+                                  {visitor.name}
+                                  {visitor.isMuted && <span title="Muted" style={{ marginLeft: '4px', color: '#EF4444' }}>🔇</span>}
+                                </div>
                               </div>
-                              <div className="visitor-meta-text">
-                                {visitor.name}
-                                {visitor.isMuted && <span title="Muted" style={{ marginLeft: '4px', color: '#EF4444' }}>🔇</span>}
-                              </div>
-                            </div>
-                          </td>
-                          <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                            {visitor.deviceType} • {visitor.browser} on {visitor.os}
-                          </td>
-                          <td>
-                            <span className="path-tag">{visitor.currentUrl || '/'}</span>
-                          </td>
-                          <td style={{ fontSize: '13px' }}>
-                            🌍 {visitor.city}, {visitor.country}
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                              {visitor.deviceType} • {visitor.browser} on {visitor.os}
+                            </td>
+                            <td>
+                              <span className="path-tag">{visitor.currentUrl || '/'}</span>
+                            </td>
+                            <td style={{ fontSize: '13px' }}>
+                              🌍 {visitor.city || 'Local'}, {visitor.country || 'India'}
+                            </td>
+                          </tr>
+                        ));
+                      })()}
                     </tbody>
                   </table>
                 </div>

@@ -252,7 +252,32 @@ export const initializeSocket = (httpServer) => {
           }
         }
 
-        // 3. Notify Agents on the Dashboard
+        // 3. Ensure Conversation exists for this visitor and notify Agents on Dashboard
+        let activeConv = await Conversation.findOne({
+          tenantId: currentTenantId,
+          visitorId: currentVisitorId,
+          status: { $ne: 'Archived' }
+        }).populate('assignedAgentId', 'name email role status').populate('visitorId');
+
+        if (!activeConv) {
+          activeConv = new Conversation({
+            tenantId: currentTenantId,
+            visitorId: currentVisitorId,
+            status: 'Unassigned',
+            source: 'webchat',
+            unreadCount: 0,
+            lastMessageText: '🟢 Visitor active online',
+            updatedAt: new Date()
+          });
+          await activeConv.save();
+          await activeConv.populate('visitorId');
+          dashboardNamespace.to(`tenant_${currentTenantId}`).emit('conversation-created', activeConv);
+        } else {
+          activeConv.updatedAt = new Date();
+          await activeConv.save();
+          dashboardNamespace.to(`tenant_${currentTenantId}`).emit('conversation-updated', activeConv);
+        }
+
         dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-connected', visitor);
 
         if (!wasOffline && oldUrl !== visitor.currentUrl) {
