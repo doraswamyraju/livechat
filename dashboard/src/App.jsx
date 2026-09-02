@@ -1219,6 +1219,10 @@ function App() {
 
     // 6. Incoming message from visitor
     socket.on('visitor-msg', (data) => {
+      const { conversation, message, visitor } = data || {};
+      if (!conversation || !message) return;
+      const isCurrentlyActive = selectedConversationRef.current && selectedConversationRef.current._id === conversation._id;
+
       setConversations(prev => {
         const index = prev.findIndex(c => c._id === conversation._id);
         const unreadInc = isCurrentlyActive ? 0 : (conversation.unreadCount || 1);

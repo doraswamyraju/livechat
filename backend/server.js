@@ -2069,6 +2069,20 @@ app.post('/api/superadmin/meta/connect', authenticateToken, requireSuperAdmin, a
     }
 
     if (selectedPage) {
+      // Clear any conflicting documents holding this pageId or instagramId to satisfy unique sparse index
+      if (selectedPage.pageId) {
+        await Integration.updateMany(
+          { 'meta.pageId': selectedPage.pageId, _id: { $ne: integration._id } },
+          { $unset: { 'meta.pageId': 1 }, $set: { 'meta.enabled': false } }
+        );
+      }
+      if (selectedPage.instagramId) {
+        await Integration.updateMany(
+          { 'meta.instagramAccountId': selectedPage.instagramId, _id: { $ne: integration._id } },
+          { $unset: { 'meta.instagramAccountId': 1 } }
+        );
+      }
+
       integration.meta = {
         enabled: true,
         pageId: selectedPage.pageId,
