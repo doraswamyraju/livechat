@@ -1096,7 +1096,24 @@ export default function SuperAdminDashboard({
                       <div><strong>🛡️ App Review:</strong> <span style={{ color: '#1d4ed8', fontWeight: 700 }}>pages_messaging, pages_manage_metadata</span></div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${BACKEND_URL}/api/superadmin/meta/sync-subscriptions`, {
+                              method: 'POST',
+                              headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error || 'Failed to sync');
+                            showToast('⚡ Webhook Subscriptions re-synced successfully with Meta!');
+                          } catch (err) {
+                            showToast(err.message, 'error');
+                          }
+                        }}
+                        style={{ background: '#f8fafc', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '8px 12px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        ⚡ Re-Sync Webhook
+                      </button>
                       <button
                         onClick={() => setActiveTab('inbox')}
                         style={{ flex: 1, background: '#1877f2', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}

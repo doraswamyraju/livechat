@@ -14,7 +14,7 @@ export async function sendMetaMessage(integration, recipientId, text) {
     throw new Error('Meta Integration is not fully configured (missing Page Access Token)');
   }
 
-  const endpoint = pageId ? `https://graph.facebook.com/v24.0/${pageId}/messages` : `https://graph.facebook.com/v24.0/me/messages`;
+  const endpoint = pageId ? `https://graph.facebook.com/v26.0/${pageId}/messages` : `https://graph.facebook.com/v26.0/me/messages`;
   const url = `${endpoint}?access_token=${pageAccessToken}`;
   const body = {
     recipient: {

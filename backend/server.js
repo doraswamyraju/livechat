@@ -2073,7 +2073,7 @@ app.post('/api/superadmin/meta/connect', authenticateToken, requireSuperAdmin, a
 
   try {
     // 1. Discover Facebook Pages and linked Instagram accounts
-    const fbRes = await fetch(`https://graph.facebook.com/v24.0/me/accounts?fields=id,name,link,access_token&access_token=${accessToken}`);
+    const fbRes = await fetch(`https://graph.facebook.com/v26.0/me/accounts?fields=id,name,link,access_token&access_token=${accessToken}`);
     const fbData = await fbRes.json();
 
     if (fbData.error) {
@@ -2086,7 +2086,7 @@ app.post('/api/superadmin/meta/connect', authenticateToken, requireSuperAdmin, a
       let instagramUrl = null;
 
       try {
-        const igRes = await fetch(`https://graph.facebook.com/v24.0/${page.id}?fields=instagram_business_account{id,username,name}&access_token=${page.access_token || accessToken}`);
+        const igRes = await fetch(`https://graph.facebook.com/v26.0/${page.id}?fields=instagram_business_account{id,username,name}&access_token=${page.access_token || accessToken}`);
         const igData = await igRes.json();
         if (igData && igData.instagram_business_account) {
           const ig = igData.instagram_business_account;
@@ -2112,7 +2112,7 @@ app.post('/api/superadmin/meta/connect', authenticateToken, requireSuperAdmin, a
     // 2. Discover WhatsApp Business Accounts (WABAs)
     let whatsappNumbers = [];
     try {
-      const wabaRes = await fetch(`https://graph.facebook.com/v24.0/me/whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number,verified_name}&access_token=${accessToken}`);
+      const wabaRes = await fetch(`https://graph.facebook.com/v26.0/me/whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number,verified_name}&access_token=${accessToken}`);
       const wabaData = await wabaRes.json();
       if (wabaData.data && wabaData.data.length > 0) {
         for (const waba of wabaData.data) {
@@ -2136,7 +2136,7 @@ app.post('/api/superadmin/meta/connect', authenticateToken, requireSuperAdmin, a
     // 3. Discover Meta Ad Accounts
     let adAccounts = [];
     try {
-      const adRes = await fetch(`https://graph.facebook.com/v24.0/me/adaccounts?fields=id,account_id,name,currency,account_status&access_token=${accessToken}`);
+      const adRes = await fetch(`https://graph.facebook.com/v26.0/me/adaccounts?fields=id,account_id,name,currency,account_status&access_token=${accessToken}`);
       const adData = await adRes.json();
       if (adData.data) {
         adAccounts = adData.data.map(ad => ({
@@ -2195,11 +2195,13 @@ app.post('/api/superadmin/meta/connect', authenticateToken, requireSuperAdmin, a
         verifyToken: integration.meta?.verifyToken || 'letstrack_meta_review_token_2026'
       };
 
-      // Auto-subscribe webhook to Facebook Page app
+      // Auto-subscribe webhook to Facebook Page app with full messaging fields
       try {
-        await fetch(`https://graph.facebook.com/v24.0/${selectedPage.pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_reads,message_deliveries,message_reactions&access_token=${selectedPage.pageAccessToken || accessToken}`, {
+        const subRes = await fetch(`https://graph.facebook.com/v26.0/${selectedPage.pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_reads,message_deliveries,message_reactions,messaging_seen&access_token=${selectedPage.pageAccessToken || accessToken}`, {
           method: 'POST'
         });
+        const subData = await subRes.json();
+        console.log('[MetaSubscribedApps] Result for page', selectedPage.pageId, subData);
       } catch (subErr) {
         console.warn('Auto-subscribe error:', subErr.message);
       }
@@ -2232,22 +2234,39 @@ app.post('/api/superadmin/meta/connect', authenticateToken, requireSuperAdmin, a
     });
 
     res.status(200).json({
-      success: true,
-      message: 'Meta Assets connected successfully!',
-      pages,
-      selectedPage,
-      whatsappNumbers,
-      selectedPhone,
-      adAccounts
+      message: 'Meta assets linked and subscribed successfully',
+      integration
     });
 
   } catch (err) {
     console.error('Error connecting Meta assets:', err);
-    res.status(500).json({ error: err.message || 'Failed to authenticate Meta assets' });
+    res.status(500).json({ error: err.message || 'Failed to link Meta assets' });
   }
 });
 
-// 11b. WhatsApp Cloud API Onboarding Wizard Endpoint
+// 11b. Force Sync Webhook Subscriptions for Connected Page
+app.post('/api/superadmin/meta/sync-subscriptions', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const integration = await Integration.findOne({ 'meta.enabled': true });
+    if (!integration || !integration.meta?.pageId || !integration.meta?.pageAccessToken) {
+      return res.status(400).json({ error: 'No connected Meta page found' });
+    }
+
+    const { pageId, pageAccessToken } = integration.meta;
+    const subRes = await fetch(`https://graph.facebook.com/v26.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_reads,message_deliveries,message_reactions,messaging_seen&access_token=${pageAccessToken}`, {
+      method: 'POST'
+    });
+    const subData = await subRes.json();
+    console.log('[MetaSubscribedApps] Manual sync result:', subData);
+
+    res.status(200).json({ success: true, metaResponse: subData });
+  } catch (err) {
+    console.error('Error syncing subscriptions:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 11c. WhatsApp Cloud API Onboarding Wizard Endpoint
 app.post('/api/superadmin/whatsapp-api/onboard', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { phoneNumberId, wabaId, displayNumber, displayName, pin } = req.body;
   
