@@ -92,7 +92,7 @@ export default function App() {
 
   return (
     <div className="landing-container">
-      {/* Glow Blobs */}
+      {/* Subtle Ambient Mesh Glows */}
       <div className="landing-bg-blob blob-1"></div>
       <div className="landing-bg-blob blob-2"></div>
       <div className="landing-bg-blob blob-3"></div>
@@ -100,13 +100,14 @@ export default function App() {
       {/* Header Navbar */}
       <header className="landing-header">
         <nav className="landing-nav">
-          <div className="landing-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-            <img src="/logo-wide.png" alt="LetsTrack" style={{ height: '42px', width: 'auto', objectFit: 'contain' }} />
+          <div className="landing-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <img src="/logo-wide.png" alt="LetsTrack" className="landing-brand-logo" />
           </div>
 
           <div className="landing-nav-links">
+            <a href="#problems" className="landing-nav-link">Problems Solved</a>
             <a href="#features" className="landing-nav-link">Features</a>
-            <span className="landing-nav-link" onClick={onNavigateToDemo} style={{ cursor: 'pointer' }}>Live Demo</span>
+            <span className="landing-nav-link" onClick={onNavigateToDemo}>Live Demo</span>
             <a href="#integrations" className="landing-nav-link">WordPress & SDK</a>
             <a href="#pricing" className="landing-nav-link">Pricing</a>
             <a href="#faq" className="landing-nav-link">FAQ</a>
@@ -130,15 +131,16 @@ export default function App() {
       <section className="hero-section">
         <div className="hero-pill">
           <span className="hero-pill-dot"></span>
-          <span>⚡ All-In-One Real-Time Growth & Sales Engine</span>
+          <span>🔥 Stop Losing 98% of Your Website Visitors</span>
         </div>
 
         <h1 className="hero-title">
-          Know the Moment a Visitor Lands. <span>Engage & Upsell in One Single App.</span>
+          Know the Moment a Lead Lands. <br className="hero-title-br" />
+          <span className="hero-title-gradient">Engage & Close Deals Before They Bounce.</span>
         </h1>
 
         <p className="hero-subtitle">
-          Get instant push alerts the second a prospect opens your website. Receive every message—from Web Chat, Instagram DMs, and Facebook—into one unified inbox, powered by live upsell analytics.
+          98% of website visitors leave silently without buying or filling a form. LetsTrack gives your sales team <strong>real-time visitor radar</strong>, <strong>instant push alerts</strong>, and a <strong>unified WhatsApp & Meta inbox</strong> to convert high-intent buyers while they are still on your site.
         </p>
 
         <div className="hero-buttons">
@@ -156,23 +158,67 @@ export default function App() {
             🎮 Play in Sandbox
           </button>
 
-          <button className="btn-primary-cta btn-hero-lg" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 20px rgba(16, 185, 129, 0.35)' }} onClick={on1ClickDemoLogin}>
+          <button className="btn-emerald-hero btn-hero-lg" onClick={on1ClickDemoLogin}>
             🚀 1-Click Console Demo
           </button>
+        </div>
+
+        {/* Problems We Solve Hero Matrix Grid */}
+        <div id="problems" className="hero-problems-strip">
+          <div className="problem-solve-card">
+            <div className="problem-solve-tag pain-tag">❌ THE PROBLEM #1</div>
+            <h4 className="problem-solve-title">Anonymous Silent Bounces</h4>
+            <p className="problem-solve-desc">
+              98% of your paid and organic visitors browse and leave without filling a form or saying a single word.
+            </p>
+            <div className="problem-solve-arrow">↓</div>
+            <div className="problem-solve-tag solve-tag">✅ HOW LETSTRACK SOLVES IT</div>
+            <p className="problem-solve-solution">
+              <strong>Real-Time Visitor Radar:</strong> Instant alerts when high-intent buyers view /pricing or /checkout so you can initiate proactive chat immediately.
+            </p>
+          </div>
+
+          <div className="problem-solve-card">
+            <div className="problem-solve-tag pain-tag">❌ THE PROBLEM #2</div>
+            <h4 className="problem-solve-title">Fragmented Chat Channels</h4>
+            <p className="problem-solve-desc">
+              Customer inquiries are scattered across Instagram DMs, Facebook Messenger, WhatsApp, and Web Chat across 4 apps.
+            </p>
+            <div className="problem-solve-arrow">↓</div>
+            <div className="problem-solve-tag solve-tag">✅ HOW LETSTRACK SOLVES IT</div>
+            <p className="problem-solve-solution">
+              <strong>Unified Omnichannel Inbox:</strong> Stream every conversation into 1 single master dashboard. Reply to all leads from one screen.
+            </p>
+          </div>
+
+          <div className="problem-solve-card">
+            <div className="problem-solve-tag pain-tag">❌ THE PROBLEM #3</div>
+            <h4 className="problem-solve-title">Missed Buying Moments</h4>
+            <p className="problem-solve-desc">
+              Slow agent replies (30+ minutes) kill sales. By the time reps reply, the lead is already buying from a competitor.
+            </p>
+            <div className="problem-solve-arrow">↓</div>
+            <div className="problem-solve-tag solve-tag">✅ HOW LETSTRACK SOLVES IT</div>
+            <p className="problem-solve-solution">
+              <strong>Sub-30s Mobile Push & Upsells:</strong> Get live push alerts on iOS & Android and trigger targeted discount popovers right at checkout hesitation.
+            </p>
+          </div>
         </div>
 
         {/* Hero Interactive Showcase Window */}
         <div className="hero-mockup-container">
           <div className="mockup-header">
-            <span className="mockup-dot dot-red"></span>
-            <span className="mockup-dot dot-yellow"></span>
-            <span className="mockup-dot dot-green"></span>
+            <div className="mockup-dots">
+              <span className="mockup-dot dot-red"></span>
+              <span className="mockup-dot dot-yellow"></span>
+              <span className="mockup-dot dot-green"></span>
+            </div>
             <div className="mockup-url-bar">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
               </svg>
-              https://letstrack.manacity.in/console
+              <span>https://letstrack.manacity.in/console</span>
             </div>
           </div>
 
@@ -200,32 +246,32 @@ export default function App() {
 
           <div className="mockup-body">
             {heroMockupTab === 'radar' && (
-              <div style={{ gridColumn: '1 / -1' }}>
+              <div className="mockup-tab-content">
                 <div className="push-alert-card">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '20px' }}>🔔</span>
-                    <div style={{ textAlign: 'left' }}>
-                      <strong style={{ color: '#ffffff', fontSize: '13px' }}>INSTANT ALERT: High-Intent Lead #8402 (United States)</strong>
-                      <div style={{ fontSize: '11px', color: '#9ca3af' }}>Currently reading /pricing for 3 minutes • 89% Buy Intent Score</div>
+                  <div className="push-alert-info">
+                    <span className="push-alert-icon">🔔</span>
+                    <div>
+                      <strong className="push-alert-title">INSTANT ALERT: High-Intent Lead #8402 (United States)</strong>
+                      <div className="push-alert-sub">Currently reading /pricing for 3 minutes • 89% Buy Intent Score</div>
                     </div>
                   </div>
-                  <button className="btn-primary-cta" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={onNavigateToRegister}>
+                  <button className="btn-primary-cta btn-alert-cta" onClick={onNavigateToRegister}>
                     Start Chat Now
                   </button>
                 </div>
 
                 <div className="mockup-visitor-table">
                   <div className="table-title">
-                    <span>🔴 Real-Time Visitor Radar (WebSockets Stream)</span>
-                    <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 600 }}>● {simulatedVisitorCount} Active Visitors Now</span>
+                    <span className="table-title-text">🔴 Real-Time Visitor Radar (WebSockets Stream)</span>
+                    <span className="table-live-badge">● {simulatedVisitorCount} Active Visitors Now</span>
                   </div>
 
                   <div className="visitor-row active">
                     <div className="visitor-info">
                       <span className="online-indicator"></span>
                       <div>
-                        <strong style={{ color: 'white' }}>Visitor #8402 (United States)</strong>
-                        <div style={{ fontSize: '11px', color: '#9ca3af' }}>Chrome on macOS • Referral: Google Search</div>
+                        <strong className="visitor-name">Visitor #8402 (United States)</strong>
+                        <div className="visitor-sub">Chrome on macOS • Referral: Google Search</div>
                       </div>
                     </div>
                     <span className="visitor-page">/pricing (3m 12s)</span>
@@ -235,56 +281,67 @@ export default function App() {
                     <div className="visitor-info">
                       <span className="online-indicator"></span>
                       <div>
-                        <strong style={{ color: 'white' }}>Visitor #3194 (London, UK)</strong>
-                        <div style={{ fontSize: '11px', color: '#9ca3af' }}>Mobile Safari on iOS</div>
+                        <strong className="visitor-name">Visitor #3194 (London, UK)</strong>
+                        <div className="visitor-sub">Mobile Safari on iOS • Referral: Direct</div>
                       </div>
                     </div>
                     <span className="visitor-page">/checkout (1m 45s)</span>
+                  </div>
+
+                  <div className="visitor-row">
+                    <div className="visitor-info">
+                      <span className="online-indicator"></span>
+                      <div>
+                        <strong className="visitor-name">Visitor #1092 (Germany)</strong>
+                        <div className="visitor-sub">Firefox on Windows • Referral: Twitter/X</div>
+                      </div>
+                    </div>
+                    <span className="visitor-page">/features (42s)</span>
                   </div>
                 </div>
               </div>
             )}
 
             {heroMockupTab === 'inbox' && (
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div style={{ background: 'rgba(15,23,42,0.8)', padding: '16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', marginBottom: '14px', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>📥 Unified Master Inbox (Meta + Web)</span>
-                    <span style={{ fontSize: '11px', color: '#ef4444' }}>4 Unread Conversations</span>
+              <div className="mockup-tab-content">
+                <div className="mockup-inbox-wrapper">
+                  <div className="inbox-head-row">
+                    <span className="inbox-head-title">📥 Unified Master Inbox (Meta + Web)</span>
+                    <span className="inbox-unread-count">4 Unread Conversations</span>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div className="inbox-list-stack">
                     <div className="inbox-item-row unread">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span>📸</span>
+                      <div className="inbox-item-left">
+                        <span className="channel-icon-preview">📸</span>
                         <div>
-                          <strong style={{ color: '#ffffff', fontSize: '13px' }}>@sarah_designs (Instagram DM)</strong>
-                          <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Hi! Can I get a discount for 5 website licenses?"</div>
+                          <strong className="inbox-sender-name">@sarah_designs (Instagram DM)</strong>
+                          <div className="inbox-snippet-text">"Hi! Can I get a discount for 5 website licenses?"</div>
                         </div>
                       </div>
-                      <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>Just Now</span>
+                      <span className="inbox-time-badge new">Just Now</span>
                     </div>
 
                     <div className="inbox-item-row unread">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span>🌐</span>
+                      <div className="inbox-item-left">
+                        <span className="channel-icon-preview">🌐</span>
                         <div>
-                          <strong style={{ color: '#ffffff', fontSize: '13px' }}>Visitor #4019 (Website Chat)</strong>
-                          <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Does your WordPress plugin support multisite?"</div>
+                          <strong className="inbox-sender-name">Visitor #4019 (Website Chat)</strong>
+                          <div className="inbox-snippet-text">"Does your WordPress plugin support multisite?"</div>
                         </div>
                       </div>
-                      <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>1m ago</span>
+                      <span className="inbox-time-badge new">1m ago</span>
                     </div>
 
                     <div className="inbox-item-row">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span>💬</span>
+                      <div className="inbox-item-left">
+                        <span className="channel-icon-preview">💬</span>
                         <div>
-                          <strong style={{ color: '#ffffff', fontSize: '13px' }}>Alex Rivers (FB Messenger)</strong>
-                          <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Scheduling live demo for tomorrow!"</div>
+                          <strong className="inbox-sender-name">Alex Rivers (FB Messenger)</strong>
+                          <div className="inbox-snippet-text">"Scheduling live demo for tomorrow!"</div>
                         </div>
                       </div>
-                      <span style={{ fontSize: '11px', color: '#6b7280' }}>3m ago</span>
+                      <span className="inbox-time-badge">3m ago</span>
                     </div>
                   </div>
                 </div>
@@ -292,31 +349,31 @@ export default function App() {
             )}
 
             {heroMockupTab === 'analytics' && (
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div style={{ background: 'rgba(15,23,42,0.8)', padding: '16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', marginBottom: '14px', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>📊 Live Upsell & Conversion Analytics</span>
-                    <span style={{ fontSize: '11px', color: '#10b981' }}>+340% Lead Lift</span>
+              <div className="mockup-tab-content">
+                <div className="mockup-inbox-wrapper">
+                  <div className="inbox-head-row">
+                    <span className="inbox-head-title">📊 Live Upsell & Conversion Analytics</span>
+                    <span className="analytics-lift-badge">+340% Lead Lift</span>
                   </div>
 
                   <div className="analytics-metrics-row">
                     <div className="metric-pill-box">
-                      <div className="metric-num" style={{ color: '#10b981' }}>89%</div>
+                      <div className="metric-num text-success">89%</div>
                       <div className="metric-lbl">High Buy Intent</div>
                     </div>
                     <div className="metric-pill-box">
-                      <div className="metric-num">₹2,84,500</div>
+                      <div className="metric-num text-primary">₹2,84,500</div>
                       <div className="metric-lbl">Recovered Cart Sales</div>
                     </div>
                     <div className="metric-pill-box">
-                      <div className="metric-num" style={{ color: '#ef4444' }}>&lt; 28s</div>
+                      <div className="metric-num text-danger">&lt; 28s</div>
                       <div className="metric-lbl">Avg Reply Time</div>
                     </div>
                   </div>
 
-                  <div style={{ background: 'rgba(220,38,38,0.1)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(220,38,38,0.3)', marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '12px', color: '#e5e7eb' }}>💡 <strong>AUTOMATED UPSELL PROMPT:</strong> 42 visitors are hovering on the Checkout page right now. Trigger 10% coupon popover?</span>
-                    <button className="btn-primary-cta" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={onNavigateToRegister}>
+                  <div className="upsell-alert-strip">
+                    <span className="upsell-alert-text">💡 <strong>AUTOMATED UPSELL PROMPT:</strong> 42 visitors are hovering on Checkout page right now. Trigger 10% coupon popover?</span>
+                    <button className="btn-primary-cta btn-upsell-cta" onClick={onNavigateToRegister}>
                       Trigger Upsell
                     </button>
                   </div>
@@ -326,7 +383,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* 3 Core Pillar Cards Below Mockup Window */}
+        {/* 3 Core Pillar Feature Cards Below Mockup */}
         <div className="hero-pillars-grid">
           <div className="hero-pillar-card">
             <div className="hero-pillar-header">
@@ -361,7 +418,7 @@ export default function App() {
 
         {/* Platform Compatibility Banner */}
         <div className="logos-strip">
-          <span style={{ fontSize: '12px', textTransform: 'uppercase', color: '#6b7280', fontWeight: 600 }}>COMPATIBLE WITH ALL PLATFORMS:</span>
+          <span className="logos-strip-label">COMPATIBLE WITH ALL MODERN PLATFORMS:</span>
           <div className="platform-logo-item">🌐 WordPress</div>
           <div className="platform-logo-item">🛍️ Shopify</div>
           <div className="platform-logo-item">⚛️ React & Next.js</div>
@@ -371,57 +428,57 @@ export default function App() {
       </section>
 
       {/* Before vs After Section */}
-      <section className="section-padding" style={{ paddingTop: '40px' }}>
+      <section className="section-padding bg-subtle">
         <div className="section-header">
           <span className="section-tag">Why You Need LetsTrack</span>
           <h2 className="section-title">Stop Losing 98% of Your Website Visitors</h2>
           <p className="section-desc">
-            Most website visitors leave without buying or filling a form. Here is how LetsTrack transforms your sales pipeline.
+            Traditional live chat tools only wait passively for visitors to ask a question. LetsTrack proactively tracks high-intent behavior and alerts your sales team immediately.
           </p>
         </div>
 
         <div className="before-after-grid">
           <div className="ba-card without">
             <span className="ba-badge">❌ WITHOUT LETSTRACK</span>
-            <h3 style={{ fontSize: '22px', fontWeight: 800, color: '#f87171' }}>Anonymous Visitors Bounce</h3>
+            <h3 className="ba-title-without">Anonymous Visitors Bounce in Silence</h3>
             <ul className="ba-list">
               <li className="ba-item">
-                <span style={{ color: '#ef4444' }}>✕</span>
+                <span className="ba-icon-bad">✕</span>
                 <span>98% of visitors leave your website without taking any action or leaving contact info.</span>
               </li>
               <li className="ba-item">
-                <span style={{ color: '#ef4444' }}>✕</span>
+                <span className="ba-icon-bad">✕</span>
                 <span>Zero visibility into which product or pricing page high-intent leads are currently reading.</span>
               </li>
               <li className="ba-item">
-                <span style={{ color: '#ef4444' }}>✕</span>
+                <span className="ba-icon-bad">✕</span>
                 <span>You miss the critical 2-minute window to answer buyer questions before they leave for competitors.</span>
               </li>
               <li className="ba-item">
-                <span style={{ color: '#ef4444' }}>✕</span>
-                <span>Expensive live chat tools (Intercom/Drift) charge ₹35,000+/mo per seat.</span>
+                <span className="ba-icon-bad">✕</span>
+                <span>Expensive legacy live chat tools (Intercom/Drift) charge ₹35,000+/mo per seat.</span>
               </li>
             </ul>
           </div>
 
           <div className="ba-card with">
             <span className="ba-badge">✅ WITH LETSTRACK</span>
-            <h3 style={{ fontSize: '22px', fontWeight: 800, color: '#34d399' }}>Instant Lead Capture & Conversion</h3>
+            <h3 className="ba-title-with">Instant Lead Capture & Conversion</h3>
             <ul className="ba-list">
               <li className="ba-item">
-                <span style={{ color: '#10b981' }}>✓</span>
+                <span className="ba-icon-good">✓</span>
                 <span>Track exact active URLs, geolocation, referral sources, and visitor behavior in real time.</span>
               </li>
               <li className="ba-item">
-                <span style={{ color: '#10b981' }}>✓</span>
+                <span className="ba-icon-good">✓</span>
                 <span>Proactively chat with visitors on high-intent pages before they exit your site.</span>
               </li>
               <li className="ba-item">
-                <span style={{ color: '#10b981' }}>✓</span>
-                <span>Get instant push alerts on Android & iOS whenever a hot lead asks a question.</span>
+                <span className="ba-icon-good">✓</span>
+                <span>Get instant push alerts on Android & iOS whenever a hot lead lands or asks a question.</span>
               </li>
               <li className="ba-item">
-                <span style={{ color: '#10b981' }}>✓</span>
+                <span className="ba-icon-good">✓</span>
                 <span>Unified Multi-Channel Inbox (Web, Instagram DMs, Facebook, WhatsApp) starting at just ₹299/mo.</span>
               </li>
             </ul>
@@ -443,7 +500,7 @@ export default function App() {
           <div className="demo-controls">
             <h3>Customizable Widget Themes</h3>
             <p>
-              Match your brand identity perfectly. The LetsTrack widget seamlessly fits any modern web application or e-commerce site.
+              Match your brand identity perfectly. The LetsTrack widget seamlessly fits any modern web application, e-commerce store, or portfolio.
             </p>
 
             <div className="demo-color-picker">
@@ -467,9 +524,9 @@ export default function App() {
               </div>
             </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#e5e7eb', marginBottom: '6px' }}>⚡ Instant Live Alerts</div>
-              <div style={{ fontSize: '13px', color: '#9ca3af' }}>
+            <div className="demo-hint-box">
+              <div className="demo-hint-title">⚡ Instant Live Alerts</div>
+              <div className="demo-hint-desc">
                 Every message sent in the widget streams directly to your team console and triggers instant push notifications on your mobile device.
               </div>
             </div>
@@ -478,10 +535,10 @@ export default function App() {
           <div className="demo-widget-preview-card">
             <div className="demo-widget-head" style={{ backgroundColor: widgetColor }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></span>
+                <span className="demo-online-dot"></span>
                 <span>LetsTrack Support</span>
               </div>
-              <span style={{ fontSize: '12px', opacity: 0.8 }}>Online</span>
+              <span style={{ fontSize: '12px', opacity: 0.9 }}>Online</span>
             </div>
 
             <div className="demo-widget-body">
@@ -491,7 +548,7 @@ export default function App() {
                 </div>
               ))}
               {isTyping && (
-                <div className="chat-bubble bubble-agent" style={{ backgroundColor: widgetColor, opacity: 0.8, fontStyle: 'italic', fontSize: '11px' }}>
+                <div className="chat-bubble bubble-agent" style={{ backgroundColor: widgetColor, opacity: 0.85, fontStyle: 'italic', fontSize: '11px' }}>
                   Support agent is typing...
                 </div>
               )}
@@ -514,12 +571,12 @@ export default function App() {
       </section>
 
       {/* Core Features */}
-      <section id="features" className="section-padding">
+      <section id="features" className="section-padding bg-subtle">
         <div className="section-header">
           <span className="section-tag">Powerful Capabilities</span>
           <h2 className="section-title">Built for Modern Growth Teams</h2>
           <p className="section-desc">
-            Everything you need to convert anonymous website traffic into engaged conversations and revenue.
+            Everything you need to convert anonymous website traffic into engaged conversations and repeat revenue.
           </p>
         </div>
 
@@ -639,13 +696,11 @@ export default function App() {
               Stop switching between separate apps and browser tabs. Stream your Website Visitors, Instagram DMs, Facebook Messenger, and WhatsApp inquiries directly into one master console.
             </p>
 
-            <div style={{ marginTop: '16px', marginBottom: '16px', borderRadius: '14px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
+            <div className="spotlight-img-frame">
               <img 
                 src="/omnichannel-inbox-preview.jpg" 
                 alt="LetsTrack Unified Omnichannel Inbox" 
-                style={{ width: '100%', height: 'auto', display: 'block', transform: 'scale(1)', transition: 'transform 0.3s ease' }} 
-                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                className="spotlight-preview-img"
               />
             </div>
 
@@ -667,13 +722,13 @@ export default function App() {
                   <span style={{ fontSize: '14px' }}>📸</span>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <strong style={{ fontSize: '13px', color: '#ffffff' }}>@sarah_designs</strong>
-                      <span style={{ fontSize: '10px', background: 'rgba(236,72,153,0.2)', color: '#f472b6', padding: '1px 6px', borderRadius: '4px' }}>Instagram DM</span>
+                      <strong className="inbox-sender-text">@sarah_designs</strong>
+                      <span className="channel-badge instagram">Instagram DM</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Hi! What are your pro subscription packages?"</div>
+                    <div className="inbox-msg-sub">"Hi! What are your pro subscription packages?"</div>
                   </div>
                 </div>
-                <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>Just Now</span>
+                <span className="inbox-time-badge new">Just Now</span>
               </div>
 
               <div className="inbox-item-row unread">
@@ -681,13 +736,13 @@ export default function App() {
                   <span style={{ fontSize: '14px' }}>🌐</span>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <strong style={{ fontSize: '13px', color: '#ffffff' }}>Lead #4019 (High Intent)</strong>
-                      <span style={{ fontSize: '10px', background: 'rgba(220,38,38,0.2)', color: '#f87171', padding: '1px 6px', borderRadius: '4px' }}>Website Chat</span>
+                      <strong className="inbox-sender-text">Lead #4019 (High Intent)</strong>
+                      <span className="channel-badge website">Website Chat</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Looking for WordPress multisite integration..."</div>
+                    <div className="inbox-msg-sub">"Looking for WordPress multisite integration..."</div>
                   </div>
                 </div>
-                <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>1m ago</span>
+                <span className="inbox-time-badge new">1m ago</span>
               </div>
 
               <div className="inbox-item-row">
@@ -695,13 +750,13 @@ export default function App() {
                   <span style={{ fontSize: '14px' }}>💬</span>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <strong style={{ fontSize: '13px', color: '#ffffff' }}>Alex Rivers</strong>
-                      <span style={{ fontSize: '10px', background: 'rgba(59,130,246,0.2)', color: '#60a5fa', padding: '1px 6px', borderRadius: '4px' }}>FB Messenger</span>
+                      <strong className="inbox-sender-text">Alex Rivers</strong>
+                      <span className="channel-badge facebook">FB Messenger</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>"Can we schedule a live demo call for tomorrow?"</div>
+                    <div className="inbox-msg-sub">"Can we schedule a live demo call for tomorrow?"</div>
                   </div>
                 </div>
-                <span style={{ fontSize: '11px', color: '#6b7280' }}>4m ago</span>
+                <span className="inbox-time-badge">4m ago</span>
               </div>
             </div>
           </div>
@@ -714,13 +769,11 @@ export default function App() {
               Gain deep visibility into visitor trends, peak engagement hours, average agent response velocity, and lead conversion rates with live heatmaps.
             </p>
 
-            <div style={{ marginTop: '16px', marginBottom: '16px', borderRadius: '14px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
+            <div className="spotlight-img-frame">
               <img 
                 src="/visitor-radar-preview.jpg" 
                 alt="LetsTrack Live Visitor Radar & Heatmap" 
-                style={{ width: '100%', height: 'auto', display: 'block', transform: 'scale(1)', transition: 'transform 0.3s ease' }} 
-                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                className="spotlight-preview-img"
               />
             </div>
 
@@ -730,19 +783,19 @@ export default function App() {
                 <div className="metric-lbl">Total Visitors Today</div>
               </div>
               <div className="metric-pill-box">
-                <div className="metric-num" style={{ color: '#10b981' }}>98.4%</div>
+                <div className="metric-num text-success">98.4%</div>
                 <div className="metric-lbl">Satisfaction Rate</div>
               </div>
               <div className="metric-pill-box">
-                <div className="metric-num" style={{ color: '#ef4444' }}>&lt; 28s</div>
+                <div className="metric-num text-danger">&lt; 28s</div>
                 <div className="metric-lbl">Avg Response Time</div>
               </div>
             </div>
 
             <div className="chart-bar-container">
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#9ca3af', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 600 }}>
                 <span>Hourly Engagement Trends</span>
-                <span style={{ color: '#10b981' }}>+24% vs Yesterday</span>
+                <span className="text-success">+24% vs Yesterday</span>
               </div>
               <div className="chart-bars-wrap">
                 <div className="bar-col" style={{ height: '40%' }} title="09:00 - 120 visitors"></div>
@@ -772,7 +825,7 @@ export default function App() {
             <div className="calc-slider-group">
               <div className="calc-label-row">
                 <span>Monthly Website Visitors:</span>
-                <span style={{ color: '#ef4444', fontWeight: 800 }}>{calcVisitors.toLocaleString()} visitors</span>
+                <span className="calc-stat-highlight">{calcVisitors.toLocaleString()} visitors</span>
               </div>
               <input
                 type="range"
@@ -788,7 +841,7 @@ export default function App() {
             <div className="calc-slider-group">
               <div className="calc-label-row">
                 <span>Average Order / Deal Value (₹):</span>
-                <span style={{ color: '#ef4444', fontWeight: 800 }}>₹{calcOrderValue.toLocaleString('en-IN')}</span>
+                <span className="calc-stat-highlight">₹{calcOrderValue.toLocaleString('en-IN')}</span>
               </div>
               <input
                 type="range"
@@ -801,15 +854,15 @@ export default function App() {
               />
             </div>
 
-            <div style={{ fontSize: '13px', color: '#9ca3af', lineHeight: 1.6 }}>
+            <div className="calc-disclaimer">
               💡 <em>Based on capturing an extra 3.5% of exiting or hesitation traffic using real-time visitor radar and proactive chat triggers.</em>
             </div>
           </div>
 
           <div className="calc-result-card">
-            <span style={{ fontSize: '12px', uppercase: true, fontWeight: 700, color: '#d1d5db' }}>ESTIMATED EXTRA MONTHLY REVENUE</span>
+            <span className="calc-result-label">ESTIMATED EXTRA MONTHLY REVENUE</span>
             <div className="calc-val-display">₹{Math.round(calcVisitors * 0.035 * calcOrderValue).toLocaleString('en-IN')}</div>
-            <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '20px' }}>
+            <p className="calc-result-sub">
               Recovered every single month with LetsTrack Growth (₹299/mo).
             </p>
             <button className="btn-primary-cta" style={{ width: '100%', justifyContent: 'center' }} onClick={onNavigateToRegister}>
@@ -820,7 +873,7 @@ export default function App() {
       </section>
 
       {/* Competitor Comparison Matrix Section */}
-      <section className="section-padding">
+      <section className="section-padding bg-subtle">
         <div className="section-header">
           <span className="section-tag">Value Comparison</span>
           <h2 className="section-title">Why Smart Growth Teams Choose LetsTrack</h2>
@@ -878,7 +931,7 @@ export default function App() {
               </tr>
               <tr>
                 <td style={{ textAlign: 'left', fontWeight: 600 }}>Monthly Price</td>
-                <td className="highlight" style={{ fontSize: '18px', color: '#10b981' }}>₹299 / mo</td>
+                <td className="highlight price-cell">₹299 / mo</td>
                 <td>₹35,000+ / mo</td>
                 <td>₹1,80,000+ / mo</td>
                 <td>₹7,500+ / mo</td>
@@ -892,9 +945,9 @@ export default function App() {
       <section className="section-padding">
         <div className="section-header">
           <span className="section-tag">Proven Results</span>
-          <h2 className="section-title">Loved by Founder & Growth Leads</h2>
+          <h2 className="section-title">Loved by Founders & Growth Leads</h2>
           <p className="section-desc">
-            See how businesses use LetsTrack to convert traffic into repeat customers.
+            See how high-growth businesses use LetsTrack to convert traffic into repeat customers.
           </p>
         </div>
 
@@ -907,7 +960,7 @@ export default function App() {
               </p>
             </div>
             <div className="t-author-box">
-              <div className="t-avatar">MD</div>
+              <div className="t-avatar">MV</div>
               <div className="t-author-info">
                 <span className="t-name">Marcus Vance</span>
                 <span className="t-role">Founder, SaaSFlow</span>
@@ -950,7 +1003,7 @@ export default function App() {
       </section>
 
       {/* WordPress & Integration Section */}
-      <section id="integrations" className="section-padding">
+      <section id="integrations" className="section-padding bg-subtle">
         <div className="section-header">
           <span className="section-tag">2-Minute Installation</span>
           <h2 className="section-title">Seamlessly Embed Anywhere</h2>
@@ -996,7 +1049,7 @@ export default function App() {
           </div>
 
           {activeIntegrationTab === 'wordpress' && (
-            <div style={{ color: '#d1d5db', fontSize: '14px', lineHeight: 1.7 }}>
+            <div className="wp-guide-box">
               <p style={{ marginBottom: '12px' }}>
                 <strong>Step 1:</strong> Download the official LetsTrack WordPress Plugin package:
               </p>
@@ -1047,7 +1100,7 @@ export default function App() {
             <div className="plan-price">
               ₹0 <span className="plan-period">/ forever</span>
             </div>
-            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>
+            <div className="plan-sub-tag">
               No credit card or setup fee required
             </div>
             <ul className="plan-features">
@@ -1060,8 +1113,8 @@ export default function App() {
               <li className="plan-feature-item">
                 <span className="check-icon">✓</span> Real-Time User Notifications & Entry Alerts
               </li>
-              <li className="plan-feature-item" style={{ opacity: 0.65 }}>
-                <span style={{ color: '#ef4444', marginRight: '8px' }}>✕</span> Live Visitor Activity Radar (Gated)
+              <li className="plan-feature-item gated">
+                <span className="gated-icon">✕</span> Live Visitor Activity Radar (Gated)
               </li>
               <li className="plan-feature-item">
                 <span className="check-icon">🔒</span> Mandatory "Powered by LetsTrack"
@@ -1070,7 +1123,7 @@ export default function App() {
                 <span className="check-icon">✓</span> WordPress Plugin & JS SDK
               </li>
             </ul>
-            <button className="btn-console" style={{ width: '100%' }} onClick={onNavigateToRegister}>
+            <button className="btn-console" style={{ width: '100%', justifyContent: 'center' }} onClick={onNavigateToRegister}>
               Get Started Free
             </button>
           </div>
@@ -1081,10 +1134,10 @@ export default function App() {
             <h3 className="plan-name">Growth</h3>
             <p className="plan-desc">For growing businesses needing live visitor radar journeys & team collaboration.</p>
             <div className="plan-price" style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-              <span style={{ fontSize: '20px', color: '#9ca3af', textDecoration: 'line-through', fontWeight: 600 }}>₹999</span>
+              <span className="old-price">₹999</span>
               <span>₹299</span> <span className="plan-period">/ month</span>
             </div>
-            <div style={{ fontSize: '12px', color: '#f87171', fontWeight: 600, marginBottom: '16px' }}>
+            <div className="plan-fee-tag">
               + ₹999 one-time onboarding & setup fee
             </div>
             <ul className="plan-features">
@@ -1117,14 +1170,14 @@ export default function App() {
 
           {/* Business Omnichannel Plan - 399 */}
           <div className="pricing-card">
-            <span className="pricing-badge" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>⚡ Omnichannel Pro</span>
+            <span className="pricing-badge badge-business">⚡ Omnichannel Pro</span>
             <h3 className="plan-name">Business</h3>
             <p className="plan-desc">For modern brands managing Website Visitors + Instagram & Facebook DMs.</p>
             <div className="plan-price" style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-              <span style={{ fontSize: '20px', color: '#9ca3af', textDecoration: 'line-through', fontWeight: 600 }}>₹1,499</span>
+              <span className="old-price">₹1,499</span>
               <span>₹399</span> <span className="plan-period">/ month</span>
             </div>
-            <div style={{ fontSize: '12px', color: '#34d399', fontWeight: 600, marginBottom: '16px' }}>
+            <div className="plan-fee-tag business">
               + ₹999 one-time onboarding & setup fee
             </div>
             <ul className="plan-features">
@@ -1147,7 +1200,7 @@ export default function App() {
                 <span className="check-icon">✓</span> Auto-Debit Mandate (UPI Autopay / Card)
               </li>
             </ul>
-            <button className="btn-console" style={{ width: '100%' }} onClick={onNavigateToRegister}>
+            <button className="btn-console" style={{ width: '100%', justifyContent: 'center' }} onClick={onNavigateToRegister}>
               Claim Business Offer (₹399/mo)
             </button>
           </div>
@@ -1155,7 +1208,7 @@ export default function App() {
       </section>
 
       {/* FAQ Section */}
-      <section id="faq" className="section-padding">
+      <section id="faq" className="section-padding bg-subtle">
         <div className="section-header">
           <span className="section-tag">Got Questions?</span>
           <h2 className="section-title">Frequently Asked Questions</h2>
@@ -1187,7 +1240,7 @@ export default function App() {
             <div key={idx} className={`faq-item ${openFaq === idx ? 'open' : ''}`}>
               <div className="faq-question" onClick={() => setOpenFaq(openFaq === idx ? null : idx)}>
                 <span>{item.q}</span>
-                <span>{openFaq === idx ? '−' : '+'}</span>
+                <span className="faq-toggle-icon">{openFaq === idx ? '−' : '+'}</span>
               </div>
               {openFaq === idx && <div className="faq-answer">{item.a}</div>}
             </div>
@@ -1200,13 +1253,13 @@ export default function App() {
         <div className="cta-card">
           <h2 className="cta-title">Ready to See Who is On Your Website Right Now?</h2>
           <p className="cta-subtitle">
-            Set up LetsTrack in less than 2 minutes and start engaging high-intent leads in real-time.
+            Set up LetsTrack in less than 2 minutes and start engaging high-intent leads in real time.
           </p>
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button className="btn-primary-cta btn-hero-lg" style={{ background: '#ffffff', color: '#dc2626', fontWeight: 800 }} onClick={onNavigateToRegister}>
+          <div className="cta-btn-row">
+            <button className="btn-cta-white" onClick={onNavigateToRegister}>
               Create Free Account
             </button>
-            <button className="btn-secondary-hero btn-hero-lg" style={{ background: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)' }} onClick={onNavigateToDemo}>
+            <button className="btn-cta-translucent" onClick={onNavigateToDemo}>
               🎮 Open Live Sandbox
             </button>
           </div>
@@ -1217,8 +1270,8 @@ export default function App() {
       <footer className="landing-footer">
         <div className="footer-top">
           <div className="footer-brand">
-            <div className="landing-logo" style={{ marginBottom: '12px' }}>
-              <img src="/logo-wide.png" alt="LetsTrack" style={{ height: '42px', width: 'auto', objectFit: 'contain' }} />
+            <div className="landing-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+              <img src="/logo-wide.png" alt="LetsTrack" className="landing-brand-logo footer-logo-img" />
             </div>
             <p className="footer-desc">
               Real-time visitor intelligence, instant live chat, and omnichannel CRM for modern websites.
@@ -1229,8 +1282,9 @@ export default function App() {
             <div>
               <div className="footer-column-title">Product</div>
               <ul className="footer-links">
+                <li><a href="#problems" className="footer-link">Problems Solved</a></li>
                 <li><a href="#features" className="footer-link">Features</a></li>
-                <li><span className="footer-link" onClick={onNavigateToDemo} style={{ cursor: 'pointer' }}>Interactive Sandbox</span></li>
+                <li><span className="footer-link" onClick={onNavigateToDemo}>Interactive Sandbox</span></li>
                 <li><a href="#integrations" className="footer-link">WordPress Plugin</a></li>
                 <li><a href="#pricing" className="footer-link">Pricing Plans</a></li>
               </ul>
@@ -1239,18 +1293,18 @@ export default function App() {
             <div>
               <div className="footer-column-title">Legal & Compliance</div>
               <ul className="footer-links">
-                <li><span className="footer-link" style={{ cursor: 'pointer' }} onClick={() => alert('Terms of Service: LetsTrack provides SaaS live chat and real-time visitor intelligence services. Subscriptions are billed monthly.')}>Terms of Service</span></li>
-                <li><span className="footer-link" style={{ cursor: 'pointer' }} onClick={() => alert('Privacy Policy: LetsTrack complies with standard data privacy regulations. Visitor IP and session telemetry is encrypted.')}>Privacy Policy</span></li>
-                <li><span className="footer-link" style={{ cursor: 'pointer' }} onClick={() => alert('Cancellation & Refund: You may cancel your subscription mandate at any time. Setup fees are non-refundable once onboarded.')}>Cancellation & Refund</span></li>
-                <li><span className="footer-link" style={{ cursor: 'pointer' }} onClick={() => alert('Contact: support@manacity.in | ManaCity Platform Support, India')}>Contact Us</span></li>
+                <li><span className="footer-link" onClick={() => alert('Terms of Service: LetsTrack provides SaaS live chat and real-time visitor intelligence services. Subscriptions are billed monthly.')}>Terms of Service</span></li>
+                <li><span className="footer-link" onClick={() => alert('Privacy Policy: LetsTrack complies with standard data privacy regulations. Visitor IP and session telemetry is encrypted.')}>Privacy Policy</span></li>
+                <li><span className="footer-link" onClick={() => alert('Cancellation & Refund: You may cancel your subscription mandate at any time. Setup fees are non-refundable once onboarded.')}>Cancellation & Refund</span></li>
+                <li><span className="footer-link" onClick={() => alert('Contact: support@manacity.in | ManaCity Platform Support, India')}>Contact Us</span></li>
               </ul>
             </div>
 
             <div>
               <div className="footer-column-title">Console</div>
               <ul className="footer-links">
-                <li><span className="footer-link" onClick={onNavigateToLogin} style={{ cursor: 'pointer' }}>Access Console</span></li>
-                <li><span className="footer-link" onClick={onNavigateToRegister} style={{ cursor: 'pointer' }}>Create Account</span></li>
+                <li><span className="footer-link" onClick={onNavigateToLogin}>Access Console</span></li>
+                <li><span className="footer-link" onClick={onNavigateToRegister}>Create Account</span></li>
               </ul>
             </div>
           </div>
@@ -1276,12 +1330,12 @@ export default function App() {
         <div className="landing-floating-widget-popup">
           <div className="demo-widget-head" style={{ backgroundColor: widgetColor }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></span>
+              <span className="demo-online-dot"></span>
               <span>LetsTrack Support (Live Demo)</span>
             </div>
             <button 
               onClick={() => setIsFloatingWidgetOpen(false)}
-              style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '16px' }}
+              className="btn-close-popup"
             >
               ✕
             </button>
@@ -1294,7 +1348,7 @@ export default function App() {
               </div>
             ))}
             {isTyping && (
-              <div className="chat-bubble bubble-agent" style={{ backgroundColor: widgetColor, opacity: 0.8, fontStyle: 'italic', fontSize: '11px' }}>
+              <div className="chat-bubble bubble-agent" style={{ backgroundColor: widgetColor, opacity: 0.85, fontStyle: 'italic', fontSize: '11px' }}>
                 Agent is typing...
               </div>
             )}
