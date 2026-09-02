@@ -1200,10 +1200,16 @@ app.get('/api/integrations/whatsapp-web/status', authenticateToken, async (req, 
 // 6. Public Webhook - Official WhatsApp API
 app.get('/api/webhooks/whatsapp-api', handleWhatsAppApiWebhook);
 app.post('/api/webhooks/whatsapp-api', handleWhatsAppApiWebhook);
+app.get('/api/integrations/whatsapp-api/webhook', handleWhatsAppApiWebhook);
+app.post('/api/integrations/whatsapp-api/webhook', handleWhatsAppApiWebhook);
 
 // 7. Public Webhook - Meta Messenger & Instagram
 app.get('/api/webhooks/meta', handleMetaWebhook);
 app.post('/api/webhooks/meta', handleMetaWebhook);
+app.get('/api/integrations/meta/webhook', handleMetaWebhook);
+app.post('/api/integrations/meta/webhook', handleMetaWebhook);
+app.get('/api/marketing/meta/webhook', handleMetaWebhook);
+app.post('/api/marketing/meta/webhook', handleMetaWebhook);
 
 // 8. Proactively Start an External Chat (WhatsApp Web or WhatsApp API)
 app.post('/api/conversations/start-external', authenticateToken, async (req, res) => {
