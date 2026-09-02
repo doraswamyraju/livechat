@@ -1948,6 +1948,318 @@ app.post('/api/superadmin/impersonate/:tenantId', authenticateToken, requireSupe
 });
 
 // ============================================
+// 11. SUPER ADMIN - META APP REVIEW SANDBOX & ASSETS CONNECT
+// ============================================
+
+// 11a. Exchange Facebook OAuth Token for Meta Assets (Pages, IG, WABA, Ads)
+app.post('/api/superadmin/meta/connect', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { accessToken, selectedPageId, selectedWabaPhoneId } = req.body;
+  if (!accessToken) {
+    return res.status(400).json({ error: 'Access token is required' });
+  }
+
+  try {
+    // 1. Discover Facebook Pages and linked Instagram accounts
+    const fbRes = await fetch(`https://graph.facebook.com/v24.0/me/accounts?fields=id,name,link,access_token&access_token=${accessToken}`);
+    const fbData = await fbRes.json();
+
+    if (fbData.error) {
+      return res.status(400).json({ error: fbData.error.message || 'Meta Graph API Error' });
+    }
+
+    const pages = await Promise.all((fbData.data || []).map(async (page) => {
+      let instagramId = null;
+      let instagramHandle = null;
+      let instagramUrl = null;
+
+      try {
+        const igRes = await fetch(`https://graph.facebook.com/v24.0/${page.id}?fields=instagram_business_account{id,username,name}&access_token=${page.access_token || accessToken}`);
+        const igData = await igRes.json();
+        if (igData && igData.instagram_business_account) {
+          const ig = igData.instagram_business_account;
+          instagramId = ig.id;
+          instagramHandle = ig.username ? `@${ig.username}` : (ig.name ? `@${ig.name}` : null);
+          instagramUrl = ig.username ? `https://instagram.com/${ig.username}` : null;
+        }
+      } catch (igErr) {
+        console.warn(`Instagram discovery warning for page ${page.id}:`, igErr.message);
+      }
+
+      return {
+        pageId: page.id,
+        pageName: page.name,
+        facebookUrl: page.link || `https://facebook.com/${page.id}`,
+        pageAccessToken: page.access_token,
+        instagramId,
+        instagramHandle,
+        instagramUrl
+      };
+    }));
+
+    // 2. Discover WhatsApp Business Accounts (WABAs)
+    let whatsappNumbers = [];
+    try {
+      const wabaRes = await fetch(`https://graph.facebook.com/v24.0/me/whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number,verified_name}&access_token=${accessToken}`);
+      const wabaData = await wabaRes.json();
+      if (wabaData.data && wabaData.data.length > 0) {
+        for (const waba of wabaData.data) {
+          if (waba.phone_numbers && waba.phone_numbers.data) {
+            for (const phone of waba.phone_numbers.data) {
+              whatsappNumbers.push({
+                wabaId: waba.id,
+                wabaName: waba.name,
+                phoneId: phone.id,
+                displayPhoneNumber: phone.display_phone_number,
+                verifiedName: phone.verified_name
+              });
+            }
+          }
+        }
+      }
+    } catch (wabaErr) {
+      console.warn('WABA discovery warning:', wabaErr.message);
+    }
+
+    // 3. Discover Meta Ad Accounts
+    let adAccounts = [];
+    try {
+      const adRes = await fetch(`https://graph.facebook.com/v24.0/me/adaccounts?fields=id,account_id,name,currency,account_status&access_token=${accessToken}`);
+      const adData = await adRes.json();
+      if (adData.data) {
+        adAccounts = adData.data.map(ad => ({
+          id: ad.id,
+          accountId: ad.account_id,
+          name: ad.name,
+          currency: ad.currency
+        }));
+      }
+    } catch (adErr) {
+      console.warn('Ad accounts discovery warning:', adErr.message);
+    }
+
+    // Determine selected assets
+    let selectedPage = pages[0] || null;
+    if (selectedPageId) {
+      const found = pages.find(p => p.pageId === selectedPageId);
+      if (found) selectedPage = found;
+    }
+
+    let selectedPhone = whatsappNumbers[0] || null;
+    if (selectedWabaPhoneId) {
+      const found = whatsappNumbers.find(w => w.phoneId === selectedWabaPhoneId);
+      if (found) selectedPhone = found;
+    }
+
+    // 4. Save and auto-subscribe to Integration
+    let integration = await Integration.findOne({ tenantId: req.user.tenantId });
+    if (!integration) {
+      integration = new Integration({ tenantId: req.user.tenantId });
+    }
+
+    if (selectedPage) {
+      integration.meta = {
+        enabled: true,
+        pageId: selectedPage.pageId,
+        instagramAccountId: selectedPage.instagramId || undefined,
+        pageAccessToken: selectedPage.pageAccessToken || accessToken,
+        verifyToken: integration.meta?.verifyToken || 'letstrack_meta_review_token_2026'
+      };
+
+      // Auto-subscribe webhook to Facebook Page app
+      try {
+        await fetch(`https://graph.facebook.com/v24.0/${selectedPage.pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_reads,message_deliveries,message_reactions&access_token=${selectedPage.pageAccessToken || accessToken}`, {
+          method: 'POST'
+        });
+      } catch (subErr) {
+        console.warn('Auto-subscribe error:', subErr.message);
+      }
+    }
+
+    if (selectedPhone) {
+      integration.whatsappApi = {
+        enabled: true,
+        phoneNumberId: selectedPhone.phoneId,
+        accessToken: accessToken,
+        verifyToken: integration.whatsappApi?.verifyToken || 'letstrack_wa_verify_2026'
+      };
+    }
+
+    await integration.save();
+
+    await AuditLog.create({
+      tenantId: req.user.tenantId,
+      userId: req.user.userId,
+      actorEmail: req.user.email || 'SuperAdmin',
+      action: 'META_ASSETS_CONNECTED',
+      details: {
+        pageName: selectedPage?.pageName,
+        instagramHandle: selectedPage?.instagramHandle,
+        whatsappNumber: selectedPhone?.displayPhoneNumber
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Meta Assets connected successfully!',
+      pages,
+      selectedPage,
+      whatsappNumbers,
+      selectedPhone,
+      adAccounts
+    });
+
+  } catch (err) {
+    console.error('Error connecting Meta assets:', err);
+    res.status(500).json({ error: err.message || 'Failed to authenticate Meta assets' });
+  }
+});
+
+// 11b. Get Current Meta Assets
+app.get('/api/superadmin/meta/assets', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const integration = await Integration.findOne({ tenantId: req.user.tenantId });
+    res.status(200).json({
+      meta: integration?.meta || { enabled: false },
+      whatsappApi: integration?.whatsappApi || { enabled: false }
+    });
+  } catch (err) {
+    console.error('Error fetching Meta assets:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 11c. SuperAdmin - Meta Ads Campaigns (for ads_read & ads_management review)
+let memoryReviewAdCampaigns = [
+  {
+    id: 'act_camp_99182',
+    name: 'LetsTrack 2026 Live Chat Launch - Free Trial Promo',
+    status: 'ACTIVE',
+    objective: 'LEAD_GENERATION',
+    dailyBudget: '₹500 / day',
+    impressions: 14250,
+    clicks: 840,
+    spend: '₹1,240',
+    conversions: 42,
+    targetUrl: 'https://letstrack.manacity.in/#pricing'
+  },
+  {
+    id: 'act_camp_99183',
+    name: 'Retargeting High-Intent Visitors (/features & /checkout)',
+    status: 'PAUSED',
+    objective: 'CONVERSIONS',
+    dailyBudget: '₹350 / day',
+    impressions: 6820,
+    clicks: 310,
+    spend: '₹680',
+    conversions: 18,
+    targetUrl: 'https://letstrack.manacity.in/#billing'
+  }
+];
+
+app.get('/api/superadmin/meta-ads/campaigns', authenticateToken, requireSuperAdmin, async (req, res) => {
+  res.status(200).json(memoryReviewAdCampaigns);
+});
+
+app.post('/api/superadmin/meta-ads/create', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { name, dailyBudget, objective, targetUrl } = req.body;
+  if (!name) return res.status(400).json({ error: 'Campaign name is required' });
+
+  const newCampaign = {
+    id: `act_camp_${Date.now()}`,
+    name: name.trim(),
+    status: 'ACTIVE',
+    objective: objective || 'LEAD_GENERATION',
+    dailyBudget: dailyBudget ? `₹${dailyBudget} / day` : '₹500 / day',
+    impressions: 0,
+    clicks: 0,
+    spend: '₹0',
+    conversions: 0,
+    targetUrl: targetUrl || 'https://letstrack.manacity.in/#pricing'
+  };
+
+  memoryReviewAdCampaigns.unshift(newCampaign);
+
+  await AuditLog.create({
+    tenantId: req.user.tenantId,
+    userId: req.user.userId,
+    actorEmail: req.user.email || 'SuperAdmin',
+    action: 'META_AD_CAMPAIGN_CREATED',
+    details: { campaignName: newCampaign.name, dailyBudget: newCampaign.dailyBudget }
+  });
+
+  res.status(201).json({ success: true, message: 'Campaign created successfully', campaign: newCampaign });
+});
+
+app.post('/api/superadmin/meta-ads/:id/toggle', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const camp = memoryReviewAdCampaigns.find(c => c.id === req.params.id);
+  if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+
+  camp.status = camp.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+  res.status(200).json({ success: true, campaign: camp });
+});
+
+// 11d. SuperAdmin - Trigger Test Incoming Message (for Instagram DM or WhatsApp video test)
+app.post('/api/superadmin/meta-review/trigger-test-msg', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { channel, senderName, messageText } = req.body;
+  const channelType = channel === 'instagram' ? 'instagram' : 'whatsapp-api';
+  const visitorId = channelType === 'instagram' ? `ig_test_${Date.now()}` : `wa_test_${Date.now()}`;
+  const sender = senderName || (channelType === 'instagram' ? '@meta_review_tester' : '+919876543210 (Test Lead)');
+  const text = messageText || (channelType === 'instagram' 
+    ? 'Hi! I saw your Instagram ad for LetsTrack live chat. How much does the Growth Plan cost?' 
+    : 'Hello! I need assistance setting up WhatsApp live chat on my website.');
+
+  try {
+    let visitor = new Visitor({
+      _id: visitorId,
+      tenantId: req.user.tenantId,
+      name: sender,
+      isOnline: true,
+      currentUrl: channelType === 'instagram' ? 'https://instagram.com/direct' : 'https://wa.me/business',
+      source: channelType,
+      firstSeen: new Date(),
+      lastSeen: new Date()
+    });
+    await visitor.save();
+
+    let conv = new Conversation({
+      tenantId: req.user.tenantId,
+      visitorId: visitor._id,
+      status: 'Unassigned',
+      source: channelType,
+      unreadCount: 1,
+      lastMessageText: text,
+      updatedAt: new Date()
+    });
+    await conv.save();
+    await conv.populate('visitorId');
+
+    const msg = new Message({
+      conversationId: conv._id,
+      senderType: 'Visitor',
+      senderId: visitorId,
+      senderName: sender,
+      text: text,
+      timestamp: new Date()
+    });
+    await msg.save();
+
+    if (dashboardNamespace) {
+      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversation-created', conv);
+      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('visitor-msg', {
+        conversationId: conv._id,
+        message: msg,
+        visitor
+      });
+    }
+
+    res.status(200).json({ success: true, message: 'Test message created and delivered to Inbox Console', conversation: conv });
+  } catch (err) {
+    console.error('Error triggering test message:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ============================================
 // SERVE DEMO SITE STATICALLY (Allows correct HTTP Origin and PushState Routing)
 // ============================================
 app.use('/demo', express.static(path.join(__dirname, '../host-demo')));

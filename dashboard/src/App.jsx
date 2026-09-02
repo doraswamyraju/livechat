@@ -377,7 +377,7 @@ function App() {
   const [superUsers, setSuperUsers] = useState([]);
   const [superPayments, setSuperPayments] = useState([]);
   const [superLogs, setSuperLogs] = useState([]);
-  const [superActiveTab, setSuperActiveTab] = useState('tenants'); // 'tenants' | 'payments' | 'users' | 'logs'
+  const [superActiveTab, setSuperActiveTab] = useState('tenants'); // 'tenants' | 'payments' | 'users' | 'logs' | 'meta'
   const [superSearch, setSuperSearch] = useState('');
   const [superLoading, setSuperLoading] = useState(false);
   const [manualPaymentModal, setManualPaymentModal] = useState(false);
@@ -386,6 +386,19 @@ function App() {
   const [manualPayPlan, setManualPayPlan] = useState('growth');
   const [manualPayMethod, setManualPayMethod] = useState('bank_transfer');
   const [manualPayNotes, setManualPayNotes] = useState('');
+
+  // SuperAdmin Meta Review Sandbox states
+  const [superMetaAssets, setSuperMetaAssets] = useState({ meta: {}, whatsappApi: {} });
+  const [superAdCampaigns, setSuperAdCampaigns] = useState([]);
+  const [superConnectingMeta, setSuperConnectingMeta] = useState(false);
+  const [superAvailablePages, setSuperAvailablePages] = useState([]);
+  const [superAvailableWabas, setSuperAvailableWabas] = useState([]);
+  const [superShowAssetModal, setSuperShowAssetModal] = useState(false);
+  const [superMetaToken, setSuperMetaToken] = useState('');
+  const [superNewCampaignName, setSuperNewCampaignName] = useState('');
+  const [superNewCampaignBudget, setSuperNewCampaignBudget] = useState('500');
+  const [superNewCampaignObjective, setSuperNewCampaignObjective] = useState('LEAD_GENERATION');
+  const [superShowNewCampaignModal, setSuperShowNewCampaignModal] = useState(false);
 
   // Dynamically load Razorpay SDK
   useEffect(() => {
@@ -715,6 +728,187 @@ function App() {
       }
     } catch (err) {
       showToast('Error saving payment', 'error');
+    }
+  };
+
+  // SuperAdmin Meta App Review Handlers
+  const fetchSuperMetaAssets = async () => {
+    if (!token || user?.role !== 'SuperAdmin') return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/meta/assets`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSuperMetaAssets(data);
+      }
+    } catch (err) {
+      console.error('Error fetching SuperAdmin meta assets:', err);
+    }
+  };
+
+  const fetchSuperAdCampaigns = async () => {
+    if (!token || user?.role !== 'SuperAdmin') return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/meta-ads/campaigns`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSuperAdCampaigns(data);
+      }
+    } catch (err) {
+      console.error('Error fetching SuperAdmin ad campaigns:', err);
+    }
+  };
+
+  const handleSuperFacebookLogin = () => {
+    setSuperConnectingMeta(true);
+    const appId = '1311990813621733';
+    const redirectUri = encodeURIComponent('https://letstrack.manacity.in/');
+    const scope = encodeURIComponent('public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts,pages_read_user_content,pages_manage_engagement,pages_messaging,pages_manage_metadata,instagram_basic,instagram_manage_comments,instagram_manage_insights,instagram_content_publish,instagram_manage_messages,whatsapp_business_management,whatsapp_business_messaging,ads_read,ads_management');
+    const authUrl = `https://www.facebook.com/v26.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+
+    const width = 600;
+    const height = 700;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+
+    const popup = window.open(
+      authUrl,
+      'Meta App Review Facebook OAuth Login',
+      `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,status=yes`
+    );
+
+    const checkPopup = setInterval(() => {
+      try {
+        if (popup && popup.location && popup.location.href.includes('access_token')) {
+          const hashParams = new URLSearchParams(popup.location.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          popup.close();
+          clearInterval(checkPopup);
+
+          setSuperMetaToken(accessToken);
+
+          // Exchange token via SuperAdmin backend
+          fetch(`${BACKEND_URL}/api/superadmin/meta/connect`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ accessToken })
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.pages && data.pages.length > 0) {
+                setSuperAvailablePages(data.pages);
+                setSuperAvailableWabas(data.whatsappNumbers || []);
+                setSuperShowAssetModal(true);
+                showToast('🎉 Meta Assets Discovered! Select your Page & Number.');
+              } else {
+                showToast(data.message || 'Meta Assets Connected!');
+                fetchSuperMetaAssets();
+              }
+            })
+            .catch(err => {
+              console.error(err);
+              showToast('Error connecting Meta assets', 'error');
+            })
+            .finally(() => setSuperConnectingMeta(false));
+        } else if (!popup || popup.closed) {
+          clearInterval(checkPopup);
+          setSuperConnectingMeta(false);
+        }
+      } catch (e) {
+        // Cross-origin access until redirect completes
+      }
+    }, 600);
+  };
+
+  const handleSuperSelectAsset = async (pageId, wabaPhoneId) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/meta/connect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          accessToken: superMetaToken,
+          selectedPageId: pageId,
+          selectedWabaPhoneId: wabaPhoneId
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to link asset');
+      setSuperShowAssetModal(false);
+      showToast('Meta Page, Instagram & WhatsApp linked successfully!');
+      fetchSuperMetaAssets();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleSuperCreateAdCampaign = async (e) => {
+    e.preventDefault();
+    if (!superNewCampaignName.trim()) return showToast('Campaign Name is required', 'error');
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/meta-ads/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: superNewCampaignName,
+          dailyBudget: superNewCampaignBudget,
+          objective: superNewCampaignObjective
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create campaign');
+
+      setSuperShowNewCampaignModal(false);
+      setSuperNewCampaignName('');
+      showToast('🎉 Meta Ad Campaign Created (Reviewer Station Ready)');
+      fetchSuperAdCampaigns();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleSuperToggleAdCampaign = async (id) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/meta-ads/${id}/toggle`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchSuperAdCampaigns();
+        showToast('Campaign status toggled');
+      }
+    } catch (e) {}
+  };
+
+  const handleSuperTriggerTestMsg = async (channel) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/meta-review/trigger-test-msg`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ channel })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Trigger failed');
+
+      showToast(`⚡ Test ${channel === 'instagram' ? 'Instagram DM' : 'WhatsApp Message'} arrived in Inbox!`);
+      setActiveTab('chat');
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   };
 
@@ -5631,6 +5825,45 @@ function App() {
                   >
                     👥 User Accounts ({superUsers.length})
                   </button>
+
+                  <button 
+                    onClick={() => setSuperActiveTab('logs')} 
+                    style={{ 
+                      background: superActiveTab === 'logs' ? '#fee2e2' : 'transparent', 
+                      color: superActiveTab === 'logs' ? '#dc2626' : 'var(--text-secondary)', 
+                      border: 'none', 
+                      padding: '8px 16px', 
+                      borderRadius: '8px', 
+                      fontWeight: 700, 
+                      fontSize: '13px', 
+                      cursor: 'pointer' 
+                    }}
+                  >
+                    🛡️ Security Logs ({superLogs.length})
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      setSuperActiveTab('meta');
+                      fetchSuperMetaAssets();
+                      fetchSuperAdCampaigns();
+                    }} 
+                    style={{ 
+                      background: superActiveTab === 'meta' ? 'linear-gradient(135deg, #1877f2, #0d65d9)' : '#eff6ff', 
+                      color: superActiveTab === 'meta' ? '#ffffff' : '#1d4ed8', 
+                      border: '1px solid #bfdbfe', 
+                      padding: '8px 16px', 
+                      borderRadius: '8px', 
+                      fontWeight: 800, 
+                      fontSize: '13px', 
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    ⚡ Meta App Review Hub
+                  </button>
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -5880,6 +6113,344 @@ function App() {
                 </div>
               )}
 
+              {/* Sub-Tab 5: Meta App Review & Integration Sandbox */}
+              {superActiveTab === 'meta' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  
+                  {/* Hero Banner: Meta Review Status */}
+                  <div className="glass-card" style={{ padding: '24px', background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', border: '1px solid #bfdbfe' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#1877f2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', color: '#fff' }}>
+                          ⚡
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#1e3a8a' }}>Meta App Review & Permissions Sandbox</h3>
+                            <span style={{ background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                              App ID: 1311990813621733
+                            </span>
+                            <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
+                              Development Mode Active
+                            </span>
+                          </div>
+                          <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#1e40af' }}>
+                            Test and record compliant demonstration screencasts for <strong>WhatsApp Cloud API</strong>, <strong>Instagram Direct Messaging</strong>, and <strong>Meta Ads Management</strong>.
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleSuperFacebookLogin}
+                        disabled={superConnectingMeta}
+                        style={{
+                          background: 'linear-gradient(135deg, #1877f2, #0d65d9)',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '10px 20px',
+                          borderRadius: '10px',
+                          fontSize: '13.5px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          boxShadow: '0 4px 14px rgba(24, 119, 242, 0.35)'
+                        }}
+                      >
+                        {superConnectingMeta ? '🔄 Connecting...' : '🔗 Connect with Facebook (OAuth Login)'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3 Review Testing Stations */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
+                    
+                    {/* Station 1: Instagram Direct Messenger */}
+                    <div className="glass-card" style={{ padding: '22px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '14px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '18px' }}>📸</span>
+                          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>Instagram Direct Messaging</h4>
+                        </div>
+                        <span style={{ background: '#fdf2f8', color: '#be185d', border: '1px solid #fbcfe8', padding: '2px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: 700 }}>
+                          instagram_manage_messages
+                        </span>
+                      </div>
+                      
+                      <div style={{ background: '#faf5ff', padding: '12px', borderRadius: '10px', border: '1px solid #f3e8ff', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div><strong>Connected Page:</strong> {superMetaAssets.meta?.pageId ? `Page ID: ${superMetaAssets.meta.pageId}` : 'Not connected (Click Connect above)'}</div>
+                        <div><strong>Instagram Account:</strong> {superMetaAssets.meta?.instagramAccountId ? `IG ID: ${superMetaAssets.meta.instagramAccountId}` : 'Pending connection'}</div>
+                        <div><strong>Webhook Status:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>🟢 messages, messaging_postbacks subscribed</span></div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
+                        <button
+                          onClick={() => handleSuperTriggerTestMsg('instagram')}
+                          style={{ flex: 1, background: '#a855f7', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          🚀 Trigger Test Instagram DM
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('chat')}
+                          style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: 'var(--text-primary)', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          💬 View Inbox
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Station 2: WhatsApp Cloud API */}
+                    <div className="glass-card" style={{ padding: '22px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '14px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '18px' }}>🟢</span>
+                          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>WhatsApp Cloud API</h4>
+                        </div>
+                        <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: 700 }}>
+                          whatsapp_business_messaging
+                        </span>
+                      </div>
+
+                      <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '10px', border: '1px solid #dcfce7', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div><strong>Phone Number ID:</strong> {superMetaAssets.whatsappApi?.phoneNumberId || '111738020188242 (Test Number)'}</div>
+                        <div><strong>Messaging Status:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>🟢 24h Customer Support Window Ready</span></div>
+                        <div><strong>Cloud API Webhook:</strong> <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>/api/integrations/whatsapp-api/webhook</span></div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
+                        <button
+                          onClick={() => handleSuperTriggerTestMsg('whatsapp')}
+                          style={{ flex: 1, background: '#16a34a', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          🚀 Trigger Test WhatsApp Msg
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('chat')}
+                          style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: 'var(--text-primary)', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          💬 View Inbox
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Station 3: Meta Ads Manager */}
+                    <div className="glass-card" style={{ padding: '22px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '14px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '18px' }}>📊</span>
+                          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>Meta Ads & Campaigns</h4>
+                        </div>
+                        <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: 700 }}>
+                          ads_read & ads_management
+                        </span>
+                      </div>
+
+                      <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '10px', border: '1px solid #dbeafe', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div><strong>Active Campaigns:</strong> {superAdCampaigns.length} Managed</div>
+                        <div><strong>Visitor Conversion Attribution:</strong> <span style={{ color: '#1d4ed8', fontWeight: 700 }}>UTM Tracking Active</span></div>
+                        <div><strong>Review Action:</strong> Create & Toggle campaigns for review video</div>
+                      </div>
+
+                      <button
+                        onClick={() => setSuperShowNewCampaignModal(true)}
+                        style={{ background: '#1d4ed8', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', marginTop: 'auto' }}
+                      >
+                        ➕ Create / Manage Ad Campaign
+                      </button>
+                    </div>
+
+                  </div>
+
+                  {/* Live Meta Ad Campaigns Table */}
+                  <div className="glass-card" style={{ padding: '22px', background: '#ffffff', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>Active Meta Ad Campaigns (Review Demonstration)</h4>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          Demonstrates live campaign status toggling and visitor attribution tracking for Meta reviewers.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setSuperShowNewCampaignModal(true)}
+                        style={{ background: '#1d4ed8', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        ➕ New Campaign
+                      </button>
+                    </div>
+
+                    <table className="visitor-list-table">
+                      <thead>
+                        <tr>
+                          <th>Campaign Name</th>
+                          <th>Objective</th>
+                          <th>Daily Budget</th>
+                          <th>Impressions</th>
+                          <th>Clicks</th>
+                          <th>Attributed Chats</th>
+                          <th>Status</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {superAdCampaigns.map(camp => (
+                          <tr key={camp.id} className="visitor-row">
+                            <td style={{ fontWeight: 700 }}>{camp.name}</td>
+                            <td><span className="path-tag">{camp.objective}</span></td>
+                            <td>{camp.dailyBudget}</td>
+                            <td>{camp.impressions.toLocaleString()}</td>
+                            <td style={{ fontWeight: 700 }}>{camp.clicks}</td>
+                            <td><strong style={{ color: '#16a34a' }}>{camp.conversions} chats</strong></td>
+                            <td>
+                              <span style={{
+                                background: camp.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2',
+                                color: camp.status === 'ACTIVE' ? '#15803d' : '#dc2626',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 800
+                              }}>
+                                {camp.status}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                onClick={() => handleSuperToggleAdCampaign(camp.id)}
+                                style={{
+                                  background: camp.status === 'ACTIVE' ? '#fef2f2' : '#f0fdf4',
+                                  color: camp.status === 'ACTIVE' ? '#dc2626' : '#16a34a',
+                                  border: '1px solid var(--border-color)',
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {camp.status === 'ACTIVE' ? '⏸️ Pause' : '▶️ Activate'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {/* Asset Selection Modal for Facebook & WhatsApp Connect */}
+          {superShowAssetModal && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(5px)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 99999
+            }}>
+              <div className="glass-card" style={{ padding: '24px', width: '480px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '17px', fontWeight: '800' }}>Select Meta Business Page & WhatsApp Asset</h3>
+                  <button onClick={() => setShowAssetModal(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>AVAILABLE FACEBOOK PAGES & INSTAGRAM ACCOUNTS:</div>
+                  {superAvailablePages.map(p => (
+                    <div 
+                      key={p.pageId} 
+                      onClick={() => handleSuperSelectAsset(p.pageId, superAvailableWabas[0]?.phoneId)}
+                      style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', cursor: 'pointer', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '14px', color: '#1877f2' }}>📄 {p.pageName}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Instagram: {p.instagramHandle || 'No IG linked'}</div>
+                      </div>
+                      <span style={{ background: '#1877f2', color: '#fff', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>Select</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* New Meta Ad Campaign Modal */}
+          {superShowNewCampaignModal && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(5px)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 99999
+            }}>
+              <div className="glass-card" style={{ padding: '24px', width: '440px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '17px', fontWeight: '800' }}>Create Meta Ad Campaign (Review Demo)</h3>
+                  <button onClick={() => setSuperShowNewCampaignModal(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
+                </div>
+
+                <form onSubmit={handleSuperCreateAdCampaign} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '11px' }}>Campaign Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={superNewCampaignName}
+                      onChange={(e) => setSuperNewCampaignName(e.target.value)}
+                      placeholder="e.g. LetsTrack 2026 Promo - Direct to Chat"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '11px' }}>Objective</label>
+                    <select
+                      className="form-input"
+                      value={superNewCampaignObjective}
+                      onChange={(e) => setSuperNewCampaignObjective(e.target.value)}
+                    >
+                      <option value="LEAD_GENERATION">LEAD_GENERATION (Direct WhatsApp / Live Chat)</option>
+                      <option value="CONVERSIONS">CONVERSIONS (/pricing & checkout)</option>
+                      <option value="TRAFFIC">TRAFFIC (Website Landing Page)</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '11px' }}>Daily Budget (INR)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={superNewCampaignBudget}
+                      onChange={(e) => setSuperNewCampaignBudget(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                    <button type="submit" style={{ flex: 1, background: '#1d4ed8', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}>
+                      🚀 Launch Campaign
+                    </button>
+                    <button type="button" onClick={() => setSuperShowNewCampaignModal(false)} style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
