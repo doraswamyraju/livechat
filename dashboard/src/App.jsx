@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import LandingPage from './components/LandingPage';
 import DemoSandbox from './components/DemoSandbox';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
+import { initSecurityShield } from './utils/securityShield';
 
 const BACKEND_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:5004'
@@ -83,6 +84,11 @@ function App() {
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  // Initialize Site-Wide Content Protection & Anti-Screenshot Shield
+  useEffect(() => {
+    initSecurityShield(() => user);
+  }, [user]);
 
   // Collapsible Layouts State
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('letstrack_sidebar_collapsed') === 'true');

@@ -1383,3 +1383,44 @@ input:checked + .slider:before {
   .inbox-container { grid-template-columns: 1fr; }
   .customizer-grid { grid-template-columns: 1fr; }
 }
+
+/* ==========================================================================
+   CONTENT PROTECTION & ANTI-SCREENSHOT SHIELD
+   ========================================================================== */
+
+/* 1. Prevent Text Selection for Protected Visitors */
+body.lt-protected-mode {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+body.lt-protected-mode input,
+body.lt-protected-mode textarea {
+  -webkit-user-select: auto !important;
+  -moz-user-select: auto !important;
+  -ms-user-select: auto !important;
+  user-select: auto !important;
+}
+
+/* 2. Block Print & PDF Screenshots completely */
+@media print {
+  html, body {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+  }
+}
+
+/* 3. Anti-Screen Capture Veil (Activates on Window Blur for non-admins) */
+body.lt-privacy-shield-active {
+  filter: blur(28px) grayscale(80%) !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  transition: filter 0.08s ease !important;
+}
+
