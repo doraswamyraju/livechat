@@ -2361,260 +2361,360 @@ function App() {
               </div>
 
               <div className="analytics-charts-grid">
-                <div className="chart-card glass-card">
-                  <h4 style={{ marginBottom: '20px' }}>Traffic Velocity (Historical Visits)</h4>
-                  {/* Beautiful customized SVG chart */}
-                  <div style={{ flex: 1, position: 'relative', minHeight: '200px' }}>
-                    <svg viewBox="0 0 500 200" width="100%" height="100%" style={{ overflow: 'visible' }}>
-                      <defs>
-                        <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.4" />
-                          <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.0" />
-                        </linearGradient>
-                      </defs>
-                      {/* Grid Lines */}
-                      <line x1="0" y1="20" x2="500" y2="20" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                      <line x1="0" y1="70" x2="500" y2="70" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                      <line x1="0" y1="120" x2="500" y2="120" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                      <line x1="0" y1="170" x2="500" y2="170" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                      
-                      {/* Chart Path Area */}
-                      <path d="M 0 170 Q 100 130 200 150 T 400 60 T 500 40 L 500 170 L 0 170 Z" fill="url(#lineGrad)" />
-                      {/* Chart Line */}
-                      <path d="M 0 170 Q 100 130 200 150 T 400 60 T 500 40" fill="none" stroke="var(--primary)" strokeWidth="3" />
-                      {/* Interactive dots */}
-                      <circle cx="200" cy="150" r="5" fill="var(--primary)" stroke="white" strokeWidth="2" />
-                      <circle cx="400" cy="60" r="5" fill="#EC4899" stroke="white" strokeWidth="2" />
-                      
-                      {/* Text */}
-                      <text x="180" y="130" fill="var(--text-secondary)" fontSize="10">Mon</text>
-                      <text x="380" y="40" fill="var(--text-secondary)" fontSize="10">Today (Peak)</text>
-                    </svg>
-                  </div>
-                </div>
+                {(() => {
+                  const isDemo = user?.email === 'demo@letstrack.io' || token === 'demo_jwt_token_simulation_99201' || tenant?.id === 'demo-tenant-99';
+                  const totalV = visitors.length;
+                  const desktopCount = visitors.filter(v => (v.deviceType || '').toLowerCase() === 'desktop').length;
+                  const mobileCount = visitors.filter(v => (v.deviceType || '').toLowerCase() === 'mobile').length;
+                  const tabletCount = visitors.filter(v => (v.deviceType || '').toLowerCase() === 'tablet').length;
 
-                <div className="chart-card glass-card">
-                  <h4 style={{ marginBottom: '20px' }}>Visitor Device Demographics</h4>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-around' }}>
-                    <svg width="150" height="150" viewBox="0 0 36 36" style={{ overflow: 'visible' }}>
-                      {/* Pie sections using strokeDasharray */}
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
-                      {/* Desktop - 60% */}
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--primary)" strokeWidth="3.2" strokeDasharray="60 40" strokeDashoffset="25" />
-                      {/* Mobile - 30% */}
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#EC4899" strokeWidth="3.2" strokeDasharray="30 70" strokeDashoffset="65" />
-                      {/* Tablet - 10% */}
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--warning)" strokeWidth="3.2" strokeDasharray="10 90" strokeDashoffset="95" />
-                    </svg>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                        <span style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: 'var(--primary)' }}></span>
-                        Desktop - 60%
+                  const dPct = totalV > 0 ? Math.round((desktopCount / totalV) * 100) : (isDemo ? 60 : 0);
+                  const mPct = totalV > 0 ? Math.round((mobileCount / totalV) * 100) : (isDemo ? 30 : 0);
+                  const tPct = totalV > 0 ? Math.max(0, 100 - dPct - mPct) : (isDemo ? 10 : 0);
+
+                  return (
+                    <>
+                      <div className="chart-card glass-card">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                          <h4 style={{ margin: 0 }}>Traffic Velocity (Historical Visits)</h4>
+                          {isDemo && <span style={{ fontSize: '11px', color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>Demo Simulated</span>}
+                        </div>
+                        {(!isDemo && totalV === 0) ? (
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '180px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                            <span style={{ fontSize: '28px', marginBottom: '8px' }}>📈</span>
+                            <span>No visit velocity recorded yet</span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Traffic curve will generate as visitors browse</span>
+                          </div>
+                        ) : (
+                          <div style={{ flex: 1, position: 'relative', minHeight: '200px' }}>
+                            <svg viewBox="0 0 500 200" width="100%" height="100%" style={{ overflow: 'visible' }}>
+                              <defs>
+                                <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.4" />
+                                  <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.0" />
+                                </linearGradient>
+                              </defs>
+                              <line x1="0" y1="20" x2="500" y2="20" stroke="rgba(0,0,0,0.04)" strokeWidth="1" />
+                              <line x1="0" y1="70" x2="500" y2="70" stroke="rgba(0,0,0,0.04)" strokeWidth="1" />
+                              <line x1="0" y1="120" x2="500" y2="120" stroke="rgba(0,0,0,0.04)" strokeWidth="1" />
+                              <line x1="0" y1="170" x2="500" y2="170" stroke="rgba(0,0,0,0.04)" strokeWidth="1" />
+                              
+                              <path d="M 0 170 Q 100 130 200 150 T 400 60 T 500 40 L 500 170 L 0 170 Z" fill="url(#lineGrad)" />
+                              <path d="M 0 170 Q 100 130 200 150 T 400 60 T 500 40" fill="none" stroke="var(--primary)" strokeWidth="3" />
+                              <circle cx="200" cy="150" r="5" fill="var(--primary)" stroke="white" strokeWidth="2" />
+                              <circle cx="400" cy="60" r="5" fill="#EC4899" stroke="white" strokeWidth="2" />
+                              
+                              <text x="180" y="130" fill="var(--text-secondary)" fontSize="10">Active</text>
+                              <text x="380" y="40" fill="var(--text-secondary)" fontSize="10">Peak Hours</text>
+                            </svg>
+                          </div>
+                        )}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                        <span style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#EC4899' }}></span>
-                        Mobile - 30%
+
+                      <div className="chart-card glass-card">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                          <h4 style={{ margin: 0 }}>Visitor Device Demographics</h4>
+                          {isDemo && <span style={{ fontSize: '11px', color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>Demo Simulated</span>}
+                        </div>
+                        {(!isDemo && totalV === 0) ? (
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '180px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                            <span style={{ fontSize: '28px', marginBottom: '8px' }}>💻</span>
+                            <span>No device sessions logged yet</span>
+                          </div>
+                        ) : (
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-around' }}>
+                            <svg width="150" height="150" viewBox="0 0 36 36" style={{ overflow: 'visible' }}>
+                              <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="3" />
+                              <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--primary)" strokeWidth="3.2" strokeDasharray={`${dPct} ${100 - dPct}`} strokeDashoffset="25" />
+                              <circle cx="18" cy="18" r="15.915" fill="none" stroke="#EC4899" strokeWidth="3.2" strokeDasharray={`${mPct} ${100 - mPct}`} strokeDashoffset={25 - dPct} />
+                              <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--warning)" strokeWidth="3.2" strokeDasharray={`${tPct} ${100 - tPct}`} strokeDashoffset={25 - dPct - mPct} />
+                            </svg>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                                <span style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: 'var(--primary)' }}></span>
+                                Desktop - {dPct}%
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                                <span style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#EC4899' }}></span>
+                                Mobile - {mPct}%
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                                <span style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: 'var(--warning)' }}></span>
+                                Tablet - {tPct}%
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                        <span style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: 'var(--warning)' }}></span>
-                        Tablet - 10%
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                    </>
+                  );
+                })()}
               </div>
 
               {/* 3. Conversion Funnel & Lead Intent Intelligence Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px', marginTop: '20px' }}>
-                {/* Funnel Card */}
-                <div className="glass-card" style={{ padding: '24px', background: '#ffffff', borderRadius: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-                    <h4 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>🎯 Conversion Funnel & Drop-Off Leak Analysis</h4>
-                    <span style={{ fontSize: '11px', color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>+14.2% MoM</span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>1. Total Website Traffic</span>
-                        <strong>1,450 (100%)</strong>
-                      </div>
-                      <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: '100%', height: '100%', background: '#3b82f6', borderRadius: '4px' }}></div>
-                      </div>
-                    </div>
+              {(() => {
+                const isDemo = user?.email === 'demo@letstrack.io' || token === 'demo_jwt_token_simulation_99201' || tenant?.id === 'demo-tenant-99';
+                
+                // Real data calculation
+                const totalVisitorsCount = visitors.length;
+                const featuresCount = visitors.filter(v => (v.currentUrl || '').toLowerCase().includes('features')).length;
+                const pricingCount = visitors.filter(v => (v.currentUrl || '').toLowerCase().includes('pricing') || (v.currentUrl || '').toLowerCase().includes('billing')).length;
+                const chatCount = conversations.length;
+                const convertedCount = conversations.filter(c => c.status === 'Resolved' || c.status === 'Closed').length;
 
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>2. Explored Features (/features)</span>
-                        <strong>680 (46.9%)</strong>
-                      </div>
-                      <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: '46.9%', height: '100%', background: '#6366f1', borderRadius: '4px' }}></div>
-                      </div>
-                    </div>
+                const hotLeads = visitors.filter(v => (v.currentUrl || '').toLowerCase().includes('pricing') || (v.currentUrl || '').toLowerCase().includes('checkout') || (v.duration || 0) > 120);
+                const warmLeads = visitors.filter(v => (v.currentUrl || '').toLowerCase().includes('features') || (v.currentUrl || '').toLowerCase().includes('about'));
+                const browserLeads = visitors.filter(v => !hotLeads.includes(v) && !warmLeads.includes(v));
 
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>3. Evaluated Pricing (/pricing)</span>
-                        <strong style={{ color: '#dc2626' }}>320 (22.1%)</strong>
-                      </div>
-                      <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: '22.1%', height: '100%', background: '#f59e0b', borderRadius: '4px' }}></div>
-                      </div>
-                    </div>
+                // Group URLs
+                const urlMap = {};
+                visitors.forEach(v => {
+                  const u = v.currentUrl || '/';
+                  if (!urlMap[u]) {
+                    urlMap[u] = { count: 0, totalDuration: 0, hasChat: 0 };
+                  }
+                  urlMap[u].count += 1;
+                  urlMap[u].totalDuration += (v.duration || 30);
+                });
+                const realUrls = Object.entries(urlMap).map(([url, data]) => ({
+                  url,
+                  visits: data.count,
+                  avgDwell: `${Math.round(data.totalDuration / data.count)}s`,
+                  chatRate: `${totalVisitorsCount > 0 ? Math.round((data.count / totalVisitorsCount) * 100) : 0}%`,
+                  tag: data.count > 3 ? '🔥 High Traffic' : 'Active Subpath'
+                }));
 
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>4. Initiated Live Chat (Agent Connect)</span>
-                        <strong>149 (10.3%)</strong>
-                      </div>
-                      <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: '10.3%', height: '100%', background: '#10b981', borderRadius: '4px' }}></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>5. Converted / Closed Paid Tier</span>
-                        <strong style={{ color: '#16a34a' }}>42 (2.9%)</strong>
-                      </div>
-                      <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: '2.9%', height: '100%', background: 'linear-gradient(90deg, #10b981, #059669)', borderRadius: '4px' }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Lead Intent Radar Card */}
-                <div className="glass-card" style={{ padding: '24px', background: '#ffffff', borderRadius: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-                    <h4 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>🔥 Lead Intent & Upsell Radar</h4>
-                    <span style={{ fontSize: '11px', color: '#dc2626', background: '#fee2e2', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>Real-Time Scoring</span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ padding: '12px', background: '#fef2f2', border: '1px solid #fecdd3', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: '13px', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>🔥 Hot Leads (80–100% Intent)</span>
-                        </div>
-                        <div style={{ fontSize: '11.5px', color: '#dc2626', marginTop: '2px' }}>
-                          18 visitors on /pricing or /checkout &gt;2m
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => setActiveTab('monitor')}
-                        style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                if (!isDemo && totalVisitorsCount === 0) {
+                  return (
+                    <div className="glass-card" style={{ padding: '36px', background: '#ffffff', borderRadius: '16px', marginTop: '20px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '12px' }}>📊</div>
+                      <h4 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                        No Website Visitor Data Yet
+                      </h4>
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '520px', margin: '0 auto 18px auto', lineHeight: 1.5 }}>
+                        Once you embed the LetsTrack widget snippet into your website, your real-time visitor journeys, conversion funnel, and buying intent radar will appear here automatically.
+                      </p>
+                      <button
+                        onClick={() => setActiveTab('customize')}
+                        style={{
+                          background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '9px 18px',
+                          borderRadius: '8px',
+                          fontWeight: 700,
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)'
+                        }}
                       >
-                        Engage Live
+                        ⚙️ Get Widget Embed Snippet
                       </button>
                     </div>
+                  );
+                }
 
-                    <div style={{ padding: '12px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: '13px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>⚡ Warm Prospects (50–79%)</span>
+                // If Demo or has real data
+                const displayTotal = isDemo ? 1450 : totalVisitorsCount;
+                const displayFeatures = isDemo ? 680 : featuresCount;
+                const displayPricing = isDemo ? 320 : pricingCount;
+                const displayChats = isDemo ? 149 : chatCount;
+                const displayConverted = isDemo ? 42 : convertedCount;
+
+                const featuresPct = displayTotal > 0 ? ((displayFeatures / displayTotal) * 100).toFixed(1) : '0';
+                const pricingPct = displayTotal > 0 ? ((displayPricing / displayTotal) * 100).toFixed(1) : '0';
+                const chatsPct = displayTotal > 0 ? ((displayChats / displayTotal) * 100).toFixed(1) : '0';
+                const convertedPct = displayTotal > 0 ? ((displayConverted / displayTotal) * 100).toFixed(1) : '0';
+
+                return (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px', marginTop: '20px' }}>
+                      {/* Funnel Card */}
+                      <div className="glass-card" style={{ padding: '24px', background: '#ffffff', borderRadius: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                          <h4 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>🎯 Conversion Funnel & Drop-Off Leak Analysis</h4>
+                          {isDemo && <span style={{ fontSize: '11px', color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>Demo Simulated</span>}
                         </div>
-                        <div style={{ fontSize: '11.5px', color: '#b45309', marginTop: '2px' }}>
-                          34 visitors reading features & WordPress setup
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>1. Total Website Traffic</span>
+                              <strong>{displayTotal} (100%)</strong>
+                            </div>
+                            <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ width: '100%', height: '100%', background: '#3b82f6', borderRadius: '4px' }}></div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>2. Explored Features (/features)</span>
+                              <strong>{displayFeatures} ({featuresPct}%)</strong>
+                            </div>
+                            <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ width: `${Math.min(100, featuresPct)}%`, height: '100%', background: '#6366f1', borderRadius: '4px' }}></div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>3. Evaluated Pricing (/pricing)</span>
+                              <strong style={{ color: '#dc2626' }}>{displayPricing} ({pricingPct}%)</strong>
+                            </div>
+                            <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ width: `${Math.min(100, pricingPct)}%`, height: '100%', background: '#f59e0b', borderRadius: '4px' }}></div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>4. Initiated Live Chat (Agent Connect)</span>
+                              <strong>{displayChats} ({chatsPct}%)</strong>
+                            </div>
+                            <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ width: `${Math.min(100, chatsPct)}%`, height: '100%', background: '#10b981', borderRadius: '4px' }}></div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>5. Converted / Closed Paid Tier</span>
+                              <strong style={{ color: '#16a34a' }}>{displayConverted} ({convertedPct}%)</strong>
+                            </div>
+                            <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ width: `${Math.min(100, convertedPct)}%`, height: '100%', background: 'linear-gradient(90deg, #10b981, #059669)', borderRadius: '4px' }}></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#b45309' }}>34 Active</span>
-                    </div>
 
-                    <div style={{ padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: '13px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>👀 General Browsers (&lt;50%)</span>
+                      {/* Lead Intent Radar Card */}
+                      <div className="glass-card" style={{ padding: '24px', background: '#ffffff', borderRadius: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                          <h4 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>🔥 Lead Intent & Upsell Radar</h4>
+                          <span style={{ fontSize: '11px', color: '#dc2626', background: '#fee2e2', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>Real-Time Scoring</span>
                         </div>
-                        <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                          97 visitors exploring landing page & articles
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div style={{ padding: '12px', background: '#fef2f2', border: '1px solid #fecdd3', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: '13px', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>🔥 Hot Leads (80–100% Intent)</span>
+                              </div>
+                              <div style={{ fontSize: '11.5px', color: '#dc2626', marginTop: '2px' }}>
+                                {isDemo ? '18 visitors on /pricing or /checkout >2m' : `${hotLeads.length} high-intent visitors detected`}
+                              </div>
+                            </div>
+                            <button 
+                              onClick={() => setActiveTab('monitor')}
+                              style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              Engage Live
+                            </button>
+                          </div>
+
+                          <div style={{ padding: '12px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: '13px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>⚡ Warm Prospects (50–79%)</span>
+                              </div>
+                              <div style={{ fontSize: '11.5px', color: '#b45309', marginTop: '2px' }}>
+                                {isDemo ? '34 visitors reading features & WordPress setup' : `${warmLeads.length} prospects browsing documentation`}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#b45309' }}>{isDemo ? 34 : warmLeads.length} Active</span>
+                          </div>
+
+                          <div style={{ padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: '13px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>👀 General Browsers (&lt;50%)</span>
+                              </div>
+                              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                {isDemo ? '97 visitors exploring landing page & articles' : `${browserLeads.length} visitors on site`}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-secondary)' }}>{isDemo ? 97 : browserLeads.length} Active</span>
+                          </div>
                         </div>
                       </div>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-secondary)' }}>97 Active</span>
                     </div>
-                  </div>
-                </div>
-              </div>
 
-              {/* 4. Top High-Converting URLs & Upsell Opportunities Table */}
-              <div className="glass-card" style={{ padding: '24px', background: '#ffffff', borderRadius: '16px', marginTop: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                  <h4 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>📍 Top High-Converting URLs & Exit Dwell Times</h4>
-                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Updated live every 5s</span>
-                </div>
+                    {/* 4. Top High-Converting URLs Table */}
+                    <div className="glass-card" style={{ padding: '24px', background: '#ffffff', borderRadius: '16px', marginTop: '20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                        <h4 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>📍 Top High-Converting URLs & Exit Dwell Times</h4>
+                        <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Updated live every 5s</span>
+                      </div>
 
-                <table className="visitor-list-table" style={{ width: '100%' }}>
-                  <thead>
-                    <tr>
-                      <th>Website URL Path</th>
-                      <th>Traffic Volume</th>
-                      <th>Avg Dwell Time</th>
-                      <th>Chat Conversion</th>
-                      <th>Upsell Opportunity</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="visitor-row">
-                      <td><span className="path-tag">/pricing</span></td>
-                      <td style={{ fontWeight: 700 }}>320 visits</td>
-                      <td>2m 45s</td>
-                      <td><strong style={{ color: '#16a34a' }}>46.5%</strong></td>
-                      <td>
-                        <span style={{ background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
-                          🔥 High Upsell Potential
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="visitor-row">
-                      <td><span className="path-tag">/checkout</span></td>
-                      <td style={{ fontWeight: 700 }}>85 visits</td>
-                      <td>1m 30s</td>
-                      <td><strong style={{ color: '#16a34a' }}>68.2%</strong></td>
-                      <td>
-                        <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
-                          ⚡ Instant Deal Closer
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="visitor-row">
-                      <td><span className="path-tag">/features</span></td>
-                      <td style={{ fontWeight: 700 }}>680 visits</td>
-                      <td>1m 15s</td>
-                      <td><strong>21.9%</strong></td>
-                      <td>
-                        <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
-                          💡 Feature Clarification
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="visitor-row">
-                      <td><span className="path-tag">/wordpress-plugin</span></td>
-                      <td style={{ fontWeight: 700 }}>240 visits</td>
-                      <td>3m 10s</td>
-                      <td><strong>38.0%</strong></td>
-                      <td>
-                        <span style={{ background: '#f3e8ff', color: '#7e22ce', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
-                          🔌 Technical Onboarding
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="visitor-row">
-                      <td><span className="path-tag">/</span></td>
-                      <td style={{ fontWeight: 700 }}>1,450 visits</td>
-                      <td>45s</td>
-                      <td><strong>12.4%</strong></td>
-                      <td>
-                        <span style={{ background: '#f1f5f9', color: 'var(--text-secondary)', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>
-                          🌐 Top Entry Point
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                      <table className="visitor-list-table" style={{ width: '100%' }}>
+                        <thead>
+                          <tr>
+                            <th>Website URL Path</th>
+                            <th>Traffic Volume</th>
+                            <th>Avg Dwell Time</th>
+                            <th>Chat Conversion</th>
+                            <th>Upsell Opportunity</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {isDemo ? (
+                            <>
+                              <tr className="visitor-row">
+                                <td><span className="path-tag">/pricing</span></td>
+                                <td style={{ fontWeight: 700 }}>320 visits</td>
+                                <td>2m 45s</td>
+                                <td><strong style={{ color: '#16a34a' }}>46.5%</strong></td>
+                                <td><span style={{ background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>🔥 High Upsell Potential</span></td>
+                              </tr>
+                              <tr className="visitor-row">
+                                <td><span className="path-tag">/checkout</span></td>
+                                <td style={{ fontWeight: 700 }}>85 visits</td>
+                                <td>1m 30s</td>
+                                <td><strong style={{ color: '#16a34a' }}>68.2%</strong></td>
+                                <td><span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>⚡ Instant Deal Closer</span></td>
+                              </tr>
+                              <tr className="visitor-row">
+                                <td><span className="path-tag">/features</span></td>
+                                <td style={{ fontWeight: 700 }}>680 visits</td>
+                                <td>1m 15s</td>
+                                <td><strong>21.9%</strong></td>
+                                <td><span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>💡 Feature Clarification</span></td>
+                              </tr>
+                              <tr className="visitor-row">
+                                <td><span className="path-tag">/wordpress-plugin</span></td>
+                                <td style={{ fontWeight: 700 }}>240 visits</td>
+                                <td>3m 10s</td>
+                                <td><strong>38.0%</strong></td>
+                                <td><span style={{ background: '#f3e8ff', color: '#7e22ce', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>🔌 Technical Onboarding</span></td>
+                              </tr>
+                              <tr className="visitor-row">
+                                <td><span className="path-tag">/</span></td>
+                                <td style={{ fontWeight: 700 }}>1,450 visits</td>
+                                <td>45s</td>
+                                <td><strong>12.4%</strong></td>
+                                <td><span style={{ background: '#f1f5f9', color: 'var(--text-secondary)', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>🌐 Top Entry Point</span></td>
+                              </tr>
+                            </>
+                          ) : (
+                            realUrls.map((item, idx) => (
+                              <tr key={idx} className="visitor-row">
+                                <td><span className="path-tag">{item.url}</span></td>
+                                <td style={{ fontWeight: 700 }}>{item.visits} visits</td>
+                                <td>{item.avgDwell}</td>
+                                <td><strong style={{ color: '#16a34a' }}>{item.chatRate}</strong></td>
+                                <td><span style={{ background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{item.tag}</span></td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
 
