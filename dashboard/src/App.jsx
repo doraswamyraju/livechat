@@ -3175,26 +3175,54 @@ function App() {
                     </div>
 
                     <div className="chat-messages-board" ref={messagesContainerRef}>
-                      {/* Initial Real-Time Footprint Summary in Chat Stream */}
+                      {/* 1. Agent-Only Privacy Notice Banner */}
+                      <div style={{
+                        background: '#f0fdf4',
+                        border: '1px solid #bbf7d0',
+                        borderRadius: '10px',
+                        padding: '9px 16px',
+                        margin: '0 auto 10px auto',
+                        width: '100%',
+                        maxWidth: '92%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        fontSize: '12px',
+                        color: '#166534',
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.02)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '15px' }}>🔒</span>
+                          <span>
+                            <strong>Agent-Only Telemetry View:</strong> This real-time visitor activity trail and device footprint is 100% private to your dashboard. Your customer's chat widget is clean, minimal, and contains none of this background data.
+                          </span>
+                        </div>
+                        <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '12px', fontSize: '10.5px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                          🛡️ Internal Only
+                        </span>
+                      </div>
+
+                      {/* 2. Initial Real-Time Footprint Summary in Chat Stream */}
                       <div style={{ 
                         background: '#ffffff', 
                         border: '1px solid var(--border-color)', 
                         borderRadius: '12px', 
-                        padding: '12px 16px', 
-                        margin: '0 auto 8px auto', 
+                        padding: '14px 18px', 
+                        margin: '0 auto 10px auto', 
                         width: '100%', 
                         maxWidth: '92%', 
                         boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '8px'
+                        gap: '10px'
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                            <span>🛰️ Live Visitor Telemetry & Origin</span>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            <span>🛰️ Live Visitor Telemetry & Device Footprint</span>
                             <span style={{ background: '#dcfce7', color: '#16a34a', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>Active Online</span>
                           </div>
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 600 }}>
                             🌍 {selectedVisitor?.city || 'Toronto'}, {selectedVisitor?.country || 'Canada'}
                           </span>
                         </div>
@@ -3210,11 +3238,61 @@ function App() {
                           </div>
                           <div>
                             <span style={{ color: 'var(--text-muted)' }}>Referral: </span>
-                            <strong style={{ color: 'var(--primary)' }}>{selectedVisitor?.referrer || 'Direct / Organic'}</strong>
+                            <strong style={{ color: 'var(--primary)' }}>{selectedVisitor?.referrer || 'Google Organic'}</strong>
                           </div>
                           <div>
-                            <span style={{ color: 'var(--text-muted)' }}>Current Page: </span>
+                            <span style={{ color: 'var(--text-muted)' }}>Active URL: </span>
                             <strong style={{ fontFamily: 'monospace', color: '#dc2626' }}>{selectedVisitor?.currentUrl || '/pricing'}</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3. Live 5-Step Action & Journey Trail */}
+                      <div style={{
+                        background: '#ffffff',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '12px',
+                        padding: '14px 18px',
+                        margin: '0 auto 14px auto',
+                        width: '100%',
+                        maxWidth: '92%',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '14px' }}>📡</span>
+                            <strong style={{ fontSize: '12.5px', color: 'var(--text-primary)' }}>Live Visitor Journey & Action Log (5 Steps Tracked)</strong>
+                          </div>
+                          <span style={{ fontSize: '10.5px', color: '#dc2626', fontWeight: 800, background: '#fee2e2', padding: '2px 8px', borderRadius: '12px' }}>
+                            ● Live Tracking Stream
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', position: 'relative', paddingLeft: '18px', borderLeft: '2px dashed #e2e8f0', marginLeft: '6px' }}>
+                          <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                            <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6', border: '2px solid white' }}></span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:54:10</span>
+                            <strong>📍 Landed on Homepage</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>/</span> <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>via Google Search organic search</span>
+                          </div>
+                          <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                            <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#6366f1', border: '2px solid white' }}></span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:54:45</span>
+                            <strong>📜 Browsed Features Page</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>/features</span> <span style={{ color: '#059669', fontSize: '11px', fontWeight: 600 }}>(Scrolled 85% depth)</span>
+                          </div>
+                          <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                            <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b', border: '2px solid white' }}></span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:55:12</span>
+                            <strong>⚡ High-Intent Click:</strong> <span style={{ color: 'var(--text-secondary)' }}>Clicked "Compare Growth vs Business" button</span>
+                          </div>
+                          <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                            <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#dc2626', border: '2px solid white' }}></span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:55:38</span>
+                            <strong>🎯 Navigated to Pricing</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>{selectedVisitor?.currentUrl || '/pricing'}</span> <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '11px' }}>(Evaluating Growth Plan)</span>
+                          </div>
+                          <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                            <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', border: '2px solid white' }}></span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:56:02</span>
+                            <strong>💬 Opened Chat Widget</strong> <span style={{ color: '#059669', fontSize: '11px', fontWeight: 600 }}>Sent initial inquiry via live widget</span>
                           </div>
                         </div>
                       </div>
