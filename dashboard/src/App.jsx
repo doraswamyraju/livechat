@@ -61,9 +61,18 @@ function App() {
 
   // Channel SVG Icon Component Helper
   const renderChannelIcon = (source, size = 14) => {
-    switch (source) {
+    let rawSource = typeof source === 'object' && source !== null 
+      ? (source.source || source.channel) 
+      : source;
+      
+    if (typeof rawSource === 'string') {
+      rawSource = rawSource.toLowerCase().trim();
+    }
+
+    switch (rawSource) {
       case 'whatsapp-web':
       case 'whatsapp-api':
+      case 'whatsapp':
         return (
           <svg width={size} height={size} viewBox="0 0 24 24" fill="#25D366" style={{ flexShrink: 0 }}>
             <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c4.54 0 8.24 3.7 8.24 8.24 0 2.2-.86 4.27-2.42 5.82a8.19 8.19 0 0 1-5.82 2.42c-1.46 0-2.89-.39-4.14-1.13l-.3-.18-3.11.82.83-3.03-.2-.31a8.21 8.21 0 0 1-1.26-4.41c0-4.54 3.7-8.24 8.24-8.24zm4.8 11.66c-.2-.1-.7-.35-.8-.4-.1-.05-.18-.08-.25.08-.08.15-.3.4-.38.48-.08.08-.15.1-.25.05-.7-.35-1.35-.76-1.89-1.32-.42-.44-.75-.95-.98-1.5-.08-.18.08-.27.18-.37.09-.09.2-.23.3-.35.1-.12.13-.2.2-.33.07-.13.03-.25-.02-.35-.05-.1-.45-1.08-.62-1.48-.16-.39-.33-.34-.45-.34h-.38c-.13 0-.35.05-.53.25-.18.2-.7.68-.7 1.66 0 .98.71 1.93.81 2.06.1.13 1.4 2.14 3.39 3 1.99.86 1.99.57 2.35.54.36-.03 1.16-.47 1.32-.93.16-.46.16-.85.11-.93-.05-.08-.18-.13-.38-.23z"/>
@@ -82,9 +91,11 @@ function App() {
           </svg>
         );
       case 'webchat':
+      case 'web':
+      case 'website':
       default:
         return (
-          <svg width={size} height={size} viewBox="0 0 24 24" fill="#818CF8" style={{ flexShrink: 0 }}>
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="#6366F1" style={{ flexShrink: 0 }}>
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
           </svg>
         );
@@ -92,39 +103,56 @@ function App() {
   };
 
   const renderSourceBadge = (source) => {
+    let rawSource = typeof source === 'object' && source !== null 
+      ? (source.source || source.channel) 
+      : source;
+    
+    if (typeof rawSource === 'string') {
+      rawSource = rawSource.toLowerCase().trim();
+    }
+    
     let label = 'Web';
-    let bg = 'rgba(99, 102, 241, 0.12)';
-    let color = '#818CF8';
+    let bg = '#eef2ff';
+    let color = '#4f46e5';
 
-    switch (source) {
+    switch (rawSource) {
       case 'whatsapp-web':
+      case 'whatsapp':
         label = 'WhatsApp';
-        bg = 'rgba(37, 211, 102, 0.12)';
-        color = '#25D366';
+        bg = '#dcfce7';
+        color = '#16a34a';
         break;
       case 'whatsapp-api':
         label = 'WA API';
-        bg = 'rgba(20, 184, 166, 0.12)';
-        color = '#2DD4BF';
+        bg = '#ccfbf1';
+        color = '#0d9488';
         break;
       case 'facebook':
         label = 'Messenger';
-        bg = 'rgba(0, 132, 255, 0.12)';
-        color = '#60A5FA';
+        bg = '#eff6ff';
+        color = '#2563eb';
         break;
       case 'instagram':
         label = 'Instagram';
-        bg = 'rgba(225, 48, 108, 0.12)';
-        color = '#F472B6';
+        bg = '#fdf2f8';
+        color = '#db2777';
+        break;
+      case 'webchat':
+      case 'web':
+      case 'website':
+      default:
+        label = 'Web';
+        bg = '#eef2ff';
+        color = '#4f46e5';
         break;
     }
 
     return (
       <span 
         className="channel-tag-pill" 
-        style={{ backgroundColor: bg, color: color }}
+        style={{ backgroundColor: bg, color: color, fontWeight: 700 }}
       >
-        {renderChannelIcon(source, 12)} {label}
+        {renderChannelIcon(rawSource, 12)} {label}
       </span>
     );
   };
@@ -970,9 +998,9 @@ function App() {
     ]);
 
     setConversations([
-      { _id: 'c1', visitorId: { _id: 'v1', name: 'Visitor #8402 (USA)' }, status: 'Unassigned', channel: 'webchat', unreadCount: 1, lastMessageText: 'Does your WordPress plugin support multisite?', updatedAt: new Date().toISOString() },
-      { _id: 'c2', visitorId: { _id: 'v2', name: '@sarah_designs (Instagram DM)' }, status: 'Active', channel: 'instagram', unreadCount: 1, lastMessageText: 'Hi! Can I get a discount for 5 website licenses?', updatedAt: new Date().toISOString() },
-      { _id: 'c3', visitorId: { _id: 'v3', name: 'Alex Rivers (FB Messenger)' }, status: 'Assigned', channel: 'facebook', unreadCount: 0, lastMessageText: 'Scheduling live demo for tomorrow!', updatedAt: new Date().toISOString() }
+      { _id: 'c1', visitorId: { _id: 'v1', name: 'Visitor #8402 (USA)' }, status: 'Unassigned', source: 'webchat', channel: 'webchat', unreadCount: 1, lastMessageText: 'Does your WordPress plugin support multisite?', updatedAt: new Date().toISOString() },
+      { _id: 'c2', visitorId: { _id: 'v2', name: '@sarah_designs (Instagram DM)' }, status: 'Active', source: 'instagram', channel: 'instagram', unreadCount: 1, lastMessageText: 'Hi! Can I get a discount for 5 website licenses?', updatedAt: new Date().toISOString() },
+      { _id: 'c3', visitorId: { _id: 'v3', name: 'Alex Rivers (FB Messenger)' }, status: 'Assigned', source: 'facebook', channel: 'facebook', unreadCount: 0, lastMessageText: 'Scheduling live demo for tomorrow!', updatedAt: new Date().toISOString() }
     ]);
 
     setAnalytics({
@@ -1019,6 +1047,7 @@ function App() {
       _id: `c_${id}`,
       visitorId: { _id: `v_${id}`, name: `@user_${id} (Instagram DM)` },
       status: 'Unassigned',
+      source: 'instagram',
       channel: 'instagram',
       unreadCount: 1,
       lastMessageText: 'Hey! Saw your story about LetsTrack. How fast is the WordPress setup?',
