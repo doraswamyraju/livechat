@@ -761,13 +761,39 @@ app.delete('/api/conversations/:conversationId', authenticateToken, async (req, 
   const { conversationId } = req.params;
 
   try {
-    const conv = await Conversation.findOne({ _id: conversationId, tenantId: req.user.tenantId });
-    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    const tenantQuery = mongoose.Types.ObjectId.isValid(req.user.tenantId) 
+      ? { $in: [req.user.tenantId, new mongoose.Types.ObjectId(req.user.tenantId)] }
+      : req.user.tenantId;
 
-    await Message.deleteMany({ conversationId });
-    await conv.deleteOne();
+    let conv = null;
+    if (mongoose.Types.ObjectId.isValid(conversationId)) {
+      conv = await Conversation.findOne({ _id: conversationId, tenantId: tenantQuery });
+    }
+    
+    // If not found by ObjectId, search by visitorId or clean ID
+    if (!conv) {
+      conv = await Conversation.findOne({ visitorId: conversationId, tenantId: tenantQuery });
+    }
+    if (!conv && conversationId.startsWith('c_')) {
+      const strippedId = conversationId.substring(2);
+      if (mongoose.Types.ObjectId.isValid(strippedId)) {
+        conv = await Conversation.findOne({ _id: strippedId, tenantId: tenantQuery });
+      }
+      if (!conv) {
+        conv = await Conversation.findOne({ visitorId: strippedId, tenantId: tenantQuery });
+      }
+    }
 
-    dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversation-deleted', { conversationId });
+    if (conv) {
+      await Message.deleteMany({ conversationId: conv._id });
+      await conv.deleteOne();
+    }
+
+    if (dashboardNamespace) {
+      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversation-deleted', { 
+        conversationId: conv ? conv._id.toString() : conversationId 
+      });
+    }
 
     res.status(200).json({ message: 'Conversation deleted successfully', conversationId });
   } catch (err) {

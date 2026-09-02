@@ -316,6 +316,9 @@ function App() {
   const [seatInfo, setSeatInfo] = useState({ used: 1, max: 1, plan: 'free' });
   const [inboxSearchQuery, setInboxSearchQuery] = useState('');
 
+  // Global Demo Account Detector
+  const isDemo = user?.email === 'demo@letstrack.io' || token === 'demo_jwt_token_simulation_99201' || tenant?.id === 'demo-tenant-99';
+
   // UI Toast feedback
   const [toast, setToast] = useState(null);
 
@@ -1599,17 +1602,23 @@ function App() {
     fetch(`${BACKEND_URL}/api/quick-replies`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
-      .then(data => setQuickReplies(data))
+      .then(async res => {
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) setQuickReplies(data);
+        }
+      })
       .catch(err => console.error('Error fetching quick replies:', err));
 
     // Fetch Upsell Pitches
     fetch(`${BACKEND_URL}/api/upsell-pitches`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setUpsellPitches(data);
+      .then(async res => {
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) setUpsellPitches(data);
+        }
       })
       .catch(err => console.error('Error fetching upsell pitches:', err));
 
