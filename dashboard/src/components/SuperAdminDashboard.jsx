@@ -5,11 +5,12 @@ export default function SuperAdminDashboard({
   user,
   BACKEND_URL,
   showToast,
-  onNavigateTab,
+  onLogout,
   onImpersonateSuccess
 }) {
   // Navigation
-  const [activeSubTab, setActiveSubTab] = useState('tenants'); // 'tenants' | 'meta' | 'payments' | 'users' | 'logs'
+  const [activeTab, setActiveTab] = useState('workspaces'); // 'workspaces' | 'meta' | 'payments' | 'users' | 'logs'
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -332,7 +333,6 @@ export default function SuperAdminDashboard({
       if (!res.ok) throw new Error(data.error || 'Message sync failed');
 
       showToast(`⚡ Inbound ${channel === 'instagram' ? 'Instagram DM' : 'WhatsApp Lead'} synced to Inbox!`);
-      if (onNavigateTab) onNavigateTab('chat');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -410,7 +410,7 @@ export default function SuperAdminDashboard({
     }
   };
 
-  // Filtering helper
+  // Filter helpers
   const filteredTenants = tenants.filter(t => 
     t.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.domain?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -425,701 +425,782 @@ export default function SuperAdminDashboard({
   );
 
   return (
-    <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', maxWidth: '1440px', margin: '0 auto' }}>
+    <div style={{ display: 'flex', height: '100vh', width: '100vw', background: 'var(--bg-primary, #0B0E14)', overflow: 'hidden', color: 'var(--text-primary, #F3F4F6)', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
-      {/* Header & Status */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      {/* 1. DEDICATED SUPERADMIN SIDEBAR */}
+      <div style={{
+        width: sidebarCollapsed ? '76px' : '260px',
+        minWidth: sidebarCollapsed ? '76px' : '260px',
+        height: '100%',
+        background: '#111827',
+        borderRight: '1px solid #1f2937',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        transition: 'width 0.2s ease',
+        zIndex: 100
+      }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-              Platform Enterprise Command Center
-            </h2>
-            <span style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', padding: '3px 10px', borderRadius: '12px', fontSize: '11.5px', fontWeight: 800 }}>
-              🛡️ SuperAdmin Master Access
-            </span>
-          </div>
-          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Real-time client workspace administration, Meta Omnichannel gateways, financial ledger, and platform infrastructure.
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button 
-            onClick={() => setManualPaymentModal(true)} 
-            style={{ 
-              background: 'linear-gradient(135deg, #10b981, #059669)', 
-              color: '#ffffff', 
-              border: 'none', 
-              padding: '9px 16px', 
-              borderRadius: '8px', 
-              fontWeight: 700, 
-              fontSize: '13px', 
-              cursor: 'pointer', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px',
-              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-            }}
-          >
-            💳 Record Offline Payment
-          </button>
-          <button 
-            onClick={fetchOverviewData} 
-            style={{ 
-              background: 'var(--bg-tertiary)', 
-              border: '1px solid var(--border-color)', 
-              color: 'var(--text-primary)', 
-              padding: '9px 16px', 
-              borderRadius: '8px', 
-              fontWeight: 600, 
-              fontSize: '13px', 
-              cursor: 'pointer' 
-            }}
-          >
-            🔄 Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* Metrics Telemetry Strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-        <div className="glass-card" style={{ padding: '20px', borderLeft: '4px solid #dc2626' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Active Workspaces</div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{stats?.totalTenants || tenants.length}</div>
-          <div style={{ fontSize: '11px', color: '#10b981', marginTop: '4px' }}>+{stats?.newTenantsLast30d || 0} joined this month</div>
-        </div>
-
-        <div className="glass-card" style={{ padding: '20px', borderLeft: '4px solid #10b981' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Paid Autopay Mandates</div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>{stats?.activeSubscriptions || 0}</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Razorpay UPI & Card Autopay</div>
-        </div>
-
-        <div className="glass-card" style={{ padding: '20px', borderLeft: '4px solid #3b82f6' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Platform Live MRR</div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>₹{stats?.mrr?.toLocaleString() || 0}</div>
-          <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '4px' }}>Total Collected: ₹{stats?.totalRevenue?.toLocaleString() || 0}</div>
-        </div>
-
-        <div className="glass-card" style={{ padding: '20px', borderLeft: '4px solid #f59e0b' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Platform User Accounts</div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{stats?.totalUsers || usersList.length}</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Across all client tenants</div>
-        </div>
-      </div>
-
-      {/* Sub-Navigation Tabs & Search Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button 
-            onClick={() => setActiveSubTab('tenants')} 
-            style={{ 
-              background: activeSubTab === 'tenants' ? '#fee2e2' : 'transparent', 
-              color: activeSubTab === 'tenants' ? '#dc2626' : 'var(--text-secondary)', 
-              border: 'none', 
-              padding: '8px 16px', 
-              borderRadius: '8px', 
-              fontWeight: 700, 
-              fontSize: '13px', 
-              cursor: 'pointer' 
-            }}
-          >
-            🏢 Workspaces ({tenants.length})
-          </button>
-
-          <button 
-            onClick={() => {
-              setActiveSubTab('meta');
-              fetchMetaAssets();
-              fetchAdCampaigns();
-            }} 
-            style={{ 
-              background: activeSubTab === 'meta' ? 'linear-gradient(135deg, #1877f2, #0d65d9)' : '#eff6ff', 
-              color: activeSubTab === 'meta' ? '#ffffff' : '#1d4ed8', 
-              border: '1px solid #bfdbfe', 
-              padding: '8px 18px', 
-              borderRadius: '8px', 
-              fontWeight: 800, 
-              fontSize: '13px', 
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            ⚡ Meta Omnichannel Hub
-          </button>
-
-          <button 
-            onClick={() => setActiveSubTab('payments')} 
-            style={{ 
-              background: activeSubTab === 'payments' ? '#fee2e2' : 'transparent', 
-              color: activeSubTab === 'payments' ? '#dc2626' : 'var(--text-secondary)', 
-              border: 'none', 
-              padding: '8px 16px', 
-              borderRadius: '8px', 
-              fontWeight: 700, 
-              fontSize: '13px', 
-              cursor: 'pointer' 
-            }}
-          >
-            💳 Financial Ledger ({payments.length})
-          </button>
-
-          <button 
-            onClick={() => setActiveSubTab('users')} 
-            style={{ 
-              background: activeSubTab === 'users' ? '#fee2e2' : 'transparent', 
-              color: activeSubTab === 'users' ? '#dc2626' : 'var(--text-secondary)', 
-              border: 'none', 
-              padding: '8px 16px', 
-              borderRadius: '8px', 
-              fontWeight: 700, 
-              fontSize: '13px', 
-              cursor: 'pointer' 
-            }}
-          >
-            👥 User Accounts ({usersList.length})
-          </button>
-
-          <button 
-            onClick={() => setActiveSubTab('logs')} 
-            style={{ 
-              background: activeSubTab === 'logs' ? '#fee2e2' : 'transparent', 
-              color: activeSubTab === 'logs' ? '#dc2626' : 'var(--text-secondary)', 
-              border: 'none', 
-              padding: '8px 16px', 
-              borderRadius: '8px', 
-              fontWeight: 700, 
-              fontSize: '13px', 
-              cursor: 'pointer' 
-            }}
-          >
-            🛡️ Security Audit Logs ({auditLogs.length})
-          </button>
-        </div>
-
-        <input
-          type="text"
-          placeholder="Search records, domains, API keys..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ background: '#ffffff', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '7px 14px', color: 'var(--text-primary)', fontSize: '12.5px', outline: 'none', width: '260px' }}
-        />
-      </div>
-
-      {/* SUB-TAB 1: WORKSPACES */}
-      {activeSubTab === 'tenants' && (
-        <div className="glass-card" style={{ padding: '20px', overflowX: 'auto', background: '#ffffff', border: '1px solid var(--border-color)' }}>
-          <table className="visitor-list-table">
-            <thead>
-              <tr>
-                <th>Workspace Name</th>
-                <th>Domain & API Key</th>
-                <th>Plan & Seats</th>
-                <th>Admin Contact</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTenants.map(t => (
-                <tr key={t.id} className="visitor-row">
-                  <td style={{ fontWeight: 700 }}>
-                    <div style={{ color: 'var(--text-primary)', fontSize: '14px' }}>{t.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>ID: {t.id}</div>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>{t.domain || 'All Domains Allowed'}</div>
-                    <div style={{ fontSize: '11px', fontFamily: 'monospace', color: '#dc2626' }}>{t.apiKey}</div>
-                  </td>
-                  <td>
-                    <select
-                      value={t.plan}
-                      onChange={(e) => handleUpdateTenantPlan(t.id, e.target.value)}
-                      style={{
-                        background: t.plan === 'business' ? '#fdf2f8' : t.plan === 'growth' ? '#eff6ff' : '#f8fafc',
-                        color: t.plan === 'business' ? '#be185d' : t.plan === 'growth' ? '#1d4ed8' : '#475569',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '6px',
-                        padding: '4px 8px',
-                        fontSize: '11.5px',
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value="free">Free (1 Seat)</option>
-                      <option value="growth">Growth (₹299/mo - 3 Seats)</option>
-                      <option value="business">Business (₹399/mo - 6 Seats)</option>
-                      <option value="enterprise">Enterprise (20 Seats)</option>
-                    </select>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: '12.5px' }}>{t.adminEmail}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Created {new Date(t.createdAt).toLocaleDateString()}</div>
-                  </td>
-                  <td>
-                    <span style={{
-                      background: t.isSuspended ? '#fee2e2' : '#dcfce7',
-                      color: t.isSuspended ? '#dc2626' : '#15803d',
-                      padding: '3px 8px',
-                      borderRadius: '12px',
-                      fontSize: '11px',
-                      fontWeight: 700
-                    }}>
-                      {t.isSuspended ? 'Suspended' : '🟢 Active'}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button
-                        onClick={() => handleImpersonateTenant(t.id, t.name)}
-                        style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                        title="Login as Tenant Admin"
-                      >
-                        🔑 Login
-                      </button>
-                      <button
-                        onClick={() => handleToggleSuspend(t.id, t.isSuspended)}
-                        style={{ background: '#f8fafc', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}
-                      >
-                        {t.isSuspended ? 'Unsuspend' : 'Suspend'}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTenant(t.id, t.name)}
-                        style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* SUB-TAB 2: META ENTERPRISE OMNICHANNEL HUB */}
-      {activeSubTab === 'meta' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
-          
-          {/* Hero Banner: Meta Production Engine Status */}
-          <div className="glass-card" style={{ padding: '24px', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', border: '1px solid #334155', color: '#ffffff' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'linear-gradient(135deg, #1877f2, #0066ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px', boxShadow: '0 8px 20px rgba(24, 119, 242, 0.4)' }}>
-                  ⚡
+          {/* Brand Header */}
+          <div style={{ padding: '20px 16px', display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'space-between', borderBottom: '1px solid #1f2937' }}>
+            {!sidebarCollapsed && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #dc2626, #991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, fontSize: '16px', boxShadow: '0 4px 12px rgba(220, 38, 38, 0.4)' }}>
+                  LT
                 </div>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>Meta Omnichannel Enterprise Hub</h3>
-                    <span style={{ background: 'rgba(24, 119, 242, 0.25)', color: '#60a5fa', border: '1px solid rgba(96, 165, 250, 0.4)', padding: '3px 10px', borderRadius: '12px', fontSize: '11.5px', fontWeight: 700 }}>
-                      App ID: 1311990813621733
-                    </span>
-                    <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '3px 10px', borderRadius: '12px', fontSize: '11.5px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981' }}></span> Live Production Engine
-                    </span>
-                  </div>
-                  <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
-                    Unified messaging gateway connecting <strong>WhatsApp Cloud Business API</strong>, <strong>Instagram Direct Messenger</strong>, and <strong>Meta Ad Campaigns & Attribution</strong>.
-                  </p>
+                  <div style={{ fontWeight: 800, fontSize: '15px', color: '#ffffff', letterSpacing: '-0.02em', lineHeight: 1.2 }}>LetsTrack Master</div>
+                  <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform SuperAdmin</span>
                 </div>
               </div>
-
-              <button
-                onClick={handleFacebookLogin}
-                disabled={connectingMeta}
-                style={{
-                  background: 'linear-gradient(135deg, #1877f2, #0d65d9)',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '12px 24px',
-                  borderRadius: '10px',
-                  fontSize: '14px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  boxShadow: '0 6px 18px rgba(24, 119, 242, 0.4)'
-                }}
-              >
-                {connectingMeta ? '🔄 Authenticating...' : '🔗 Connect Meta Business Account (OAuth)'}
-              </button>
-            </div>
-          </div>
-
-          {/* 3 Live Enterprise Hub Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
-            
-            {/* Live Hub 1: Instagram Direct Messenger */}
-            <div className="glass-card" style={{ padding: '22px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '14px', border: '1px solid var(--border-color)', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '20px' }}>📸</span>
-                  <h4 style={{ margin: 0, fontSize: '15.5px', fontWeight: 800, color: 'var(--text-primary)' }}>Instagram Business Messenger</h4>
-                </div>
-                <span style={{ background: '#fdf2f8', color: '#be185d', border: '1px solid #fbcfe8', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
-                  Live IG DM Gateway
-                </span>
-              </div>
-              
-              <div style={{ background: '#faf5ff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #f3e8ff', fontSize: '12.5px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div><strong>Connected Business Page:</strong> {metaAssets.meta?.pageId ? `Page ID ${metaAssets.meta.pageId}` : 'ManaCity Business'}</div>
-                <div><strong>Instagram Account:</strong> {metaAssets.meta?.instagramAccountId ? `IG @manacity.in` : '@manacity.in'}</div>
-                <div><strong>Live Webhook Status:</strong> <span style={{ color: '#16a34a', fontWeight: 800 }}>🟢 Subscribed & Active (messages)</span></div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
-                <button
-                  onClick={() => handleTriggerTestMsg('instagram')}
-                  style={{ flex: 1, background: 'linear-gradient(135deg, #a855f7, #9333ea)', color: '#fff', border: 'none', padding: '9px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  📨 Receive Inbound Instagram DM
-                </button>
-                <button
-                  onClick={() => onNavigateTab && onNavigateTab('chat')}
-                  style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: 'var(--text-primary)', padding: '9px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  💬 Open Inbox
-                </button>
-              </div>
-            </div>
-
-            {/* Live Hub 2: WhatsApp Cloud Business API */}
-            <div className="glass-card" style={{ padding: '22px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '14px', border: '1px solid var(--border-color)', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '20px' }}>🟢</span>
-                  <h4 style={{ margin: 0, fontSize: '15.5px', fontWeight: 800, color: 'var(--text-primary)' }}>WhatsApp Cloud Business API</h4>
-                </div>
-                <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
-                  Official WABA Engine
-                </span>
-              </div>
-
-              <div style={{ background: '#f0fdf4', padding: '12px 14px', borderRadius: '10px', border: '1px solid #dcfce7', fontSize: '12.5px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div><strong>Phone Number ID:</strong> {metaAssets.whatsappApi?.phoneNumberId || '111738020188242'}</div>
-                <div><strong>Support Window:</strong> <span style={{ color: '#16a34a', fontWeight: 800 }}>🟢 24h Interactive Messaging Active</span></div>
-                <div><strong>Webhook Gateway:</strong> <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#15803d' }}>/api/integrations/whatsapp-api/webhook</span></div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
-                <button
-                  onClick={() => handleTriggerTestMsg('whatsapp')}
-                  style={{ flex: 1, background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', border: 'none', padding: '9px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  📨 Receive Inbound WhatsApp Lead
-                </button>
-                <button
-                  onClick={() => onNavigateTab && onNavigateTab('chat')}
-                  style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: 'var(--text-primary)', padding: '9px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  💬 Open Inbox
-                </button>
-              </div>
-            </div>
-
-            {/* Live Hub 3: Meta Ads & Marketing API */}
-            <div className="glass-card" style={{ padding: '22px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '14px', border: '1px solid var(--border-color)', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '20px' }}>📊</span>
-                  <h4 style={{ margin: 0, fontSize: '15.5px', fontWeight: 800, color: 'var(--text-primary)' }}>Meta Marketing & Ad Campaigns</h4>
-                </div>
-                <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
-                  Marketing API Active
-                </span>
-              </div>
-
-              <div style={{ background: '#eff6ff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #dbeafe', fontSize: '12.5px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div><strong>Managed Campaigns:</strong> {adCampaigns.length} Active in Meta Ads</div>
-                <div><strong>Attribution Engine:</strong> <span style={{ color: '#1d4ed8', fontWeight: 800 }}>UTM Tracking & Live Conversions</span></div>
-                <div><strong>Campaign Management:</strong> Full CRUD & Status Controls</div>
-              </div>
-
-              <button
-                onClick={() => setShowNewCampaignModal(true)}
-                style={{ background: 'linear-gradient(135deg, #1d4ed8, #1e40af)', color: '#fff', border: 'none', padding: '9px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', marginTop: 'auto' }}
-              >
-                ➕ Launch New Ad Campaign
-              </button>
-            </div>
-
-          </div>
-
-          {/* Live Meta Ad Campaigns Table */}
-          <div className="glass-card" style={{ padding: '22px', background: '#ffffff', border: '1px solid var(--border-color)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)' }}>Live Meta Ad Campaigns & Conversion Attribution</h4>
-                <p style={{ margin: '3px 0 0 0', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-                  Real-time campaign management, budget pacing, and direct chat lead attribution powered by Meta Marketing API.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowNewCampaignModal(true)}
-                style={{ background: 'linear-gradient(135deg, #1d4ed8, #1e40af)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}
-              >
-                ➕ Create Campaign
-              </button>
-            </div>
-
-            <table className="visitor-list-table">
-              <thead>
-                <tr>
-                  <th>Campaign Name</th>
-                  <th>Objective</th>
-                  <th>Daily Budget</th>
-                  <th>Impressions</th>
-                  <th>Clicks</th>
-                  <th>Attributed Live Chats</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {adCampaigns.map(camp => (
-                  <tr key={camp.id} className="visitor-row">
-                    <td style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{camp.name}</td>
-                    <td><span className="path-tag">{camp.objective}</span></td>
-                    <td style={{ fontWeight: 600 }}>{camp.dailyBudget}</td>
-                    <td>{camp.impressions.toLocaleString()}</td>
-                    <td style={{ fontWeight: 700 }}>{camp.clicks}</td>
-                    <td><strong style={{ color: '#16a34a' }}>{camp.conversions} chats</strong></td>
-                    <td>
-                      <span style={{
-                        background: camp.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2',
-                        color: camp.status === 'ACTIVE' ? '#15803d' : '#dc2626',
-                        padding: '3px 10px',
-                        borderRadius: '12px',
-                        fontSize: '11px',
-                        fontWeight: 800
-                      }}>
-                        {camp.status}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        onClick={() => handleToggleAdCampaign(camp.id)}
-                        style={{
-                          background: camp.status === 'ACTIVE' ? '#fef2f2' : '#f0fdf4',
-                          color: camp.status === 'ACTIVE' ? '#dc2626' : '#16a34a',
-                          border: '1px solid var(--border-color)',
-                          padding: '5px 12px',
-                          borderRadius: '6px',
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {camp.status === 'ACTIVE' ? '⏸️ Pause' : '▶️ Activate'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-        </div>
-      )}
-
-      {/* SUB-TAB 3: FINANCIAL LEDGER */}
-      {activeSubTab === 'payments' && (
-        <div className="glass-card" style={{ padding: '20px', overflowX: 'auto', background: '#ffffff', border: '1px solid var(--border-color)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)' }}>Transaction Ledger & Subscription Payments</h4>
-            <button 
-              onClick={() => setManualPaymentModal(true)} 
-              style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+            )}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              style={{ background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '14px', padding: '4px' }}
+              title={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
             >
-              ➕ Add Offline Payment
+              {sidebarCollapsed ? '▶' : '◀'}
             </button>
           </div>
 
-          <table className="visitor-list-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Client Workspace</th>
-                <th>Plan & Type</th>
-                <th>Amount (INR)</th>
-                <th>Payment ID / Method</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map(p => (
-                <tr key={p._id} className="visitor-row">
-                  <td style={{ fontSize: '12.5px', whiteSpace: 'nowrap' }}>{new Date(p.createdAt).toLocaleDateString()}</td>
-                  <td style={{ fontWeight: 700 }}>
-                    <div>{p.tenantId?.name || 'Unknown Client'}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{p.tenantId?.domain}</div>
-                  </td>
-                  <td>
-                    <span className="path-tag" style={{ textTransform: 'capitalize' }}>{p.plan} ({p.type || 'subscription'})</span>
-                  </td>
-                  <td style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-primary)' }}>₹{p.amount}</td>
-                  <td style={{ fontSize: '11.5px', fontFamily: 'monospace' }}>
-                    {p.razorpayPaymentId || p.paymentMethod || 'Razorpay UPI'}
-                  </td>
-                  <td>
-                    <span style={{
-                      background: p.status === 'success' ? '#dcfce7' : '#fee2e2',
-                      color: p.status === 'success' ? '#15803d' : '#dc2626',
-                      padding: '3px 8px',
-                      borderRadius: '12px',
-                      fontSize: '11px',
-                      fontWeight: 700
-                    }}>
-                      {p.status === 'success' ? '✅ Paid' : '❌ Failed'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+          {/* Navigation Menu */}
+          <div style={{ padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            
+            <button
+              onClick={() => setActiveTab('workspaces')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: activeTab === 'workspaces' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'transparent',
+                color: activeTab === 'workspaces' ? '#ffffff' : '#9ca3af',
+                fontWeight: activeTab === 'workspaces' ? 700 : 500,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
+              }}
+              title="Workspaces & Tenancy"
+            >
+              <span style={{ fontSize: '17px' }}>🏢</span>
+              {!sidebarCollapsed && <span>Client Workspaces</span>}
+            </button>
 
-      {/* SUB-TAB 4: USER IAM DIRECTORY */}
-      {activeSubTab === 'users' && (
-        <div className="glass-card" style={{ padding: '20px', overflowX: 'auto', background: '#ffffff', border: '1px solid var(--border-color)' }}>
-          <table className="visitor-list-table">
-            <thead>
-              <tr>
-                <th>User Full Name</th>
-                <th>Email Address</th>
-                <th>Associated Workspace</th>
-                <th>Role & Permissions</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map(u => (
-                <tr key={u._id} className="visitor-row">
-                  <td style={{ fontWeight: 700 }}>{u.name}</td>
-                  <td style={{ fontSize: '13px' }}>{u.email}</td>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{u.tenantId?.name || 'Master Admin'}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{u.tenantId?.domain}</div>
-                  </td>
-                  <td>
-                    <select
-                      value={u.role}
-                      onChange={(e) => handleUpdateUserRole(u._id, e.target.value)}
-                      style={{
-                        background: u.role === 'SuperAdmin' ? '#fee2e2' : u.role === 'Admin' ? '#eff6ff' : '#f8fafc',
-                        color: u.role === 'SuperAdmin' ? '#dc2626' : u.role === 'Admin' ? '#1d4ed8' : '#475569',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '6px',
-                        padding: '4px 8px',
-                        fontSize: '11.5px',
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value="Agent">Agent (Support Staff)</option>
-                      <option value="Admin">Admin (Workspace Owner)</option>
-                      <option value="SuperAdmin">SuperAdmin (Platform Master)</option>
-                    </select>
-                  </td>
-                  <td>
-                    <span style={{
-                      background: u.status === 'Online' ? '#dcfce7' : '#f1f5f9',
-                      color: u.status === 'Online' ? '#15803d' : '#64748b',
-                      padding: '3px 8px',
-                      borderRadius: '12px',
-                      fontSize: '11px',
-                      fontWeight: 700
-                    }}>
-                      {u.status === 'Online' ? '🟢 Online' : 'Offline'}
+            <button
+              onClick={() => {
+                setActiveTab('meta');
+                fetchMetaAssets();
+                fetchAdCampaigns();
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: activeTab === 'meta' ? 'none' : '1px solid rgba(24, 119, 242, 0.25)',
+                background: activeTab === 'meta' ? 'linear-gradient(135deg, #1877f2, #0d65d9)' : 'rgba(24, 119, 242, 0.08)',
+                color: activeTab === 'meta' ? '#ffffff' : '#60a5fa',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
+              }}
+              title="Meta Omnichannel Hub"
+            >
+              <span style={{ fontSize: '17px' }}>⚡</span>
+              {!sidebarCollapsed && <span>Meta Omnichannel Hub</span>}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('payments')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: activeTab === 'payments' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'transparent',
+                color: activeTab === 'payments' ? '#ffffff' : '#9ca3af',
+                fontWeight: activeTab === 'payments' ? 700 : 500,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
+              }}
+              title="Financial Ledger"
+            >
+              <span style={{ fontSize: '17px' }}>💳</span>
+              {!sidebarCollapsed && <span>Financial Ledger</span>}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('users')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: activeTab === 'users' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'transparent',
+                color: activeTab === 'users' ? '#ffffff' : '#9ca3af',
+                fontWeight: activeTab === 'users' ? 700 : 500,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
+              }}
+              title="User IAM Directory"
+            >
+              <span style={{ fontSize: '17px' }}>👥</span>
+              {!sidebarCollapsed && <span>User Directory</span>}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('logs')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: activeTab === 'logs' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'transparent',
+                color: activeTab === 'logs' ? '#ffffff' : '#9ca3af',
+                fontWeight: activeTab === 'logs' ? 700 : 500,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
+              }}
+              title="Security Audit Logs"
+            >
+              <span style={{ fontSize: '17px' }}>🛡️</span>
+              {!sidebarCollapsed && <span>Security Audit</span>}
+            </button>
+
+          </div>
+        </div>
+
+        {/* Sidebar Footer: SuperAdmin Profile & Sign Out */}
+        <div style={{ padding: '14px 12px', borderTop: '1px solid #1f2937', background: '#0d1117' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: sidebarCollapsed ? 0 : '10px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
+            <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '14px' }}>
+              {user?.name?.charAt(0) || 'S'}
+            </div>
+            {!sidebarCollapsed && (
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontWeight: 700, fontSize: '13px', color: '#ffffff', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{user?.name || 'SuperAdmin'}</div>
+                <div style={{ fontSize: '11px', color: '#9ca3af', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{user?.email}</div>
+              </div>
+            )}
+          </div>
+          {!sidebarCollapsed && (
+            <button
+              onClick={onLogout}
+              style={{ width: '100%', padding: '7px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#f87171', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+            >
+              🚪 Sign Out
+            </button>
+          )}
+        </div>
+
+      </div>
+
+      {/* 2. MAIN SUPERADMIN WORKSPACE CONTENT AREA */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', background: '#f8fafc', color: '#0f172a' }}>
+        
+        {/* Top Executive Header */}
+        <div style={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
+              {activeTab === 'workspaces' && '🏢 Client Workspaces & Tenancy Administration'}
+              {activeTab === 'meta' && '⚡ Meta Omnichannel Enterprise Hub'}
+              {activeTab === 'payments' && '💳 Transaction Ledger & Subscription Billing'}
+              {activeTab === 'users' && '👥 Global Platform User Accounts & IAM'}
+              {activeTab === 'logs' && '🛡️ System Security Audit Trail'}
+            </h1>
+            <span style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
+              Master Access
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              onClick={() => setManualPaymentModal(true)}
+              style={{
+                background: 'linear-gradient(135deg, #10b981, #059669)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontWeight: 700,
+                fontSize: '12.5px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
+              }}
+            >
+              💳 Record Offline Payment
+            </button>
+            <button
+              onClick={fetchOverviewData}
+              style={{
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                color: '#334155',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                fontWeight: 600,
+                fontSize: '12.5px',
+                cursor: 'pointer'
+              }}
+            >
+              🔄 Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Content Body Container */}
+        <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1440px', width: '100%', margin: '0 auto' }}>
+          
+          {/* Telemetry Counters */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+            <div style={{ background: '#ffffff', padding: '18px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', borderLeft: '4px solid #dc2626', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+              <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Client Workspaces</div>
+              <div style={{ fontSize: '26px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>{stats?.totalTenants || tenants.length}</div>
+              <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '4px' }}>+{stats?.newTenantsLast30d || 0} joined this month</div>
+            </div>
+
+            <div style={{ background: '#ffffff', padding: '18px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', borderLeft: '4px solid #10b981', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+              <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Paid Autopay Mandates</div>
+              <div style={{ fontSize: '26px', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>{stats?.activeSubscriptions || 0}</div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Razorpay UPI & Card Autopay</div>
+            </div>
+
+            <div style={{ background: '#ffffff', padding: '18px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', borderLeft: '4px solid #3b82f6', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+              <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Platform Live MRR</div>
+              <div style={{ fontSize: '26px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>₹{stats?.mrr?.toLocaleString() || 0}</div>
+              <div style={{ fontSize: '11px', color: '#2563eb', marginTop: '4px' }}>Total Collected: ₹{stats?.totalRevenue?.toLocaleString() || 0}</div>
+            </div>
+
+            <div style={{ background: '#ffffff', padding: '18px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', borderLeft: '4px solid #f59e0b', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+              <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Platform User Accounts</div>
+              <div style={{ fontSize: '26px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>{stats?.totalUsers || usersList.length}</div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Across all client tenants</div>
+            </div>
+          </div>
+
+          {/* Search Toolbar */}
+          {(activeTab === 'workspaces' || activeTab === 'users' || activeTab === 'payments') && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="Search by name, domain, email, API key..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '8px 16px', color: '#0f172a', fontSize: '13px', outline: 'none', width: '320px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}
+              />
+            </div>
+          )}
+
+          {/* TAB 1: WORKSPACES */}
+          {activeTab === 'workspaces' && (
+            <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '20px', overflowX: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 14px' }}>Workspace Name</th>
+                    <th style={{ padding: '12px 14px' }}>Domain & API Key</th>
+                    <th style={{ padding: '12px 14px' }}>Plan & Seats</th>
+                    <th style={{ padding: '12px 14px' }}>Admin Contact</th>
+                    <th style={{ padding: '12px 14px' }}>Status</th>
+                    <th style={{ padding: '12px 14px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTenants.map(t => (
+                    <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '14px' }}>
+                        <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700 }}>{t.name}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {t.id}</div>
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <div style={{ fontSize: '13px', color: '#334155' }}>{t.domain || 'All Domains Allowed'}</div>
+                        <div style={{ fontSize: '11px', fontFamily: 'monospace', color: '#dc2626' }}>{t.apiKey}</div>
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <select
+                          value={t.plan}
+                          onChange={(e) => handleUpdateTenantPlan(t.id, e.target.value)}
+                          style={{
+                            background: t.plan === 'business' ? '#fdf2f8' : t.plan === 'growth' ? '#eff6ff' : '#f8fafc',
+                            color: t.plan === 'business' ? '#be185d' : t.plan === 'growth' ? '#1d4ed8' : '#475569',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            padding: '5px 10px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="free">Free (1 Seat)</option>
+                          <option value="growth">Growth (₹299/mo - 3 Seats)</option>
+                          <option value="business">Business (₹399/mo - 6 Seats)</option>
+                          <option value="enterprise">Enterprise (20 Seats)</option>
+                        </select>
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <div style={{ fontSize: '13px' }}>{t.adminEmail}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>Created {new Date(t.createdAt).toLocaleDateString()}</div>
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <span style={{
+                          background: t.isSuspended ? '#fee2e2' : '#dcfce7',
+                          color: t.isSuspended ? '#dc2626' : '#15803d',
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          fontSize: '11.5px',
+                          fontWeight: 700
+                        }}>
+                          {t.isSuspended ? 'Suspended' : '🟢 Active'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            onClick={() => handleImpersonateTenant(t.id, t.name)}
+                            style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '5px 12px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
+                            title="Login directly as Tenant Admin"
+                          >
+                            🔑 Login As
+                          </button>
+                          <button
+                            onClick={() => handleToggleSuspend(t.id, t.isSuspended)}
+                            style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '5px 10px', borderRadius: '6px', fontSize: '11.5px', cursor: 'pointer' }}
+                          >
+                            {t.isSuspended ? 'Unsuspend' : 'Suspend'}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTenant(t.id, t.name)}
+                            style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', padding: '5px 10px', borderRadius: '6px', fontSize: '11.5px', cursor: 'pointer' }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* TAB 2: META OMNICHANNEL ENTERPRISE HUB */}
+          {activeTab === 'meta' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+              
+              {/* Hero Banner: Meta Production Engine Status */}
+              <div style={{ padding: '24px', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', borderRadius: '14px', border: '1px solid #334155', color: '#ffffff', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'linear-gradient(135deg, #1877f2, #0066ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px', boxShadow: '0 8px 20px rgba(24, 119, 242, 0.4)' }}>
+                      ⚡
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>Meta Omnichannel Enterprise Hub</h3>
+                        <span style={{ background: 'rgba(24, 119, 242, 0.25)', color: '#60a5fa', border: '1px solid rgba(96, 165, 250, 0.4)', padding: '3px 10px', borderRadius: '12px', fontSize: '11.5px', fontWeight: 700 }}>
+                          App ID: 1311990813621733
+                        </span>
+                        <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '3px 10px', borderRadius: '12px', fontSize: '11.5px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981' }}></span> Live Production Engine
+                        </span>
+                      </div>
+                      <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
+                        Unified messaging gateway connecting <strong>WhatsApp Cloud Business API</strong>, <strong>Instagram Direct Messenger</strong>, and <strong>Meta Ad Campaigns & Attribution</strong>.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleFacebookLogin}
+                    disabled={connectingMeta}
+                    style={{
+                      background: 'linear-gradient(135deg, #1877f2, #0d65d9)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '12px 24px',
+                      borderRadius: '10px',
+                      fontSize: '14px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      boxShadow: '0 6px 18px rgba(24, 119, 242, 0.4)'
+                    }}
+                  >
+                    {connectingMeta ? '🔄 Authenticating...' : '🔗 Connect Meta Business Account (OAuth)'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 3 Live Enterprise Hub Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
+                
+                {/* Hub 1: Instagram Direct Messenger */}
+                <div style={{ background: '#ffffff', borderRadius: '12px', padding: '22px', display: 'flex', flexDirection: 'column', gap: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '20px' }}>📸</span>
+                      <h4 style={{ margin: 0, fontSize: '15.5px', fontWeight: 800, color: '#0f172a' }}>Instagram Business Messenger</h4>
+                    </div>
+                    <span style={{ background: '#fdf2f8', color: '#be185d', border: '1px solid #fbcfe8', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
+                      Live IG DM Gateway
                     </span>
-                  </td>
-                  <td>
+                  </div>
+                  
+                  <div style={{ background: '#faf5ff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #f3e8ff', fontSize: '12.5px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div><strong>Connected Business Page:</strong> {metaAssets.meta?.pageId ? `Page ID ${metaAssets.meta.pageId}` : 'ManaCity Business'}</div>
+                    <div><strong>Instagram Account:</strong> {metaAssets.meta?.instagramAccountId ? `IG @manacity.in` : '@manacity.in'}</div>
+                    <div><strong>Live Webhook Status:</strong> <span style={{ color: '#16a34a', fontWeight: 800 }}>🟢 Subscribed & Active (messages)</span></div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
                     <button
-                      onClick={() => handleForceResetPassword(u._id, u.email)}
-                      style={{ background: '#f8fafc', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', cursor: 'pointer' }}
+                      onClick={() => handleTriggerTestMsg('instagram')}
+                      style={{ flex: 1, background: 'linear-gradient(135deg, #a855f7, #9333ea)', color: '#fff', border: 'none', padding: '9px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}
                     >
-                      🔑 Reset Password
+                      📨 Receive Inbound Instagram DM
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  </div>
+                </div>
 
-      {/* SUB-TAB 5: SECURITY AUDIT LOGS */}
-      {activeSubTab === 'logs' && (
-        <div className="glass-card" style={{ padding: '20px', overflowX: 'auto', background: '#ffffff', border: '1px solid var(--border-color)' }}>
-          <table className="visitor-list-table">
-            <thead>
-              <tr>
-                <th>Timestamp</th>
-                <th>Security Action</th>
-                <th>Target Workspace</th>
-                <th>Actor</th>
-                <th>Details Payload</th>
-              </tr>
-            </thead>
-            <tbody>
-              {auditLogs.map(l => (
-                <tr key={l._id}>
-                  <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>{new Date(l.createdAt).toLocaleString()}</td>
-                  <td>
-                    <span style={{ background: '#fee2e2', color: '#dc2626', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 800 }}>
-                      {l.action}
+                {/* Hub 2: WhatsApp Cloud Business API */}
+                <div style={{ background: '#ffffff', borderRadius: '12px', padding: '22px', display: 'flex', flexDirection: 'column', gap: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '20px' }}>🟢</span>
+                      <h4 style={{ margin: 0, fontSize: '15.5px', fontWeight: 800, color: '#0f172a' }}>WhatsApp Cloud Business API</h4>
+                    </div>
+                    <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
+                      Official WABA Engine
                     </span>
-                  </td>
-                  <td style={{ fontWeight: 600 }}>{l.tenantId?.name || 'System / Platform'}</td>
-                  <td style={{ fontSize: '12px' }}>{l.actorEmail || 'system'}</td>
-                  <td style={{ fontSize: '11px', fontFamily: 'monospace', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {JSON.stringify(l.details || {})}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  </div>
 
-      {/* MODAL 1: Meta Business Asset Selector */}
+                  <div style={{ background: '#f0fdf4', padding: '12px 14px', borderRadius: '10px', border: '1px solid #dcfce7', fontSize: '12.5px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div><strong>Phone Number ID:</strong> {metaAssets.whatsappApi?.phoneNumberId || '111738020188242'}</div>
+                    <div><strong>Support Window:</strong> <span style={{ color: '#16a34a', fontWeight: 800 }}>🟢 24h Interactive Messaging Active</span></div>
+                    <div><strong>Webhook Gateway:</strong> <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#15803d' }}>/api/integrations/whatsapp-api/webhook</span></div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
+                    <button
+                      onClick={() => handleTriggerTestMsg('whatsapp')}
+                      style={{ flex: 1, background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', border: 'none', padding: '9px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      📨 Receive Inbound WhatsApp Lead
+                    </button>
+                  </div>
+                </div>
+
+                {/* Hub 3: Meta Ads & Marketing API */}
+                <div style={{ background: '#ffffff', borderRadius: '12px', padding: '22px', display: 'flex', flexDirection: 'column', gap: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '20px' }}>📊</span>
+                      <h4 style={{ margin: 0, fontSize: '15.5px', fontWeight: 800, color: '#0f172a' }}>Meta Marketing & Ad Campaigns</h4>
+                    </div>
+                    <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
+                      Marketing API Active
+                    </span>
+                  </div>
+
+                  <div style={{ background: '#eff6ff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #dbeafe', fontSize: '12.5px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div><strong>Managed Campaigns:</strong> {adCampaigns.length} Active in Meta Ads</div>
+                    <div><strong>Attribution Engine:</strong> <span style={{ color: '#1d4ed8', fontWeight: 800 }}>UTM Tracking & Live Conversions</span></div>
+                    <div><strong>Campaign Management:</strong> Full CRUD & Status Controls</div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowNewCampaignModal(true)}
+                    style={{ background: 'linear-gradient(135deg, #1d4ed8, #1e40af)', color: '#fff', border: 'none', padding: '9px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', marginTop: 'auto' }}
+                  >
+                    ➕ Launch New Ad Campaign
+                  </button>
+                </div>
+
+              </div>
+
+              {/* Live Meta Ad Campaigns Table */}
+              <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '22px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Live Meta Ad Campaigns & Conversion Attribution</h4>
+                    <p style={{ margin: '3px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                      Real-time campaign management, budget pacing, and direct chat lead attribution powered by Meta Marketing API.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowNewCampaignModal(true)}
+                    style={{ background: 'linear-gradient(135deg, #1d4ed8, #1e40af)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    ➕ Create Campaign
+                  </button>
+                </div>
+
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase' }}>
+                      <th style={{ padding: '10px 12px' }}>Campaign Name</th>
+                      <th style={{ padding: '10px 12px' }}>Objective</th>
+                      <th style={{ padding: '10px 12px' }}>Daily Budget</th>
+                      <th style={{ padding: '10px 12px' }}>Impressions</th>
+                      <th style={{ padding: '10px 12px' }}>Clicks</th>
+                      <th style={{ padding: '10px 12px' }}>Attributed Live Chats</th>
+                      <th style={{ padding: '10px 12px' }}>Status</th>
+                      <th style={{ padding: '10px 12px' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adCampaigns.map(camp => (
+                      <tr key={camp.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '12px', fontWeight: 800, color: '#0f172a' }}>{camp.name}</td>
+                        <td style={{ padding: '12px' }}><span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>{camp.objective}</span></td>
+                        <td style={{ padding: '12px', fontWeight: 600 }}>{camp.dailyBudget}</td>
+                        <td style={{ padding: '12px' }}>{camp.impressions.toLocaleString()}</td>
+                        <td style={{ padding: '12px', fontWeight: 700 }}>{camp.clicks}</td>
+                        <td style={{ padding: '12px' }}><strong style={{ color: '#16a34a' }}>{camp.conversions} chats</strong></td>
+                        <td style={{ padding: '12px' }}>
+                          <span style={{
+                            background: camp.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2',
+                            color: camp.status === 'ACTIVE' ? '#15803d' : '#dc2626',
+                            padding: '3px 10px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: 800
+                          }}>
+                            {camp.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <button
+                            onClick={() => handleToggleAdCampaign(camp.id)}
+                            style={{
+                              background: camp.status === 'ACTIVE' ? '#fef2f2' : '#f0fdf4',
+                              color: camp.status === 'ACTIVE' ? '#dc2626' : '#16a34a',
+                              border: '1px solid #cbd5e1',
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {camp.status === 'ACTIVE' ? '⏸️ Pause' : '▶️ Activate'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 3: FINANCIAL LEDGER */}
+          {activeTab === 'payments' && (
+            <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '20px', overflowX: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 14px' }}>Date</th>
+                    <th style={{ padding: '12px 14px' }}>Client Workspace</th>
+                    <th style={{ padding: '12px 14px' }}>Plan & Type</th>
+                    <th style={{ padding: '12px 14px' }}>Amount (INR)</th>
+                    <th style={{ padding: '12px 14px' }}>Payment ID / Method</th>
+                    <th style={{ padding: '12px 14px' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map(p => (
+                    <tr key={p._id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '14px', fontSize: '12.5px', whiteSpace: 'nowrap' }}>{new Date(p.createdAt).toLocaleDateString()}</td>
+                      <td style={{ padding: '14px', fontWeight: 700 }}>
+                        <div>{p.tenantId?.name || 'Unknown Client'}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{p.tenantId?.domain}</div>
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, textTransform: 'capitalize' }}>
+                          {p.plan} ({p.type || 'subscription'})
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 800, fontSize: '14px', color: '#0f172a' }}>₹{p.amount}</td>
+                      <td style={{ padding: '14px', fontSize: '11.5px', fontFamily: 'monospace' }}>
+                        {p.razorpayPaymentId || p.paymentMethod || 'Razorpay UPI'}
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <span style={{
+                          background: p.status === 'success' ? '#dcfce7' : '#fee2e2',
+                          color: p.status === 'success' ? '#15803d' : '#dc2626',
+                          padding: '3px 8px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: 700
+                        }}>
+                          {p.status === 'success' ? '✅ Paid' : '❌ Failed'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* TAB 4: USER IAM DIRECTORY */}
+          {activeTab === 'users' && (
+            <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '20px', overflowX: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 14px' }}>User Full Name</th>
+                    <th style={{ padding: '12px 14px' }}>Email Address</th>
+                    <th style={{ padding: '12px 14px' }}>Associated Workspace</th>
+                    <th style={{ padding: '12px 14px' }}>Role & Permissions</th>
+                    <th style={{ padding: '12px 14px' }}>Status</th>
+                    <th style={{ padding: '12px 14px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.map(u => (
+                    <tr key={u._id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '14px', fontWeight: 700 }}>{u.name}</td>
+                      <td style={{ padding: '14px', fontSize: '13px' }}>{u.email}</td>
+                      <td style={{ padding: '14px' }}>
+                        <div style={{ fontWeight: 600 }}>{u.tenantId?.name || 'Master Admin'}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{u.tenantId?.domain}</div>
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <select
+                          value={u.role}
+                          onChange={(e) => handleUpdateUserRole(u._id, e.target.value)}
+                          style={{
+                            background: u.role === 'SuperAdmin' ? '#fee2e2' : u.role === 'Admin' ? '#eff6ff' : '#f8fafc',
+                            color: u.role === 'SuperAdmin' ? '#dc2626' : u.role === 'Admin' ? '#1d4ed8' : '#475569',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            padding: '4px 8px',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="Agent">Agent (Support Staff)</option>
+                          <option value="Admin">Admin (Workspace Owner)</option>
+                          <option value="SuperAdmin">SuperAdmin (Platform Master)</option>
+                        </select>
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <span style={{
+                          background: u.status === 'Online' ? '#dcfce7' : '#f1f5f9',
+                          color: u.status === 'Online' ? '#15803d' : '#64748b',
+                          padding: '3px 8px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: 700
+                        }}>
+                          {u.status === 'Online' ? '🟢 Online' : 'Offline'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <button
+                          onClick={() => handleForceResetPassword(u._id, u.email)}
+                          style={{ background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1', padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', cursor: 'pointer' }}
+                        >
+                          🔑 Reset Password
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* TAB 5: SECURITY AUDIT LOGS */}
+          {activeTab === 'logs' && (
+            <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '20px', overflowX: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 14px' }}>Timestamp</th>
+                    <th style={{ padding: '12px 14px' }}>Security Action</th>
+                    <th style={{ padding: '12px 14px' }}>Target Workspace</th>
+                    <th style={{ padding: '12px 14px' }}>Actor</th>
+                    <th style={{ padding: '12px 14px' }}>Details Payload</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLogs.map(l => (
+                    <tr key={l._id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '14px', fontSize: '12px', whiteSpace: 'nowrap' }}>{new Date(l.createdAt).toLocaleString()}</td>
+                      <td style={{ padding: '14px' }}>
+                        <span style={{ background: '#fee2e2', color: '#dc2626', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 800 }}>
+                          {l.action}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 600 }}>{l.tenantId?.name || 'System / Platform'}</td>
+                      <td style={{ padding: '14px', fontSize: '12px' }}>{l.actorEmail || 'system'}</td>
+                      <td style={{ padding: '14px', fontSize: '11px', fontFamily: 'monospace', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {JSON.stringify(l.details || {})}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+        </div>
+
+      </div>
+
+      {/* MODAL 1: Meta Asset Selector */}
       {showAssetModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(5px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 99999
-        }}>
-          <div className="glass-card" style={{ padding: '24px', width: '480px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', width: '480px', display: 'flex', flexDirection: 'column', gap: '16px', color: '#0f172a' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '17px', fontWeight: '800' }}>Select Meta Business Page & WhatsApp Asset</h3>
-              <button onClick={() => setShowAssetModal(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
+              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800' }}>Select Meta Business Page & WhatsApp Asset</h3>
+              <button onClick={() => setShowAssetModal(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>AVAILABLE FACEBOOK PAGES & INSTAGRAM ACCOUNTS:</div>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>AVAILABLE FACEBOOK PAGES & INSTAGRAM ACCOUNTS:</div>
               {availablePages.map(p => (
                 <div 
                   key={p.pageId} 
                   onClick={() => handleSelectAsset(p.pageId, availableWabas[0]?.phoneId)}
-                  style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', cursor: 'pointer', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', cursor: 'pointer', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 >
                   <div>
                     <div style={{ fontWeight: 800, fontSize: '14px', color: '#1877f2' }}>📄 {p.pageName}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Instagram: {p.instagramHandle || 'No IG linked'}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>Instagram: {p.instagramHandle || 'No IG linked'}</div>
                   </div>
                   <span style={{ background: '#1877f2', color: '#fff', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>Select</span>
                 </div>
@@ -1131,44 +1212,32 @@ export default function SuperAdminDashboard({
 
       {/* MODAL 2: Create Ad Campaign */}
       {showNewCampaignModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(5px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 99999
-        }}>
-          <div className="glass-card" style={{ padding: '24px', width: '440px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', width: '440px', display: 'flex', flexDirection: 'column', gap: '16px', color: '#0f172a' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '17px', fontWeight: '800' }}>Launch Meta Ad Campaign</h3>
-              <button onClick={() => setShowNewCampaignModal(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
+              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800' }}>Launch Meta Ad Campaign</h3>
+              <button onClick={() => setShowNewCampaignModal(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
             </div>
 
             <form onSubmit={handleCreateAdCampaign} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px' }}>Campaign Name</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700 }}>Campaign Name</label>
                 <input
                   type="text"
-                  className="form-input"
                   value={newCampaignName}
                   onChange={(e) => setNewCampaignName(e.target.value)}
                   placeholder="e.g. LetsTrack 2026 Promo - Direct to Chat"
                   required
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px' }}>Objective</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700 }}>Objective</label>
                 <select
-                  className="form-input"
                   value={newCampaignObjective}
                   onChange={(e) => setNewCampaignObjective(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                 >
                   <option value="LEAD_GENERATION">LEAD_GENERATION (Direct WhatsApp / Live Chat)</option>
                   <option value="CONVERSIONS">CONVERSIONS (/pricing & checkout)</option>
@@ -1176,14 +1245,14 @@ export default function SuperAdminDashboard({
                 </select>
               </div>
 
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px' }}>Daily Budget (INR)</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700 }}>Daily Budget (INR)</label>
                 <input
                   type="number"
-                  className="form-input"
                   value={newCampaignBudget}
                   onChange={(e) => setNewCampaignBudget(e.target.value)}
                   required
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                 />
               </div>
 
@@ -1202,33 +1271,21 @@ export default function SuperAdminDashboard({
 
       {/* MODAL 3: Offline / Manual Payment Record */}
       {manualPaymentModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(5px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 99999
-        }}>
-          <div className="glass-card" style={{ padding: '24px', width: '420px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', width: '420px', display: 'flex', flexDirection: 'column', gap: '16px', color: '#0f172a' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '18px', fontWeight: '700' }}>Record Offline / Manual Payment</h3>
-              <button onClick={() => setManualPaymentModal(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Record Offline / Manual Payment</h3>
+              <button onClick={() => setManualPaymentModal(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
             </div>
             
             <form onSubmit={handleRecordManualPayment} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px' }}>Select Client Workspace</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700 }}>Select Client Workspace</label>
                 <select
-                  className="form-input"
                   value={manualPayTenantId}
                   onChange={(e) => setManualPayTenantId(e.target.value)}
                   required
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                 >
                   <option value="">-- Choose Workspace --</option>
                   {tenants.map(t => (
@@ -1237,23 +1294,23 @@ export default function SuperAdminDashboard({
                 </select>
               </div>
 
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px' }}>Amount (INR)</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700 }}>Amount (INR)</label>
                 <input
                   type="number"
-                  className="form-input"
                   value={manualPayAmount}
                   onChange={(e) => setManualPayAmount(e.target.value)}
                   required
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px' }}>Upgrade Plan Target</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700 }}>Upgrade Plan Target</label>
                 <select
-                  className="form-input"
                   value={manualPayPlan}
                   onChange={(e) => setManualPayPlan(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                 >
                   <option value="growth">Growth (₹299/mo - 3 Seats)</option>
                   <option value="business">Business (₹399/mo - 6 Seats + Social DM)</option>
@@ -1261,12 +1318,12 @@ export default function SuperAdminDashboard({
                 </select>
               </div>
 
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px' }}>Payment Method</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700 }}>Payment Method</label>
                 <select
-                  className="form-input"
                   value={manualPayMethod}
                   onChange={(e) => setManualPayMethod(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                 >
                   <option value="bank_transfer">Direct Bank NEFT / IMPS</option>
                   <option value="upi_manual">UPI QR Offline</option>
@@ -1275,14 +1332,14 @@ export default function SuperAdminDashboard({
                 </select>
               </div>
 
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px' }}>Internal Notes / Reference</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700 }}>Internal Notes / Reference</label>
                 <input
                   type="text"
-                  className="form-input"
                   placeholder="UTR / Txn Ref number"
                   value={manualPayNotes}
                   onChange={(e) => setManualPayNotes(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                 />
               </div>
 

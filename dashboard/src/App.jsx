@@ -1992,10 +1992,64 @@ function App() {
         {toast && <div className={`toast-msg ${toast.type}`}>{toast.text}</div>}
       </div>
     );
+  // Top-Level Role Detection: Serve Dedicated SuperAdmin App directly
+  if (user?.role === 'SuperAdmin' && !user?.isImpersonated) {
+    return (
+      <>
+        <SuperAdminDashboard
+          token={token}
+          user={user}
+          BACKEND_URL={BACKEND_URL}
+          showToast={showToast}
+          onLogout={handleLogout}
+          onImpersonateSuccess={(data) => {
+            const impersonatedUser = {
+              ...data.user,
+              isImpersonated: true,
+              originalSuperAdminToken: token,
+              originalSuperAdminUser: user
+            };
+            localStorage.setItem('letstrack_token', data.token);
+            localStorage.setItem('letstrack_user', JSON.stringify(impersonatedUser));
+            localStorage.setItem('letstrack_tenant', JSON.stringify(data.tenant));
+            setToken(data.token);
+            setUser(impersonatedUser);
+            setTenant(data.tenant);
+            setActiveTab('inbox');
+            showToast(`Logged in as Admin for ${data.tenant.name}`);
+          }}
+        />
+        {toast && <div className={`toast-msg ${toast.type}`}>{toast.text}</div>}
+      </>
+    );
   }
 
+  const handleReturnToSuperAdmin = () => {
+    if (user?.originalSuperAdminToken && user?.originalSuperAdminUser) {
+      localStorage.setItem('letstrack_token', user.originalSuperAdminToken);
+      localStorage.setItem('letstrack_user', JSON.stringify(user.originalSuperAdminUser));
+      setToken(user.originalSuperAdminToken);
+      setUser(user.originalSuperAdminUser);
+      showToast('Returned to SuperAdmin Console');
+    }
+  };
+
   return (
-    <div className="app-container" style={{ paddingTop: user?.email === 'demo@letstrack.io' ? '46px' : undefined }}>
+    <div className="app-container" style={{ paddingTop: (user?.email === 'demo@letstrack.io' || user?.isImpersonated) ? '46px' : undefined }}>
+      {user?.isImpersonated && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '46px', background: 'linear-gradient(90deg, #1e293b, #0f172a)', color: '#ffffff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 99999, fontSize: '13px', fontWeight: 700, borderBottom: '2px solid #dc2626' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ background: '#dc2626', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 800 }}>SUPPORT IMPERSONATION</span>
+            <span>Currently viewing client workspace: <strong>{tenant?.name}</strong> ({user?.email})</span>
+          </div>
+          <button
+            onClick={handleReturnToSuperAdmin}
+            style={{ background: '#dc2626', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+          >
+            🔙 Return to SuperAdmin Master Console
+          </button>
+        </div>
+      )}
       {user?.email === 'demo@letstrack.io' && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '46px', background: 'linear-gradient(90deg, #dc2626, #991b1b)', color: '#ffffff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 99999, fontSize: '13px', fontWeight: 700, boxShadow: '0 4px 20px rgba(220,38,38,0.4)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2093,24 +2147,6 @@ function App() {
             <button className={`menu-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => { setActiveTab('billing'); fetchBillingData(); }} title="Billing & Plan">
               <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
               <span>Billing & Plan</span>
-            </button>
-          )}
-
-          {user.role === 'SuperAdmin' && (
-            <button 
-              className={`menu-item ${activeTab === 'superadmin' ? 'active' : ''}`} 
-              onClick={() => setActiveTab('superadmin')}
-              style={{ 
-                background: activeTab === 'superadmin' ? 'linear-gradient(135deg, #dc2626, #991b1b)' : 'rgba(220, 38, 38, 0.12)', 
-                border: '1px solid rgba(220, 38, 38, 0.4)',
-                color: '#ffffff',
-                fontWeight: 700,
-                marginTop: '10px'
-              }}
-              title="Super Admin Console"
-            >
-              <span style={{ fontSize: '15px' }}>👑</span>
-              <span>Super Admin Console</span>
             </button>
           )}
 
@@ -5339,27 +5375,6 @@ function App() {
                 )}
               </div>
             </div>
-          )}
-
-          {/* G. DEDICATED SUPER ADMIN ENTERPRISE MODULE */}
-          {activeTab === 'superadmin' && user?.role === 'SuperAdmin' && (
-            <SuperAdminDashboard
-              token={token}
-              user={user}
-              BACKEND_URL={BACKEND_URL}
-              showToast={showToast}
-              onNavigateTab={setActiveTab}
-              onImpersonateSuccess={(data) => {
-                localStorage.setItem('letstrack_token', data.token);
-                localStorage.setItem('letstrack_user', JSON.stringify(data.user));
-                localStorage.setItem('letstrack_tenant', JSON.stringify(data.tenant));
-                setToken(data.token);
-                setUser(data.user);
-                setTenant(data.tenant);
-                setActiveTab('inbox');
-                showToast(`Impersonating ${data.tenant.name} (${data.user.email})`);
-              }}
-            />
           )}
 
         </div>
