@@ -11,7 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 
-import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, Integration, Payment, AuditLog } from './models.js';
+import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, UpsellPitch, Integration, Payment, AuditLog } from './models.js';
 import { initializeSocket, dashboardNamespace } from './socket.js';
 import { 
   initializeWhatsAppClient, 
@@ -890,6 +890,53 @@ app.delete('/api/quick-replies/:id', authenticateToken, async (req, res) => {
     res.status(200).json({ message: 'Quick reply deleted successfully' });
   } catch (err) {
     console.error('Error deleting quick reply:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 12b. Get Upsell Pitches
+app.get('/api/upsell-pitches', authenticateToken, async (req, res) => {
+  try {
+    const pitches = await UpsellPitch.find({ tenantId: req.user.tenantId }).sort({ createdAt: -1 });
+    res.status(200).json(pitches);
+  } catch (err) {
+    console.error('Error retrieving upsell pitches:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 12c. Create Upsell Pitch
+app.post('/api/upsell-pitches', authenticateToken, async (req, res) => {
+  const { title, badgeText, targetSubpath, pitchText } = req.body;
+  if (!title || !pitchText) return res.status(400).json({ error: 'Title and pitchText are required' });
+
+  try {
+    const pitch = new UpsellPitch({
+      tenantId: req.user.tenantId,
+      title,
+      badgeText: badgeText || '⚡ Deal',
+      targetSubpath: targetSubpath || '',
+      pitchText
+    });
+    await pitch.save();
+    res.status(201).json(pitch);
+  } catch (err) {
+    console.error('Error saving upsell pitch:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 12d. Delete Upsell Pitch
+app.delete('/api/upsell-pitches/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const deleted = await UpsellPitch.findOne({ _id: id, tenantId: req.user.tenantId });
+    if (!deleted) return res.status(404).json({ error: 'Upsell pitch not found' });
+    await deleted.deleteOne();
+    res.status(200).json({ message: 'Upsell pitch deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting upsell pitch:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

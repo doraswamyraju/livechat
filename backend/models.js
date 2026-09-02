@@ -128,6 +128,16 @@ const QuickReplySchema = new mongoose.Schema({
   text: { type: String, required: true }
 });
 
+// 7b. Upsell Pitch Template Model
+const UpsellPitchSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
+  title: { type: String, required: true },
+  badgeText: { type: String, default: '⚡ Deal' },
+  targetSubpath: { type: String, default: '' },
+  pitchText: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
 // 8. Integration Model
 const IntegrationSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, unique: true },
@@ -202,6 +212,7 @@ export const Conversation = mongoose.model('Conversation', ConversationSchema);
 export const Message = mongoose.model('Message', MessageSchema);
 export const WidgetSettings = mongoose.model('WidgetSettings', WidgetSettingsSchema);
 export const QuickReply = mongoose.model('QuickReply', QuickReplySchema);
+export const UpsellPitch = mongoose.model('UpsellPitch', UpsellPitchSchema);
 export const Integration = mongoose.model('Integration', IntegrationSchema);
 export const Payment = mongoose.model('Payment', PaymentSchema);
 export const AuditLog = mongoose.model('AuditLog', AuditLogSchema);

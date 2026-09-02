@@ -324,6 +324,14 @@ function App() {
   const [newShortcut, setNewShortcut] = useState('');
   const [newReplyText, setNewReplyText] = useState('');
 
+  // Upsell Pitches states
+  const [upsellPitches, setUpsellPitches] = useState([]);
+  const [showNewPitchModal, setShowNewPitchModal] = useState(false);
+  const [newPitchTitle, setNewPitchTitle] = useState('');
+  const [newPitchBadge, setNewPitchBadge] = useState('⚡ Deal');
+  const [newPitchSubpath, setNewPitchSubpath] = useState('');
+  const [newPitchText, setNewPitchText] = useState('');
+
   // Editable Visitor info
   const [editVisitorName, setEditVisitorName] = useState('');
   const [editVisitorEmail, setEditVisitorEmail] = useState('');
@@ -1595,6 +1603,16 @@ function App() {
       .then(data => setQuickReplies(data))
       .catch(err => console.error('Error fetching quick replies:', err));
 
+    // Fetch Upsell Pitches
+    fetch(`${BACKEND_URL}/api/upsell-pitches`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setUpsellPitches(data);
+      })
+      .catch(err => console.error('Error fetching upsell pitches:', err));
+
     // Fetch integration configurations
     fetchIntegrations();
     fetchAgentsData();
@@ -1847,6 +1865,57 @@ function App() {
 
       setQuickReplies(prev => prev.filter(qr => qr._id !== id));
       showToast('Quick Reply deleted successfully');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleCreateUpsellPitch = async (e) => {
+    if (e) e.preventDefault();
+    if (!newPitchTitle.trim() || !newPitchText.trim()) {
+      showToast('Pitch Title and Message Text are required', 'error');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/upsell-pitches`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: newPitchTitle.trim(),
+          badgeText: newPitchBadge.trim() || '⚡ Deal',
+          targetSubpath: newPitchSubpath.trim(),
+          pitchText: newPitchText.trim()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create upsell pitch');
+
+      setUpsellPitches(prev => [data, ...prev]);
+      setShowNewPitchModal(false);
+      setNewPitchTitle('');
+      setNewPitchBadge('⚡ Deal');
+      setNewPitchSubpath('');
+      setNewPitchText('');
+      showToast('🎉 Upsell Pitch Template Created!');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleDeleteUpsellPitch = async (id) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/upsell-pitches/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to delete upsell pitch');
+
+      setUpsellPitches(prev => prev.filter(p => p._id !== id));
+      showToast('Upsell Pitch deleted successfully');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -2646,7 +2715,7 @@ function App() {
                             <th>Traffic Volume</th>
                             <th>Avg Dwell Time</th>
                             <th>Chat Conversion</th>
-                            <th>Upsell Opportunity</th>
+                            <th>Upsell Action</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2657,35 +2726,110 @@ function App() {
                                 <td style={{ fontWeight: 700 }}>320 visits</td>
                                 <td>2m 45s</td>
                                 <td><strong style={{ color: '#16a34a' }}>46.5%</strong></td>
-                                <td><span style={{ background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>🔥 High Upsell Potential</span></td>
+                                <td style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                  <span style={{ background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>🔥 High Upsell Potential</span>
+                                  <button
+                                    onClick={() => {
+                                      setNewPitchSubpath('/pricing');
+                                      setNewPitchTitle('Special Discount on Pricing');
+                                      setNewPitchBadge('🏷️ 20% Off');
+                                      setNewPitchText('Hi! We noticed you are checking our plans on the pricing page. Would you like a 20% discount coupon (LETS20) and free onboarding setup?');
+                                      setShowNewPitchModal(true);
+                                    }}
+                                    style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#b45309', padding: '4px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                    title="Create pitch for /pricing"
+                                  >
+                                    ⚡ + Add Pitch
+                                  </button>
+                                </td>
                               </tr>
                               <tr className="visitor-row">
                                 <td><span className="path-tag">/checkout</span></td>
                                 <td style={{ fontWeight: 700 }}>85 visits</td>
                                 <td>1m 30s</td>
                                 <td><strong style={{ color: '#16a34a' }}>68.2%</strong></td>
-                                <td><span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>⚡ Instant Deal Closer</span></td>
+                                <td style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                  <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>⚡ Instant Deal Closer</span>
+                                  <button
+                                    onClick={() => {
+                                      setNewPitchSubpath('/checkout');
+                                      setNewPitchTitle('Checkout Assistance');
+                                      setNewPitchBadge('💳 Checkout Help');
+                                      setNewPitchText('Need any assistance completing your checkout? I can help apply any corporate coupons or generate an instant payment link for you!');
+                                      setShowNewPitchModal(true);
+                                    }}
+                                    style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#b45309', padding: '4px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                    title="Create pitch for /checkout"
+                                  >
+                                    ⚡ + Add Pitch
+                                  </button>
+                                </td>
                               </tr>
                               <tr className="visitor-row">
                                 <td><span className="path-tag">/features</span></td>
                                 <td style={{ fontWeight: 700 }}>680 visits</td>
                                 <td>1m 15s</td>
                                 <td><strong>21.9%</strong></td>
-                                <td><span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>💡 Feature Clarification</span></td>
+                                <td style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                  <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>💡 Feature Clarification</span>
+                                  <button
+                                    onClick={() => {
+                                      setNewPitchSubpath('/features');
+                                      setNewPitchTitle('Feature Consultation');
+                                      setNewPitchBadge('💡 Pro Features');
+                                      setNewPitchText('Exploring our feature suite? I can give you a rapid 2-minute live demo or extend your trial so you can test everything hands-on!');
+                                      setShowNewPitchModal(true);
+                                    }}
+                                    style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#b45309', padding: '4px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                    title="Create pitch for /features"
+                                  >
+                                    ⚡ + Add Pitch
+                                  </button>
+                                </td>
                               </tr>
                               <tr className="visitor-row">
                                 <td><span className="path-tag">/wordpress-plugin</span></td>
                                 <td style={{ fontWeight: 700 }}>240 visits</td>
                                 <td>3m 10s</td>
                                 <td><strong>38.0%</strong></td>
-                                <td><span style={{ background: '#f3e8ff', color: '#7e22ce', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>🔌 Technical Onboarding</span></td>
+                                <td style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                  <span style={{ background: '#f3e8ff', color: '#7e22ce', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>🔌 Technical Onboarding</span>
+                                  <button
+                                    onClick={() => {
+                                      setNewPitchSubpath('/wordpress-plugin');
+                                      setNewPitchTitle('WordPress Integration Offer');
+                                      setNewPitchBadge('🔌 WP Setup');
+                                      setNewPitchText('Installing on WordPress or WooCommerce? Our team provides complimentary integration assistance to get your chat live in under 5 minutes.');
+                                      setShowNewPitchModal(true);
+                                    }}
+                                    style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#b45309', padding: '4px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                    title="Create pitch for /wordpress-plugin"
+                                  >
+                                    ⚡ + Add Pitch
+                                  </button>
+                                </td>
                               </tr>
                               <tr className="visitor-row">
                                 <td><span className="path-tag">/</span></td>
                                 <td style={{ fontWeight: 700 }}>1,450 visits</td>
                                 <td>45s</td>
                                 <td><strong>12.4%</strong></td>
-                                <td><span style={{ background: '#f1f5f9', color: 'var(--text-secondary)', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>🌐 Top Entry Point</span></td>
+                                <td style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                  <span style={{ background: '#f1f5f9', color: 'var(--text-secondary)', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>🌐 Top Entry Point</span>
+                                  <button
+                                    onClick={() => {
+                                      setNewPitchSubpath('/');
+                                      setNewPitchTitle('Welcome Pitch');
+                                      setNewPitchBadge('👋 Welcome');
+                                      setNewPitchText('Welcome! How can we assist you today? Let us know if you have any questions or would like a product walkthrough.');
+                                      setShowNewPitchModal(true);
+                                    }}
+                                    style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#b45309', padding: '4px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                    title="Create pitch for /"
+                                  >
+                                    ⚡ + Add Pitch
+                                  </button>
+                                </td>
                               </tr>
                             </>
                           ) : (
@@ -2695,7 +2839,32 @@ function App() {
                                 <td style={{ fontWeight: 700 }}>{item.visits} visits</td>
                                 <td>{item.avgDwell}</td>
                                 <td><strong style={{ color: '#16a34a' }}>{item.chatRate}</strong></td>
-                                <td><span style={{ background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{item.tag}</span></td>
+                                <td style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                  <span style={{ background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{item.tag}</span>
+                                  <button
+                                    onClick={() => {
+                                      setNewPitchSubpath(item.url || '/');
+                                      setNewPitchTitle(`Special Pitch for ${item.url}`);
+                                      setNewPitchBadge('🏷️ Special Offer');
+                                      setNewPitchText(`Hi! We noticed you are exploring our ${item.url} page. Would you like a free consultation and an exclusive discount code today?`);
+                                      setShowNewPitchModal(true);
+                                    }}
+                                    style={{
+                                      background: '#fffbeb',
+                                      border: '1px solid #fde68a',
+                                      color: '#b45309',
+                                      padding: '4px 9px',
+                                      borderRadius: '6px',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                    title={`Create custom pitch for ${item.url}`}
+                                  >
+                                    ⚡ + Add Pitch
+                                  </button>
+                                </td>
                               </tr>
                             ))
                           )}
@@ -3643,17 +3812,19 @@ function App() {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: 'var(--text-primary)' }}>
                             <span>🛰️ Live Visitor Telemetry & Device Footprint</span>
-                            <span style={{ background: '#dcfce7', color: '#16a34a', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>Active Online</span>
+                            <span style={{ background: '#dcfce7', color: '#16a34a', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
+                              {selectedVisitor?.isOnline ? 'Active Online' : 'Offline'}
+                            </span>
                           </div>
                           <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 600 }}>
-                            🌍 {selectedVisitor?.city || 'Toronto'}, {selectedVisitor?.country || 'Canada'}
+                            🌍 {selectedVisitor?.city || (isDemo ? 'Toronto' : 'Local')}, {selectedVisitor?.country || (isDemo ? 'Canada' : 'India')}
                           </span>
                         </div>
                         
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', fontSize: '11.5px' }}>
                           <div>
                             <span style={{ color: 'var(--text-muted)' }}>Device: </span>
-                            <strong>{selectedVisitor?.deviceType || 'Desktop'} ({selectedVisitor?.os || 'macOS'})</strong>
+                            <strong>{selectedVisitor?.deviceType || 'Desktop'} ({selectedVisitor?.os || 'Windows'})</strong>
                           </div>
                           <div>
                             <span style={{ color: 'var(--text-muted)' }}>Browser: </span>
@@ -3661,16 +3832,16 @@ function App() {
                           </div>
                           <div>
                             <span style={{ color: 'var(--text-muted)' }}>Referral: </span>
-                            <strong style={{ color: 'var(--primary)' }}>{selectedVisitor?.referrer || 'Google Organic'}</strong>
+                            <strong style={{ color: 'var(--primary)' }}>{selectedVisitor?.referrer || 'Direct'}</strong>
                           </div>
                           <div>
                             <span style={{ color: 'var(--text-muted)' }}>Active URL: </span>
-                            <strong style={{ fontFamily: 'monospace', color: '#dc2626' }}>{selectedVisitor?.currentUrl || '/pricing'}</strong>
+                            <strong style={{ fontFamily: 'monospace', color: '#dc2626' }}>{selectedVisitor?.currentUrl || '/'}</strong>
                           </div>
                         </div>
                       </div>
 
-                      {/* 3. Live 5-Step Action & Journey Trail */}
+                      {/* 3. Live Visitor Journey & Action Trail */}
                       <div style={{
                         background: '#ffffff',
                         border: '1px solid var(--border-color)',
@@ -3684,7 +3855,9 @@ function App() {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ fontSize: '14px' }}>📡</span>
-                            <strong style={{ fontSize: '12.5px', color: 'var(--text-primary)' }}>Live Visitor Journey & Action Log (5 Steps Tracked)</strong>
+                            <strong style={{ fontSize: '12.5px', color: 'var(--text-primary)' }}>
+                              {isDemo ? 'Live Visitor Journey & Action Log (5 Steps Tracked)' : 'Live Visitor Journey & Action Log'}
+                            </strong>
                           </div>
                           <span style={{ fontSize: '10.5px', color: '#dc2626', fontWeight: 800, background: '#fee2e2', padding: '2px 8px', borderRadius: '12px' }}>
                             ● Live Tracking Stream
@@ -3692,31 +3865,69 @@ function App() {
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', position: 'relative', paddingLeft: '18px', borderLeft: '2px dashed #e2e8f0', marginLeft: '6px' }}>
-                          <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
-                            <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6', border: '2px solid white' }}></span>
-                            <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:54:10</span>
-                            <strong>📍 Landed on Homepage</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>/</span> <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>via Google Search organic search</span>
-                          </div>
-                          <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
-                            <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#6366f1', border: '2px solid white' }}></span>
-                            <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:54:45</span>
-                            <strong>📜 Browsed Features Page</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>/features</span> <span style={{ color: '#059669', fontSize: '11px', fontWeight: 600 }}>(Scrolled 85% depth)</span>
-                          </div>
-                          <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
-                            <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b', border: '2px solid white' }}></span>
-                            <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:55:12</span>
-                            <strong>⚡ High-Intent Click:</strong> <span style={{ color: 'var(--text-secondary)' }}>Clicked "Compare Growth vs Business" button</span>
-                          </div>
-                          <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
-                            <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#dc2626', border: '2px solid white' }}></span>
-                            <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:55:38</span>
-                            <strong>🎯 Navigated to Pricing</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>{selectedVisitor?.currentUrl || '/pricing'}</span> <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '11px' }}>(Evaluating Growth Plan)</span>
-                          </div>
-                          <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
-                            <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', border: '2px solid white' }}></span>
-                            <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:56:02</span>
-                            <strong>💬 Opened Chat Widget</strong> <span style={{ color: '#059669', fontSize: '11px', fontWeight: 600 }}>Sent initial inquiry via live widget</span>
-                          </div>
+                          {isDemo ? (
+                            <>
+                              <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                                <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6', border: '2px solid white' }}></span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:54:10</span>
+                                <strong>📍 Landed on Homepage</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>/</span> <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>via Google Search organic search</span>
+                              </div>
+                              <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                                <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#6366f1', border: '2px solid white' }}></span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:54:45</span>
+                                <strong>📜 Browsed Features Page</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>/features</span> <span style={{ color: '#059669', fontSize: '11px', fontWeight: 600 }}>(Scrolled 85% depth)</span>
+                              </div>
+                              <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                                <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b', border: '2px solid white' }}></span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:55:12</span>
+                                <strong>⚡ High-Intent Click:</strong> <span style={{ color: 'var(--text-secondary)' }}>Clicked "Compare Growth vs Business" button</span>
+                              </div>
+                              <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                                <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#dc2626', border: '2px solid white' }}></span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:55:38</span>
+                                <strong>🎯 Navigated to Pricing</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>{selectedVisitor?.currentUrl || '/pricing'}</span> <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '11px' }}>(Evaluating Growth Plan)</span>
+                              </div>
+                              <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                                <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', border: '2px solid white' }}></span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>12:56:02</span>
+                                <strong>💬 Opened Chat Widget</strong> <span style={{ color: '#059669', fontSize: '11px', fontWeight: 600 }}>Sent initial inquiry via live widget</span>
+                              </div>
+                            </>
+                          ) : selectedVisitor?.actionLog && selectedVisitor.actionLog.length > 0 ? (
+                            selectedVisitor.actionLog.map((action, actIdx) => (
+                              <div key={actIdx} style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                                <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: actIdx === 0 ? '#3b82f6' : '#dc2626', border: '2px solid white' }}></span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>
+                                  {new Date(action.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <strong>{action.title || 'Action'}</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>{action.url || '/'}</span> <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{action.details || ''}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <>
+                              <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                                <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6', border: '2px solid white' }}></span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>
+                                  {new Date(selectedVisitor?.firstSeen || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <strong>📍 Landed on Website</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>{selectedVisitor?.currentUrl || '/'}</span> <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>via {selectedVisitor?.referrer || 'Direct Link'}</span>
+                              </div>
+                              <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                                <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#dc2626', border: '2px solid white' }}></span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>
+                                  {new Date(selectedVisitor?.lastSeen || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <strong>🎯 Active Subpath Session</strong> <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>{selectedVisitor?.currentUrl || '/'}</span> <span style={{ color: '#16a34a', fontSize: '11px', fontWeight: 700 }}>(Live Online)</span>
+                              </div>
+                              <div style={{ position: 'relative', fontSize: '12px', lineHeight: 1.4 }}>
+                                <span style={{ position: 'absolute', left: '-24px', top: '2px', width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', border: '2px solid white' }}></span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>
+                                  {new Date(selectedConversation?.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <strong>💬 Live Chat Channel Initialized</strong> <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>({selectedConversation?.source || 'Web Chat'})</span>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -3783,37 +3994,77 @@ function App() {
                         <span>⚡ Upsell Pitch:</span>
                       </div>
                       
-                      <button
-                        className="upsell-pill"
-                        title="Insert Growth Plan Pitch"
-                        onClick={() => setChatInput(prev => prev ? `${prev} We noticed you are exploring our Growth Plan! We currently have a special promotion where you get 20% off plus free onboarding setup.` : 'Hi! We noticed you are exploring our Growth Plan! We currently have a special promotion where you get 20% off plus free onboarding setup.')}
-                      >
-                        💼 Pitch Growth (₹299/mo)
-                      </button>
+                      {/* Default presets if no custom pitches added */}
+                      {upsellPitches.length === 0 && (
+                        <>
+                          <button
+                            className="upsell-pill"
+                            title="Insert Growth Plan Pitch"
+                            onClick={() => setChatInput(prev => prev ? `${prev} We noticed you are exploring our Growth Plan! We currently have a special promotion where you get 20% off plus free onboarding setup.` : 'Hi! We noticed you are exploring our Growth Plan! We currently have a special promotion where you get 20% off plus free onboarding setup.')}
+                          >
+                            💼 Pitch Growth (₹299/mo)
+                          </button>
+
+                          <button
+                            className="upsell-pill"
+                            title="Insert 20% Coupon Code"
+                            onClick={() => setChatInput(prev => prev ? `${prev} Use exclusive coupon code LETS20 for an instant 20% discount on any annual plan!` : 'Here is an exclusive coupon code for you: LETS20 for an instant 20% discount on any annual plan!')}
+                          >
+                            🏷️ 20% Coupon (LETS20)
+                          </button>
+
+                          <button
+                            className="upsell-pill"
+                            title="Insert Direct Checkout Link"
+                            onClick={() => setChatInput(prev => prev ? `${prev} Here is your instant checkout link: https://letstrack.manacity.in/#billing` : 'You can activate your subscription directly here: https://letstrack.manacity.in/#billing')}
+                          >
+                            💳 Send Payment Link
+                          </button>
+
+                          <button
+                            className="upsell-pill"
+                            style={{ borderColor: '#d1d5db', color: 'var(--text-secondary)' }}
+                            title="Offer custom trial extension"
+                            onClick={() => setChatInput(prev => prev ? `${prev} I can also extend your free trial by an extra 7 days so you can test all features with your team!` : 'I can also extend your free trial by an extra 7 days so you can test all features with your team!')}
+                          >
+                            🎁 +7 Day Trial
+                          </button>
+                        </>
+                      )}
+
+                      {/* Custom Admin Configured Pitches */}
+                      {upsellPitches.map(pitch => {
+                        const isMatch = pitch.targetSubpath && selectedVisitor?.currentUrl?.includes(pitch.targetSubpath);
+                        return (
+                          <button
+                            key={pitch._id}
+                            className="upsell-pill"
+                            style={{
+                              background: isMatch ? '#fef3c7' : '#ffffff',
+                              borderColor: isMatch ? '#d97706' : '#fde68a',
+                              color: isMatch ? '#92400e' : '#b45309',
+                              fontWeight: isMatch ? 800 : 600
+                            }}
+                            title={pitch.pitchText}
+                            onClick={() => setChatInput(prev => prev ? `${prev} ${pitch.pitchText}` : pitch.pitchText)}
+                          >
+                            {pitch.badgeText || '⚡'} {pitch.title}
+                          </button>
+                        );
+                      })}
 
                       <button
                         className="upsell-pill"
-                        title="Insert 20% Coupon Code"
-                        onClick={() => setChatInput(prev => prev ? `${prev} Use exclusive coupon code LETS20 for an instant 20% discount on any annual plan!` : 'Here is an exclusive coupon code for you: LETS20 for an instant 20% discount on any annual plan!')}
+                        style={{ background: '#fffbeb', borderColor: '#fde68a', color: '#b45309', fontWeight: 700 }}
+                        onClick={() => {
+                          setNewPitchSubpath(selectedVisitor?.currentUrl || '');
+                          setNewPitchTitle('');
+                          setNewPitchText('');
+                          setShowNewPitchModal(true);
+                        }}
+                        title="Create new upsell pitch template"
                       >
-                        🏷️ 20% Coupon (LETS20)
-                      </button>
-
-                      <button
-                        className="upsell-pill"
-                        title="Insert Direct Checkout Link"
-                        onClick={() => setChatInput(prev => prev ? `${prev} Here is your instant checkout link: https://letstrack.manacity.in/#billing` : 'You can activate your subscription directly here: https://letstrack.manacity.in/#billing')}
-                      >
-                        💳 Send Payment Link
-                      </button>
-
-                      <button
-                        className="upsell-pill"
-                        style={{ borderColor: '#d1d5db', color: 'var(--text-secondary)' }}
-                        title="Offer custom trial extension"
-                        onClick={() => setChatInput(prev => prev ? `${prev} I can also extend your free trial by an extra 7 days so you can test all features with your team!` : 'I can also extend your free trial by an extra 7 days so you can test all features with your team!')}
-                      >
-                        🎁 +7 Day Trial
+                        ➕ Custom Pitch
                       </button>
                     </div>
 
@@ -4730,6 +4981,97 @@ function App() {
                   ) : (
                     <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
                       No quick replies defined yet. Create one above!
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Smart Upsell Pitches management */}
+              <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <h3 className="card-title">⚡ Smart Upsell Pitches & Deal Closers</h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                      Configure 1-click pitches and discount offers that agents can insert directly during live conversations.
+                    </p>
+                  </div>
+                  <span style={{ fontSize: '11px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '3px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                    In-Chat Co-Pilot
+                  </span>
+                </div>
+                
+                <form className="auth-form" onSubmit={handleCreateUpsellPitch} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="form-group">
+                      <label className="form-label">Pitch Title / Button Label</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. Pvt Ltd 15% Off or Pitch Growth"
+                        value={newPitchTitle}
+                        onChange={(e) => setNewPitchTitle(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Target Subpath (Optional)</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. /pvt-ltd-registration or /pricing"
+                        value={newPitchSubpath}
+                        onChange={(e) => setNewPitchSubpath(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: '8px' }}>
+                    <label className="form-label">Pitch Template Message</label>
+                    <textarea
+                      className="form-input"
+                      rows="2"
+                      placeholder="e.g. Hi! We noticed you are exploring our Private Limited Company Registration. Get 15% off our complete incorporation package today!"
+                      value={newPitchText}
+                      onChange={(e) => setNewPitchText(e.target.value)}
+                      required
+                    ></textarea>
+                  </div>
+
+                  <button type="submit" className="auth-btn" style={{ marginTop: '10px', background: 'linear-gradient(135deg, #d97706, #b45309)' }}>
+                    ➕ Save Upsell Pitch Template
+                  </button>
+                </form>
+
+                <div style={{ flex: 1, overflowY: 'auto', maxHeight: '350px' }}>
+                  <h4 style={{ fontSize: '14px', marginBottom: '10px' }}>Configured Upsell Pitches</h4>
+                  {upsellPitches.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {upsellPitches.map(pitch => (
+                        <div key={pitch._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', backgroundColor: '#fffbeb', borderRadius: '10px', border: '1px solid #fde68a' }}>
+                          <div style={{ maxWidth: '80%' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <strong style={{ color: '#92400e', fontSize: '13.5px' }}>{pitch.title}</strong>
+                              {pitch.targetSubpath && (
+                                <span className="path-tag" style={{ fontSize: '11px', padding: '1px 6px' }}>
+                                  Target: {pitch.targetSubpath}
+                                </span>
+                              )}
+                            </div>
+                            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#78350f', lineHeight: 1.4 }}>{pitch.pitchText}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUpsellPitch(pitch._id)}
+                            style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
+                      No custom upsell pitches added yet. Create one above to empower your agents!
                     </p>
                   )}
                 </div>
@@ -5729,6 +6071,109 @@ function App() {
                   style={{ flex: 1, backgroundColor: 'var(--primary)' }}
                 >
                   {newChatLoading ? 'Starting...' : 'Start Chat'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Upsell Pitch Modal */}
+      {showNewPitchModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div className="glass-card" style={{ padding: '26px', width: '480px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', border: '1px solid #fde68a', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #fef3c7', paddingBottom: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#92400e', fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>⚡ Create Smart Upsell Pitch</span>
+                </h3>
+                <p style={{ margin: '4px 0 0 0', color: '#b45309', fontSize: '12px' }}>
+                  This pitch template will appear directly above the chat bar for your support team.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowNewPitchModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateUpsellPitch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Pitch Title / Label</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. 15% Pvt Ltd Discount"
+                    value={newPitchTitle}
+                    onChange={(e) => setNewPitchTitle(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Target Subpath (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. /pvt-ltd-registration"
+                    value={newPitchSubpath}
+                    onChange={(e) => setNewPitchSubpath(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Co-Pilot Badge Tag</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. 💼 Growth or 🏷️ 20% Off"
+                  value={newPitchBadge}
+                  onChange={(e) => setNewPitchBadge(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Pitch Message Template</label>
+                <textarea
+                  className="form-input"
+                  placeholder="Type the message that will be inserted when agents click this button..."
+                  value={newPitchText}
+                  onChange={(e) => setNewPitchText(e.target.value)}
+                  style={{ minHeight: '90px', resize: 'vertical' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  className="claim-btn"
+                  onClick={() => setShowNewPitchModal(false)}
+                  style={{ flex: 1, backgroundColor: '#f1f5f9', color: 'var(--text-secondary)', border: '1px solid #cbd5e1' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="claim-btn"
+                  style={{ flex: 1, background: 'linear-gradient(135deg, #d97706, #b45309)', color: '#ffffff', fontWeight: 800 }}
+                >
+                  ➕ Save & Activate Pitch
                 </button>
               </div>
             </form>
