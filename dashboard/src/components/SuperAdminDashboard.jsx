@@ -1033,7 +1033,7 @@ export default function SuperAdminDashboard({
                           f
                         </div>
                         <div>
-                          <div style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a' }}>{metaAssets.meta?.pageName || 'ManaCity'}</div>
+                          <div style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a' }}>{metaAssets.meta?.pageName || 'Connected Facebook Page'}</div>
                           <a href={metaAssets.meta?.facebookUrl || `https://facebook.com/${metaAssets.meta?.pageId || '106590312320041'}`} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#1877f2', textDecoration: 'none', fontWeight: 600 }}>
                             Page ID: {metaAssets.meta?.pageId || '106590312320041'} ↗
                           </a>
@@ -1068,9 +1068,11 @@ export default function SuperAdminDashboard({
                           📸
                         </div>
                         <div>
-                          <div style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a' }}>ManaCity Instagram</div>
-                          <a href="https://instagram.com/manacity.in" target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#be185d', textDecoration: 'none', fontWeight: 700 }}>
-                            {metaAssets.meta?.instagramHandle || '@manacity.in'} ↗
+                          <div style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a' }}>
+                            {metaAssets.meta?.instagramHandle ? `${metaAssets.meta.instagramHandle.replace('@', '')}` : (metaAssets.meta?.pageName || 'Instagram Business Account')}
+                          </div>
+                          <a href={`https://instagram.com/${(metaAssets.meta?.instagramHandle || 'rajugari_ventures').replace('@', '')}`} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#be185d', textDecoration: 'none', fontWeight: 700 }}>
+                            {metaAssets.meta?.instagramHandle || '@rajugari_ventures'} ↗
                           </a>
                         </div>
                       </div>
