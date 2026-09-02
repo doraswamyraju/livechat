@@ -1031,14 +1031,43 @@ function App() {
       name: `Visitor #${id} (Canada)`,
       email: `visitor${id}@example.com`,
       location: 'Toronto, Canada',
+      city: 'Toronto',
+      country: 'Canada',
       currentUrl: '/pricing',
       duration: 10,
       status: 'Active',
-      browser: 'Chrome on macOS',
+      isOnline: true,
+      browser: 'Chrome',
+      os: 'macOS',
+      deviceType: 'Desktop',
       flag: '🇨🇦'
     };
+
+    const newConv = {
+      _id: `c_${id}`,
+      visitorId: newVis,
+      status: 'Unassigned',
+      source: 'webchat',
+      channel: 'webchat',
+      unreadCount: 1,
+      lastMessageText: 'Hi! I am browsing the /pricing page and have a question about the Growth plan.',
+      updatedAt: new Date().toISOString()
+    };
+
     setVisitors(prev => [newVis, ...prev]);
-    showToast(`🔔 New Visitor #${id} landed on /pricing page!`);
+    setConversations(prev => [newConv, ...prev]);
+    setSelectedVisitor(newVis);
+    setSelectedConversation(newConv);
+    setMessages([
+      {
+        _id: `m_${id}`,
+        conversationId: `c_${id}`,
+        sender: 'visitor',
+        text: 'Hi! I am browsing the /pricing page and have a question about the Growth plan.',
+        createdAt: new Date().toISOString()
+      }
+    ]);
+    showToast(`🔔 New Visitor #${id} landed on /pricing and joined Live Inbox!`);
   };
 
   const handleSimulateInstagramDM = () => {
@@ -2369,25 +2398,97 @@ function App() {
               <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <h3 className="card-title">Visitor Footprint Details</h3>
                 {selectedVisitor ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {/* Top Action: Glowing Open Chat Thread CTA */}
+                    <button
+                      onClick={() => {
+                        setActiveTab('chat');
+                        const existing = conversations.find(c => (c.visitorId?._id || c.visitorId) === selectedVisitor._id);
+                        if (existing) {
+                          handleSelectConversation(existing);
+                        } else {
+                          const tempConv = {
+                            _id: `c_${selectedVisitor._id}`,
+                            visitorId: selectedVisitor,
+                            status: 'Unassigned',
+                            source: selectedVisitor.source || 'webchat',
+                            channel: selectedVisitor.source || 'webchat',
+                            unreadCount: 0,
+                            lastMessageText: `Chat session with ${selectedVisitor.name}`,
+                            updatedAt: new Date().toISOString()
+                          };
+                          setConversations(prev => [tempConv, ...prev.filter(c => (c.visitorId?._id || c.visitorId) !== selectedVisitor._id)]);
+                          handleSelectConversation(tempConv);
+                          if (socketRef.current) {
+                            socketRef.current.emit('start-conversation', { visitorId: selectedVisitor._id });
+                          }
+                        }
+                      }}
+                      style={{ 
+                        background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 50%, #b91c1c 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '12px',
+                        padding: '13px 18px',
+                        fontSize: '13.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        boxShadow: '0 6px 20px rgba(220, 38, 38, 0.35), 0 0 0 1px rgba(220, 38, 38, 0.2)',
+                        transition: 'all 0.2s ease',
+                        width: '100%'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '16px' }}>💬</span>
+                        <span>Open Live Chat Thread</span>
+                      </div>
+                      <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '10px', padding: '2px 8px', fontSize: '11px', fontWeight: 700 }}>
+                        {selectedVisitor.isOnline ? '🟢 Live' : 'Offline'}
+                      </span>
+                    </button>
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '10px 0', borderBottom: '1px solid var(--border-color)' }}>
                       <div className="form-group" style={{ marginBottom: '8px' }}>
                         <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Full Name</label>
-                        <input type="text" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorName} onChange={(e) => setEditVisitorName(e.target.value)} />
+                        <input type="text" className="form-input" style={{ padding: '7px 10px', fontSize: '13px' }} value={editVisitorName} onChange={(e) => setEditVisitorName(e.target.value)} />
                       </div>
                       <div className="form-group" style={{ marginBottom: '8px' }}>
                         <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Email Address</label>
-                        <input type="email" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorEmail} onChange={(e) => setEditVisitorEmail(e.target.value)} />
+                        <input type="email" className="form-input" style={{ padding: '7px 10px', fontSize: '13px' }} value={editVisitorEmail} onChange={(e) => setEditVisitorEmail(e.target.value)} />
                       </div>
                       <div className="form-group" style={{ marginBottom: '8px' }}>
                         <label className="form-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Phone Number</label>
-                        <input type="tel" className="form-input" style={{ padding: '6px 10px', fontSize: '13px' }} value={editVisitorPhone} onChange={(e) => setEditVisitorPhone(e.target.value)} placeholder="e.g. +1 234 567 890" />
+                        <input type="tel" className="form-input" style={{ padding: '7px 10px', fontSize: '13px' }} value={editVisitorPhone} onChange={(e) => setEditVisitorPhone(e.target.value)} placeholder="e.g. +1 234 567 890" />
                       </div>
                       <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                         <input type="checkbox" id="visitor-muted-check-1" checked={editVisitorMuted} onChange={(e) => setEditVisitorMuted(e.target.checked)} style={{ cursor: 'pointer' }} />
                         <label htmlFor="visitor-muted-check-1" className="form-label" style={{ fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', margin: 0 }}>Mute & Suppress Alerts</label>
                       </div>
-                      <button className="claim-btn" style={{ padding: '6px 12px', fontSize: '12px', marginTop: '4px', backgroundColor: 'var(--primary)' }} onClick={handleUpdateVisitor}>Save Contact Info</button>
+                      <button 
+                        style={{ 
+                          padding: '10px 16px', 
+                          fontSize: '13px', 
+                          fontWeight: 700, 
+                          marginTop: '4px', 
+                          background: 'linear-gradient(135deg, #dc2626, #b91c1c)', 
+                          color: '#ffffff', 
+                          border: 'none', 
+                          borderRadius: '8px', 
+                          cursor: 'pointer', 
+                          width: '100%',
+                          boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }} 
+                        onClick={handleUpdateVisitor}
+                      >
+                        💾 Save Contact Info
+                      </button>
                     </div>
 
                     <div className="info-item">
@@ -2406,7 +2507,7 @@ function App() {
                     </div>
                     <div className="info-item">
                       <span className="info-item-label">Referred From</span>
-                      <span className="info-item-value">{selectedVisitor.referrer}</span>
+                      <span className="info-item-value">{selectedVisitor.referrer || 'Direct / Organic'}</span>
                     </div>
                     <div className="info-item">
                       <span className="info-item-label">Browser & OS</span>
@@ -2424,27 +2525,6 @@ function App() {
                         {selectedVisitor.lastSeen ? new Date(selectedVisitor.lastSeen).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Never'}
                       </span>
                     </div>
-                    
-                    <button
-                      onClick={() => {
-                        // Open chat and force find/create chat log room
-                        setActiveTab('chat');
-                        // Find or mimic conversation select
-                        const existing = conversations.find(c => c.visitorId._id === selectedVisitor._id || c.visitorId === selectedVisitor._id);
-                        if (existing) {
-                          handleSelectConversation(existing);
-                        } else {
-                          // Proactively start a conversation for this visitor
-                          if (socketRef.current) {
-                            socketRef.current.emit('start-conversation', { visitorId: selectedVisitor._id });
-                          }
-                        }
-                      }}
-                      className="claim-btn"
-                      style={{ marginTop: '20px' }}
-                    >
-                      Open Chat Thread
-                    </button>
                   </div>
                 ) : (
                   <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', marginTop: '40px' }}>

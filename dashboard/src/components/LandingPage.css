@@ -590,7 +590,7 @@
   border-radius: 12px;
 }
 
-.visitor-row {
+.lp-visitor-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -603,7 +603,7 @@
   transition: all 0.2s ease;
 }
 
-.visitor-row.active {
+.lp-visitor-row.active {
   background: #fef2f2;
   border-color: #fca5a5;
   box-shadow: var(--lp-shadow-sm);

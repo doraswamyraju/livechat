@@ -266,7 +266,7 @@ export default function App() {
                     <span className="table-live-badge">● {simulatedVisitorCount} Active Visitors Now</span>
                   </div>
 
-                  <div className="visitor-row active">
+                  <div className="lp-visitor-row active">
                     <div className="visitor-info">
                       <span className="online-indicator"></span>
                       <div>
@@ -277,7 +277,7 @@ export default function App() {
                     <span className="visitor-page">/pricing (3m 12s)</span>
                   </div>
 
-                  <div className="visitor-row">
+                  <div className="lp-visitor-row">
                     <div className="visitor-info">
                       <span className="online-indicator"></span>
                       <div>
@@ -288,7 +288,7 @@ export default function App() {
                     <span className="visitor-page">/checkout (1m 45s)</span>
                   </div>
 
-                  <div className="visitor-row">
+                  <div className="lp-visitor-row">
                     <div className="visitor-info">
                       <span className="online-indicator"></span>
                       <div>

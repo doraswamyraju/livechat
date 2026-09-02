@@ -398,39 +398,48 @@ h1, h2, h3, h4, h5, h6 {
 .visitor-list-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 .visitor-list-table th {
   text-align: left;
-  padding: 12px 16px;
+  padding: 12px 18px;
   font-size: 11.5px;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   border-bottom: 1px solid var(--border-color);
   background-color: var(--bg-tertiary);
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .visitor-list-table td {
-  padding: 14px 16px;
+  padding: 14px 18px;
   font-size: 13.5px;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-secondary);
+  vertical-align: middle;
 }
 
-.visitor-row {
+.visitor-list-table tr.visitor-row {
+  display: table-row !important;
   cursor: pointer;
   transition: background-color 0.2s;
   background-color: #ffffff;
+  border: none;
+  border-radius: 0;
 }
 
-.visitor-row:hover {
+.visitor-list-table tr.visitor-row:hover {
   background-color: var(--bg-tertiary);
 }
 
-.visitor-row.selected {
+.visitor-list-table tr.visitor-row.selected {
   background-color: #fef2f2;
+}
+
+.visitor-list-table tr.visitor-row.selected td:first-child {
   border-left: 3px solid var(--primary);
 }
 
