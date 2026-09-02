@@ -725,7 +725,13 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
   const { conversationId } = req.params;
 
   try {
-    const messages = await Message.find({ conversationId }).sort({ timestamp: 1 });
+    let convId = conversationId;
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+      const conv = await Conversation.findOne({ visitorId: conversationId });
+      if (conv) convId = conv._id;
+      else return res.status(200).json([]);
+    }
+    const messages = await Message.find({ conversationId: convId }).sort({ timestamp: 1 });
     res.status(200).json(messages);
   } catch (err) {
     console.error('Error retrieving conversation messages:', err);
@@ -739,7 +745,13 @@ app.put('/api/conversations/:conversationId/archive', authenticateToken, async (
   const { archive } = req.body; // true or false
 
   try {
-    const conv = await Conversation.findOne({ _id: conversationId, tenantId: req.user.tenantId });
+    let conv = null;
+    if (mongoose.Types.ObjectId.isValid(conversationId)) {
+      conv = await Conversation.findOne({ _id: conversationId, tenantId: req.user.tenantId });
+    }
+    if (!conv) {
+      conv = await Conversation.findOne({ visitorId: conversationId, tenantId: req.user.tenantId });
+    }
     if (!conv) return res.status(404).json({ error: 'Conversation not found' });
 
     conv.isArchived = archive !== undefined ? Boolean(archive) : true;
