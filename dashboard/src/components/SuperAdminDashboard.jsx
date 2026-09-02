@@ -246,7 +246,13 @@ export default function SuperAdminDashboard({
             },
             body: JSON.stringify({ accessToken })
           })
-            .then(res => res.json())
+            .then(async res => {
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({ error: 'Server returned HTTP ' + res.status }));
+                throw new Error(errData.error || 'Server returned status ' + res.status);
+              }
+              return res.json();
+            })
             .then(data => {
               if (data.pages && data.pages.length > 0) {
                 setAvailablePages(data.pages);
