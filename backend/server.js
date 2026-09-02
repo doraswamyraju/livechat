@@ -2056,7 +2056,7 @@ app.post('/api/superadmin/meta/connect', authenticateToken, requireSuperAdmin, a
       if (found) selectedPage = found;
     }
 
-    let selectedPhone = whatsappNumbers[0] || null;
+    let selectedPhone = null;
     if (selectedWabaPhoneId) {
       const found = whatsappNumbers.find(w => w.phoneId === selectedWabaPhoneId);
       if (found) selectedPhone = found;

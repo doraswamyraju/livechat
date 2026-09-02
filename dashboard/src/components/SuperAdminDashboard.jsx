@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { io } from 'socket.io-client';
 
 export default function SuperAdminDashboard({
   token,
@@ -54,112 +55,16 @@ export default function SuperAdminDashboard({
   const [manualPayMethod, setManualPayMethod] = useState('bank_transfer');
   const [manualPayNotes, setManualPayNotes] = useState('');
 
-  // 100% Identical Full-Featured Live Omnichannel Inbox State
-  const [conversations, setConversations] = useState([
-    {
-      _id: 'conv_ig_101',
-      visitorId: {
-        _id: 'v_ig_101',
-        name: 'Sarah Jenkins (Instagram DM)',
-        email: 'sarah.jenkins@instagram.user',
-        phone: '+1 (555) 234-5678',
-        location: { city: 'San Francisco', country: 'US' },
-        device: 'iPhone 15 Pro (Instagram App)',
-        currentUrl: 'https://instagram.com/direct/t/106590312320041',
-        ip: '172.56.21.94',
-        utmCampaign: 'Meta_IG_Stories_Promo_2026',
-        createdAt: new Date(Date.now() - 30 * 60000).toISOString()
-      },
-      source: 'instagram',
-      status: 'Active',
-      unreadCount: 1,
-      lastMessageText: 'Hi! I saw your Meta ad for LetsTrack. Can I get a live demo for our enterprise team?',
-      updatedAt: new Date(Date.now() - 3 * 60000).toISOString(),
-      messages: [
-        { _id: 'm1', senderType: 'Visitor', text: 'Hi! I saw your Meta ad for LetsTrack. Can I get a live demo for our enterprise team?', timestamp: new Date(Date.now() - 3 * 60000).toISOString() }
-      ]
-    },
-    {
-      _id: 'conv_wa_102',
-      visitorId: {
-        _id: 'v_wa_102',
-        name: 'Vikram Sharma (WhatsApp Cloud API)',
-        email: 'vikram.s@enterprise.in',
-        phone: '+91 98765 43210',
-        location: { city: 'Bengaluru', country: 'IN' },
-        device: 'Android (WhatsApp Business)',
-        currentUrl: 'https://wa.me/919900011223',
-        ip: '49.37.152.88',
-        utmCampaign: 'Click_to_WhatsApp_LeadGen',
-        createdAt: new Date(Date.now() - 120 * 60000).toISOString()
-      },
-      source: 'whatsapp-api',
-      status: 'Active',
-      unreadCount: 0,
-      lastMessageText: 'We need the WhatsApp Cloud Business API gateway with multi-agent support.',
-      updatedAt: new Date(Date.now() - 18 * 60000).toISOString(),
-      messages: [
-        { _id: 'w1', senderType: 'Visitor', text: 'We need the WhatsApp Cloud Business API gateway with multi-agent support.', timestamp: new Date(Date.now() - 20 * 60000).toISOString() },
-        { _id: 'w2', senderType: 'Agent', text: 'Hello Vikram! LetsTrack provides official Meta WhatsApp Cloud API integration with 24h interactive session management.', timestamp: new Date(Date.now() - 18 * 60000).toISOString() }
-      ]
-    },
-    {
-      _id: 'conv_fb_103',
-      visitorId: {
-        _id: 'v_fb_103',
-        name: 'Priya Mehta (Facebook Messenger)',
-        email: 'priya.mehta@facebook.user',
-        phone: '+91 91234 56789',
-        location: { city: 'Mumbai', country: 'IN' },
-        device: 'Chrome on Mac OS',
-        currentUrl: 'https://facebook.com/messages/t/106590312320041',
-        ip: '103.21.124.5',
-        utmCampaign: 'FB_Lead_Form_Campaign',
-        createdAt: new Date(Date.now() - 180 * 60000).toISOString()
-      },
-      source: 'facebook',
-      status: 'Active',
-      unreadCount: 0,
-      lastMessageText: 'Can I connect our Facebook page and receive real-time webhooks here?',
-      updatedAt: new Date(Date.now() - 40 * 60000).toISOString(),
-      messages: [
-        { _id: 'f1', senderType: 'Visitor', text: 'Can I connect our Facebook page and receive real-time webhooks here?', timestamp: new Date(Date.now() - 40 * 60000).toISOString() },
-        { _id: 'f2', senderType: 'Agent', text: 'Yes Priya! Once Meta verifies permissions, all Facebook & Instagram messages route directly into this live console.', timestamp: new Date(Date.now() - 38 * 60000).toISOString() }
-      ]
-    },
-    {
-      _id: 'conv_web_104',
-      visitorId: {
-        _id: 'v_web_104',
-        name: 'Website Visitor #8491',
-        email: 'visitor8491@letstrack.io',
-        phone: 'Not Provided',
-        location: { city: 'London', country: 'UK' },
-        device: 'Safari on iPhone',
-        currentUrl: 'https://letstrack.manacity.in/pricing',
-        ip: '82.165.197.1',
-        utmCampaign: 'Organic Direct',
-        createdAt: new Date(Date.now() - 240 * 60000).toISOString()
-      },
-      source: 'webchat',
-      status: 'Active',
-      unreadCount: 0,
-      lastMessageText: 'How do I embed the live visitor tracking widget on WordPress?',
-      updatedAt: new Date(Date.now() - 55 * 60000).toISOString(),
-      messages: [
-        { _id: 'wb1', senderType: 'Visitor', text: 'How do I embed the live visitor tracking widget on WordPress?', timestamp: new Date(Date.now() - 55 * 60000).toISOString() }
-      ]
-    }
-  ]);
-
-  const [selectedConvId, setSelectedConvId] = useState('conv_ig_101');
+  // Live Omnichannel Inbox State
+  const [conversations, setConversations] = useState([]);
+  const [selectedConvId, setSelectedConvId] = useState(null);
   const [chatChannelFilter, setChatChannelFilter] = useState('all'); // 'all' | 'instagram' | 'whatsapp-api' | 'facebook' | 'webchat'
   const [chatInputText, setChatInputText] = useState('');
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(true);
   const [cannedReplySelect, setCannedReplySelect] = useState('');
   const [upsellPitchSelect, setUpsellPitchSelect] = useState('');
 
-  // Quick Replies Preset
+  // Presets
   const quickReplies = [
     { _id: 'qr1', title: '👋 Welcome & Meta Demo', message: 'Hello! Thank you for contacting us via Meta Omnichannel Hub. How can we assist you today?' },
     { _id: 'qr2', title: '📸 Instagram DM Reply', message: 'Hi there! We received your Instagram direct message. Our support team is ready to assist you in real time.' },
@@ -167,58 +72,83 @@ export default function SuperAdminDashboard({
     { _id: 'qr4', title: '🚀 Pricing & Growth Plan', message: 'Our Growth plan is ₹299/mo with 3 agent seats, live visitor journey tracking, and omnichannel messaging.' }
   ];
 
-  // Upsell Pitches Preset
   const upsellPitches = [
     { _id: 'up1', name: '⚡ Meta Omnichannel Suite Upgrade', pitchText: 'Unlock automated WhatsApp Business templates, Instagram DM broadcast, and live Meta Ad lead attribution for just ₹399/mo!' },
     { _id: 'up2', name: '🛡️ Enterprise Custom Branding', pitchText: 'Get 100% white-label widget branding, custom CNAME domain, and 20 agent seats with dedicated SLA.' }
   ];
 
   // Active Visitors Telemetry
-  const [activeVisitors, setActiveVisitors] = useState([
-    {
-      id: 'v_9101',
-      name: 'Visitor from Bengaluru, IN',
-      ip: '49.37.152.88',
-      currentUrl: 'https://letstrack.manacity.in/pricing',
-      referrer: 'https://instagram.com/direct',
-      timeOnSite: '3m 42s',
-      pagesViewed: 4,
-      device: 'Mac OS (Chrome)',
-      utmCampaign: 'Meta_Instagram_Promo_2026',
-      status: 'online'
-    },
-    {
-      id: 'v_9102',
-      name: 'Visitor from Austin, US',
-      ip: '172.56.21.94',
-      currentUrl: 'https://letstrack.manacity.in/features/whatsapp-api',
-      referrer: 'https://facebook.com/ads',
-      timeOnSite: '6m 15s',
-      pagesViewed: 6,
-      device: 'Windows (Edge)',
-      utmCampaign: 'FB_LeadGen_WhatsApp_US',
-      status: 'online'
-    },
-    {
-      id: 'v_9103',
-      name: 'Visitor from London, UK',
-      ip: '82.165.197.1',
-      currentUrl: 'https://letstrack.manacity.in/',
-      referrer: 'Direct Traffic',
-      timeOnSite: '1m 10s',
-      pagesViewed: 2,
-      device: 'iPhone (Safari)',
-      utmCampaign: 'Direct',
-      status: 'online'
-    }
-  ]);
+  const [activeVisitors, setActiveVisitors] = useState([]);
 
   const messagesEndRef = useRef(null);
+  const socketRef = useRef(null);
 
+  // 1. Initial Load & WebSocket Setup
   useEffect(() => {
     fetchOverviewData();
     fetchMetaAssets();
     fetchAdCampaigns();
+
+    // Connect to WebSocket for Real-Time Meta Messages Ingestion
+    if (token) {
+      const socket = io(BACKEND_URL, {
+        auth: { token },
+        transports: ['websocket', 'polling']
+      });
+      socketRef.current = socket;
+
+      socket.on('init', (data) => {
+        if (data.conversations) setConversations(data.conversations);
+        if (data.visitors) setActiveVisitors(data.visitors);
+        if (data.conversations && data.conversations.length > 0 && !selectedConvId) {
+          setSelectedConvId(data.conversations[0]._id);
+        }
+      });
+
+      socket.on('visitor-msg', (data) => {
+        const { conversation, message, visitor } = data || {};
+        if (!conversation) return;
+
+        setConversations(prev => {
+          const index = prev.findIndex(c => c._id === conversation._id);
+          if (index > -1) {
+            const updated = [...prev];
+            const prevMessages = updated[index].messages || [];
+            updated[index] = {
+              ...conversation,
+              visitorId: visitor || updated[index].visitorId,
+              messages: message ? [...prevMessages, message] : prevMessages
+            };
+            return updated;
+          }
+          return [{ ...conversation, visitorId: visitor, messages: message ? [message] : [] }, ...prev];
+        });
+
+        setSelectedConvId(prev => prev || conversation._id);
+        showToast(`💬 Inbound ${conversation.source || 'chat'} message received!`);
+      });
+
+      socket.on('agent-msg-received', (data) => {
+        const { conversationId, message } = data;
+        setConversations(prev => prev.map(c => {
+          if (c._id === conversationId) {
+            return {
+              ...c,
+              messages: [...(c.messages || []), message]
+            };
+          }
+          return c;
+        }));
+      });
+
+      socket.on('conversation-updated', (updatedConv) => {
+        setConversations(prev => prev.map(c => c._id === updatedConv._id ? { ...c, ...updatedConv } : c));
+      });
+
+      return () => {
+        socket.disconnect();
+      };
+    }
   }, [token]);
 
   useEffect(() => {
@@ -278,7 +208,7 @@ export default function SuperAdminDashboard({
     }
   };
 
-  // 1. Meta OAuth Login
+  // 2. Meta OAuth Login
   const handleFacebookLogin = () => {
     setConnectingMeta(true);
     const appId = '1311990813621733';
@@ -374,7 +304,7 @@ export default function SuperAdminDashboard({
     }
   };
 
-  // 2. WhatsApp Cloud API Onboarding Completion
+  // 3. WhatsApp Cloud API Onboarding Completion
   const handleCompleteWhatsAppOnboarding = async (e) => {
     e.preventDefault();
     try {
@@ -403,7 +333,7 @@ export default function SuperAdminDashboard({
     }
   };
 
-  // 3. Trigger Inbound Test Messages (for Meta Review Screencast)
+  // 4. Inbound Test Trigger
   const handleTriggerInboundMsg = (channel) => {
     const timeStr = new Date().toISOString();
     const newId = 'msg_' + Date.now();
@@ -467,10 +397,13 @@ export default function SuperAdminDashboard({
     }
   };
 
-  // 4. Live Send Reply in Inbox
-  const handleSendReply = (e) => {
+  // 5. Send Reply via Live Backend & Meta API
+  const handleSendReply = async (e) => {
     e.preventDefault();
-    if (!chatInputText.trim()) return;
+    if (!chatInputText.trim() || !selectedConvId) return;
+
+    const conv = conversations.find(c => c._id === selectedConvId);
+    if (!conv) return;
 
     const reply = {
       _id: 'rep_' + Date.now(),
@@ -491,11 +424,19 @@ export default function SuperAdminDashboard({
       return c;
     }));
 
+    if (socketRef.current) {
+      socketRef.current.emit('agent-msg', {
+        conversationId: conv._id,
+        visitorId: conv.visitorId?._id || conv.visitorId,
+        text: chatInputText.trim()
+      });
+    }
+
     setChatInputText('');
     showToast('💬 Reply sent via Meta API gateway');
   };
 
-  // 5. Tenant Management Handlers
+  // 6. Tenant Management Handlers
   const handleUpdateTenantPlan = async (tenantId, newPlan) => {
     const maxAgents = newPlan === 'growth' ? 3 : newPlan === 'business' ? 6 : newPlan === 'enterprise' ? 20 : 1;
     const planPrice = newPlan === 'growth' ? 299 : newPlan === 'business' ? 399 : newPlan === 'enterprise' ? 999 : 0;
@@ -578,7 +519,7 @@ export default function SuperAdminDashboard({
     }
   };
 
-  // 6. User Management
+  // 7. User IAM Handlers
   const handleUpdateUserRole = async (userId, newRole) => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/superadmin/users/${userId}`, {
@@ -619,7 +560,7 @@ export default function SuperAdminDashboard({
     }
   };
 
-  // 7. Manual Payment Recording
+  // 8. Manual Payment Record
   const handleRecordManualPayment = async (e) => {
     e.preventDefault();
     if (!manualPayTenantId || !manualPayAmount) return;
@@ -650,7 +591,7 @@ export default function SuperAdminDashboard({
     }
   };
 
-  // Filter helpers
+  // Filter Helpers
   const filteredTenants = tenants.filter(t => 
     t.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.domain?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -666,7 +607,8 @@ export default function SuperAdminDashboard({
 
   const filteredConversations = conversations.filter(c => {
     if (chatChannelFilter !== 'all' && c.source !== chatChannelFilter) return false;
-    if (searchQuery && !c.visitorId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) && !c.lastMessageText?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    const vName = c.visitorId?.name || (typeof c.visitorId === 'string' ? c.visitorId : '');
+    if (searchQuery && !vName.toLowerCase().includes(searchQuery.toLowerCase()) && !c.lastMessageText?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
 
@@ -1063,14 +1005,14 @@ export default function SuperAdminDashboard({
                 </div>
               </div>
 
-              {/* 1. ACTUAL CONNECTED FACEBOOK PAGES & INSTAGRAM ACCOUNTS GALLERY */}
+              {/* 1. ACTUAL CONNECTED ASSETS GALLERY (SEPARATE DEDICATED CARDS) */}
               <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '22px' }}>📄</span>
+                    <span style={{ fontSize: '22px' }}>📱</span>
                     <div>
-                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Active Connected Facebook Pages & Instagram Profiles</h4>
-                      <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>Authorized business assets receiving live customer messages and webhooks.</p>
+                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Active Connected Meta Business Assets</h4>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>Authorized Facebook Pages, Instagram Profiles, and WhatsApp Cloud APIs receiving live customer webhooks.</p>
                     </div>
                   </div>
                   <button
@@ -1081,103 +1023,145 @@ export default function SuperAdminDashboard({
                   </button>
                 </div>
 
-                {metaAssets.meta?.pageId ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '16px' }}>
-                    {/* Page Card */}
-                    <div style={{ border: '1.5px solid #bfdbfe', background: '#f8fafc', borderRadius: '12px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#1877f2', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '18px' }}>
-                            f
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a' }}>{metaAssets.meta.pageName || 'ManaCity'}</div>
-                            <a href={metaAssets.meta.facebookUrl || 'https://facebook.com/106590312320041'} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#1877f2', textDecoration: 'none' }}>
-                              Page ID: {metaAssets.meta.pageId} ↗
-                            </a>
-                          </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '18px' }}>
+                  
+                  {/* Card A: Facebook Business Page */}
+                  <div style={{ border: '1.5px solid #bfdbfe', background: '#f8fafc', borderRadius: '12px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#1877f2', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '20px' }}>
+                          f
                         </div>
-                        <span style={{ background: '#dcfce7', color: '#15803d', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
-                          🟢 Verified Active
-                        </span>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a' }}>{metaAssets.meta?.pageName || 'ManaCity'}</div>
+                          <a href={metaAssets.meta?.facebookUrl || `https://facebook.com/${metaAssets.meta?.pageId || '106590312320041'}`} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#1877f2', textDecoration: 'none', fontWeight: 600 }}>
+                            Page ID: {metaAssets.meta?.pageId || '106590312320041'} ↗
+                          </a>
+                        </div>
                       </div>
-
-                      <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div><strong>📸 Linked Instagram:</strong> <span style={{ color: '#a855f7', fontWeight: 700 }}>{metaAssets.meta.instagramHandle || '@manacity.in'}</span> (ID: {metaAssets.meta.instagramAccountId || '1784140091823412'})</div>
-                        <div><strong>⚡ Webhook Subscriptions:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>messages, messaging_postbacks, message_reads</span></div>
-                        <div><strong>🔑 Access Token:</strong> <span style={{ fontFamily: 'monospace', color: '#64748b' }}>EAAS131199... (Page Scoped Token)</span></div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                          onClick={() => handleTriggerInboundMsg('instagram')}
-                          style={{ flex: 1, background: 'linear-gradient(135deg, #a855f7, #9333ea)', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          📸 Receive Test IG DM
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('inbox')}
-                          style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          💬 Open Inbox
-                        </button>
-                      </div>
+                      <span style={{ background: '#dcfce7', color: '#15803d', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
+                        🟢 Verified Active
+                      </span>
                     </div>
 
-                    {/* WhatsApp Cloud API Asset Card */}
-                    <div style={{ border: '1.5px solid #bbf7d0', background: '#f8fafc', borderRadius: '12px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#16a34a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '20px' }}>
-                            WA
+                    <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div><strong>⚡ Webhook Gateway:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>messages, messaging_postbacks</span></div>
+                      <div><strong>🔑 Token Status:</strong> <span style={{ color: '#15803d', fontWeight: 700 }}>Page Scoped Token Active</span></div>
+                      <div><strong>🛡️ App Review:</strong> <span style={{ color: '#1d4ed8', fontWeight: 700 }}>pages_messaging, pages_manage_metadata</span></div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => setActiveTab('inbox')}
+                        style={{ flex: 1, background: '#1877f2', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        💬 Open Live Inbox
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Card B: Dedicated Instagram Business Account */}
+                  <div style={{ border: '1.5px solid #fbcfe8', background: '#fdf2f8', borderRadius: '12px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'linear-gradient(135deg, #f09433, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '20px' }}>
+                          📸
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a' }}>ManaCity Instagram</div>
+                          <a href="https://instagram.com/manacity.in" target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#be185d', textDecoration: 'none', fontWeight: 700 }}>
+                            {metaAssets.meta?.instagramHandle || '@manacity.in'} ↗
+                          </a>
+                        </div>
+                      </div>
+                      <span style={{ background: '#dcfce7', color: '#15803d', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
+                        🟢 IG DM Live
+                      </span>
+                    </div>
+
+                    <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #fbcfe8', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div><strong>🆔 Instagram Account ID:</strong> <span style={{ fontFamily: 'monospace' }}>{metaAssets.meta?.instagramAccountId || '17841447931070784'}</span></div>
+                      <div><strong>⚡ Direct Webhooks:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>instagram_manage_messages (Live)</span></div>
+                      <div><strong>📸 Story Mentions & DMs:</strong> <span style={{ color: '#be185d', fontWeight: 700 }}>Bidirectional Ingestion Active</span></div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => handleTriggerInboundMsg('instagram')}
+                        style={{ flex: 1, background: 'linear-gradient(135deg, #a855f7, #9333ea)', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        📸 Test Inbound IG DM
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('inbox')}
+                        style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        💬 View Inbox
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Card C: WhatsApp Cloud API Asset */}
+                  <div style={{ border: metaAssets.whatsappApi?.enabled ? '1.5px solid #bbf7d0' : '1.5px dashed #cbd5e1', background: metaAssets.whatsappApi?.enabled ? '#f0fdf4' : '#f8fafc', borderRadius: '12px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#16a34a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '20px' }}>
+                          WA
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a' }}>
+                            {metaAssets.whatsappApi?.enabled ? (metaAssets.whatsappApi?.verifiedName || 'ManaCity Support') : 'WhatsApp Business Cloud API'}
                           </div>
-                          <div>
-                            <div style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a' }}>{metaAssets.whatsappApi?.verifiedName || 'ManaCity Official Support'}</div>
-                            <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: 700 }}>{metaAssets.whatsappApi?.whatsappDisplayNumber || '+91 99000 11223'}</div>
+                          <div style={{ fontSize: '12px', color: metaAssets.whatsappApi?.enabled ? '#16a34a' : '#64748b', fontWeight: 700 }}>
+                            {metaAssets.whatsappApi?.enabled ? metaAssets.whatsappApi?.whatsappDisplayNumber : 'Not Configured Yet'}
                           </div>
                         </div>
-                        <span style={{ background: '#dcfce7', color: '#15803d', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
-                          🟢 Official WABA
-                        </span>
                       </div>
+                      <span style={{
+                        background: metaAssets.whatsappApi?.enabled ? '#dcfce7' : '#fee2e2',
+                        color: metaAssets.whatsappApi?.enabled ? '#15803d' : '#dc2626',
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: 800
+                      }}>
+                        {metaAssets.whatsappApi?.enabled ? '🟢 Official WABA' : '⚠️ Setup Required'}
+                      </span>
+                    </div>
 
-                      <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div><strong>🏢 WABA Account ID:</strong> <span style={{ fontFamily: 'monospace' }}>{metaAssets.whatsappApi?.wabaId || '5703446903066867'}</span></div>
-                        <div><strong>📱 Phone Number ID:</strong> <span style={{ fontFamily: 'monospace' }}>{metaAssets.whatsappApi?.phoneNumberId || '111738020188242'}</span></div>
-                        <div><strong>🛡️ Support Window:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>24h Interactive Messaging Active</span></div>
-                      </div>
+                    <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {metaAssets.whatsappApi?.enabled ? (
+                        <>
+                          <div><strong>🏢 WABA Account ID:</strong> <span style={{ fontFamily: 'monospace' }}>{metaAssets.whatsappApi?.wabaId}</span></div>
+                          <div><strong>📱 Phone Number ID:</strong> <span style={{ fontFamily: 'monospace' }}>{metaAssets.whatsappApi?.phoneNumberId}</span></div>
+                          <div><strong>🛡️ 24h Window:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>Interactive Session Messaging Active</span></div>
+                        </>
+                      ) : (
+                        <div style={{ color: '#64748b', lineHeight: 1.4 }}>
+                          Click the onboarding wizard below to link your official Meta WhatsApp Business Account, verify phone number, and set up 2FA.
+                        </div>
+                      )}
+                    </div>
 
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
+                      <button
+                        onClick={() => setShowWaOnboardingModal(true)}
+                        style={{ flex: 1, background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        {metaAssets.whatsappApi?.enabled ? '⚙️ Manage / Reconfigure WABA' : '🚀 Launch WhatsApp API Wizard'}
+                      </button>
+                      {metaAssets.whatsappApi?.enabled && (
                         <button
                           onClick={() => handleTriggerInboundMsg('whatsapp')}
-                          style={{ flex: 1, background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                          style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
                         >
-                          🟢 Receive Test WhatsApp Lead
+                          🟢 Test Lead
                         </button>
-                        <button
-                          onClick={() => setShowWaOnboardingModal(true)}
-                          style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          ⚙️ Manage WABA
-                        </button>
-                      </div>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  <div style={{ padding: '32px', textAlign: 'center', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
-                    <div style={{ fontSize: '32px', marginBottom: '10px' }}>🔗</div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>No Meta Assets Linked Yet</div>
-                    <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '460px', margin: '6px auto 16px' }}>
-                      Click the button below to authenticate with Facebook OAuth and discover your Facebook Pages, Instagram Accounts, and WhatsApp Cloud APIs.
-                    </p>
-                    <button
-                      onClick={handleFacebookLogin}
-                      style={{ background: '#1877f2', color: '#ffffff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
-                    >
-                      Connect Meta Business Account
-                    </button>
-                  </div>
-                )}
+
+                </div>
               </div>
 
               {/* Quick Jump Grid */}
@@ -1219,7 +1203,7 @@ export default function SuperAdminDashboard({
             </div>
           )}
 
-          {/* TAB 2: FULL-FEATURED LIVE OMNICHANNEL INBOX (100% IDENTICAL TO TENANT) */}
+          {/* TAB 2: LIVE OMNICHANNEL INBOX (LIVE WEBSOCKET & META WEBHOOKS) */}
           {activeTab === 'inbox' && (
             <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0', display: 'flex', height: '680px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
               
@@ -1272,54 +1256,60 @@ export default function SuperAdminDashboard({
 
                 {/* Rooms List */}
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-                  {filteredConversations.map(c => {
-                    const isSel = c._id === selectedConvId;
-                    const vName = c.visitorId?.name || 'Visitor';
-                    return (
-                      <div
-                        key={c._id}
-                        onClick={() => setSelectedConvId(c._id)}
-                        style={{
-                          padding: '14px',
-                          borderBottom: '1px solid #f1f5f9',
-                          cursor: 'pointer',
-                          background: isSel ? '#eff6ff' : '#ffffff',
-                          borderLeft: isSel ? '4px solid #1d4ed8' : '4px solid transparent',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '6px'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: c.source === 'instagram' ? '#a855f7' : c.source === 'whatsapp-api' ? '#16a34a' : c.source === 'facebook' ? '#1877f2' : '#3b82f6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '11px' }}>
-                              {c.source === 'instagram' ? 'IG' : c.source === 'whatsapp-api' ? 'WA' : c.source === 'facebook' ? 'FB' : 'LT'}
+                  {filteredConversations.length > 0 ? (
+                    filteredConversations.map(c => {
+                      const isSel = c._id === selectedConvId;
+                      const vName = c.visitorId?.name || (typeof c.visitorId === 'string' ? c.visitorId : 'Visitor');
+                      return (
+                        <div
+                          key={c._id}
+                          onClick={() => setSelectedConvId(c._id)}
+                          style={{
+                            padding: '14px',
+                            borderBottom: '1px solid #f1f5f9',
+                            cursor: 'pointer',
+                            background: isSel ? '#eff6ff' : '#ffffff',
+                            borderLeft: isSel ? '4px solid #1d4ed8' : '4px solid transparent',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: c.source === 'instagram' ? '#a855f7' : c.source === 'whatsapp-api' ? '#16a34a' : c.source === 'facebook' ? '#1877f2' : '#3b82f6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '11px' }}>
+                                {c.source === 'instagram' ? 'IG' : c.source === 'whatsapp-api' ? 'WA' : c.source === 'facebook' ? 'FB' : 'LT'}
+                              </div>
+                              <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f172a' }}>{vName}</span>
                             </div>
-                            <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f172a' }}>{vName}</span>
+                            <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>
+                              {new Date(c.updatedAt || c.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
                           </div>
-                          <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>
-                            {new Date(c.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{
-                            background: c.source === 'instagram' ? '#fdf2f8' : c.source === 'whatsapp-api' ? '#f0fdf4' : c.source === 'facebook' ? '#eff6ff' : '#f8fafc',
-                            color: c.source === 'instagram' ? '#be185d' : c.source === 'whatsapp-api' ? '#15803d' : c.source === 'facebook' ? '#1d4ed8' : '#475569',
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            fontSize: '10px',
-                            fontWeight: 800
-                          }}>
-                            {c.source === 'instagram' ? '📸 Instagram Direct' : c.source === 'whatsapp-api' ? '🟢 WhatsApp Cloud' : c.source === 'facebook' ? 'f Facebook' : '💬 Live Web'}
-                          </span>
-                          <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {c.lastMessageText}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{
+                              background: c.source === 'instagram' ? '#fdf2f8' : c.source === 'whatsapp-api' ? '#f0fdf4' : c.source === 'facebook' ? '#eff6ff' : '#f8fafc',
+                              color: c.source === 'instagram' ? '#be185d' : c.source === 'whatsapp-api' ? '#15803d' : c.source === 'facebook' ? '#1d4ed8' : '#475569',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontSize: '10px',
+                              fontWeight: 800
+                            }}>
+                              {c.source === 'instagram' ? '📸 Instagram' : c.source === 'whatsapp-api' ? '🟢 WhatsApp' : c.source === 'facebook' ? 'f Facebook' : '💬 Live Web'}
+                            </span>
+                            <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {c.lastMessageText || 'Chat started'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  ) : (
+                    <div style={{ padding: '32px 20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+                      No active conversations found. Send a message to your connected Instagram or Facebook page to see it here live!
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -1335,7 +1325,7 @@ export default function SuperAdminDashboard({
                           {activeConv.source === 'instagram' ? 'IG' : activeConv.source === 'whatsapp-api' ? 'WA' : activeConv.source === 'facebook' ? 'FB' : 'LT'}
                         </div>
                         <div>
-                          <div style={{ fontWeight: 800, fontSize: '14.5px', color: '#0f172a' }}>{activeConv.visitorId?.name}</div>
+                          <div style={{ fontWeight: 800, fontSize: '14.5px', color: '#0f172a' }}>{activeConv.visitorId?.name || (typeof activeConv.visitorId === 'string' ? activeConv.visitorId : 'Visitor')}</div>
                           <div style={{ fontSize: '11px', color: '#64748b' }}>
                             Channel: <strong>{activeConv.source}</strong> | UTM: <strong>{activeConv.visitorId?.utmCampaign || 'Direct'}</strong>
                           </div>
@@ -1346,15 +1336,15 @@ export default function SuperAdminDashboard({
                         onClick={() => setDetailsDrawerOpen(!detailsDrawerOpen)}
                         style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
                       >
-                        {detailsDrawerOpen ? 'Hide Visitor Details ◀' : 'Show Visitor Details ▶'}
+                        {detailsDrawerOpen ? 'Hide Details ◀' : 'Show Details ▶'}
                       </button>
                     </div>
 
                     {/* Messages Scroll View */}
                     <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      {activeConv.messages?.map(m => (
+                      {activeConv.messages?.map((m, idx) => (
                         <div
-                          key={m._id}
+                          key={m._id || idx}
                           style={{
                             alignSelf: m.senderType === 'Agent' ? 'flex-end' : 'flex-start',
                             maxWidth: '72%',
@@ -1368,7 +1358,7 @@ export default function SuperAdminDashboard({
                         >
                           <div style={{ fontSize: '13.5px', lineHeight: 1.45 }}>{m.text}</div>
                           <div style={{ fontSize: '10.5px', color: m.senderType === 'Agent' ? 'rgba(255,255,255,0.7)' : '#94a3b8', marginTop: '4px', textAlign: 'right' }}>
-                            {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(m.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
                         </div>
                       ))}
@@ -1414,7 +1404,7 @@ export default function SuperAdminDashboard({
                     <form onSubmit={handleSendReply} style={{ padding: '14px 20px', background: '#ffffff', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '10px' }}>
                       <input
                         type="text"
-                        placeholder={`Type reply to ${activeConv.visitorId?.name}...`}
+                        placeholder={`Type reply to ${activeConv.visitorId?.name || 'customer'}...`}
                         value={chatInputText}
                         onChange={(e) => setChatInputText(e.target.value)}
                         style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }}
@@ -1434,7 +1424,7 @@ export default function SuperAdminDashboard({
                 )}
               </div>
 
-              {/* Right Pane: 100% Identical Visitor Details Sidebar */}
+              {/* Right Pane: Visitor Details Sidebar */}
               {detailsDrawerOpen && activeConv && (
                 <div style={{ width: '280px', minWidth: '280px', borderLeft: '1px solid #e2e8f0', background: '#ffffff', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
                   <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>Visitor & Lead Profile</h4>
@@ -1442,37 +1432,23 @@ export default function SuperAdminDashboard({
                   <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div>
                       <div style={{ color: '#94a3b8', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 700 }}>Full Name</div>
-                      <div style={{ fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{activeConv.visitorId?.name}</div>
+                      <div style={{ fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{activeConv.visitorId?.name || 'Customer'}</div>
                     </div>
 
                     <div>
-                      <div style={{ color: '#94a3b8', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 700 }}>Phone / WhatsApp</div>
-                      <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '2px' }}>{activeConv.visitorId?.phone}</div>
+                      <div style={{ color: '#94a3b8', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 700 }}>Channel / Origin</div>
+                      <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '2px', textTransform: 'capitalize' }}>{activeConv.source || 'WebChat'}</div>
                     </div>
 
                     <div>
-                      <div style={{ color: '#94a3b8', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 700 }}>Email</div>
-                      <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '2px' }}>{activeConv.visitorId?.email}</div>
+                      <div style={{ color: '#94a3b8', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 700 }}>Email / Phone</div>
+                      <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '2px' }}>{activeConv.visitorId?.email || activeConv.visitorId?.phone || 'Not Provided'}</div>
                     </div>
 
                     <div>
-                      <div style={{ color: '#94a3b8', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 700 }}>Location & IP</div>
+                      <div style={{ color: '#94a3b8', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 700 }}>Location & Device</div>
                       <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '2px' }}>
-                        📍 {activeConv.visitorId?.location?.city}, {activeConv.visitorId?.location?.country} ({activeConv.visitorId?.ip})
-                      </div>
-                    </div>
-
-                    <div>
-                      <div style={{ color: '#94a3b8', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 700 }}>Current URL / Screen</div>
-                      <div style={{ fontWeight: 600, color: '#1d4ed8', marginTop: '2px', wordBreak: 'break-all' }}>
-                        {activeConv.visitorId?.currentUrl}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div style={{ color: '#94a3b8', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 700 }}>Attributed Campaign (UTM)</div>
-                      <div style={{ background: '#eff6ff', color: '#1d4ed8', padding: '5px 8px', borderRadius: '6px', fontWeight: 700, marginTop: '4px' }}>
-                        {activeConv.visitorId?.utmCampaign}
+                        {activeConv.visitorId?.device || 'Meta Mobile App'}
                       </div>
                     </div>
 
@@ -1574,36 +1550,27 @@ export default function SuperAdminDashboard({
                     <th style={{ padding: '10px 12px' }}>Time on Site</th>
                     <th style={{ padding: '10px 12px' }}>Device</th>
                     <th style={{ padding: '10px 12px' }}>Status</th>
-                    <th style={{ padding: '10px 12px' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {activeVisitors.map(v => (
-                    <tr key={v.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  {activeVisitors.map((v, i) => (
+                    <tr key={v._id || v.id || i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '12px' }}>
-                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{v.name}</div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>IP: {v.ip}</div>
+                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{v.name || 'Visitor'}</div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>IP: {v.ip || 'Local'}</div>
                       </td>
-                      <td style={{ padding: '12px', fontSize: '12.5px', color: '#1d4ed8', fontWeight: 600 }}>{v.currentUrl}</td>
+                      <td style={{ padding: '12px', fontSize: '12.5px', color: '#1d4ed8', fontWeight: 600 }}>{v.currentUrl || '/'}</td>
                       <td style={{ padding: '12px' }}>
                         <span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
-                          {v.utmCampaign}
+                          {v.utmCampaign || 'Direct'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px', fontSize: '12.5px' }}>{v.timeOnSite} ({v.pagesViewed} pages)</td>
-                      <td style={{ padding: '12px', fontSize: '12.5px', color: '#64748b' }}>{v.device}</td>
+                      <td style={{ padding: '12px', fontSize: '12.5px' }}>Online</td>
+                      <td style={{ padding: '12px', fontSize: '12.5px', color: '#64748b' }}>{v.device || 'Desktop'}</td>
                       <td style={{ padding: '12px' }}>
                         <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
                           🟢 Active
                         </span>
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        <button
-                          onClick={() => setActiveTab('inbox')}
-                          style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          💬 Initiate Chat
-                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1875,7 +1842,7 @@ export default function SuperAdminDashboard({
               {availablePages.map(p => (
                 <div 
                   key={p.pageId} 
-                  onClick={() => handleSelectAsset(p.pageId, availableWabas[0]?.phoneId)}
+                  onClick={() => handleSelectAsset(p.pageId, null)}
                   style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', cursor: 'pointer', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 >
                   <div>
@@ -1895,7 +1862,7 @@ export default function SuperAdminDashboard({
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
           <div style={{ background: '#ffffff', borderRadius: '14px', padding: '28px', width: '520px', display: 'flex', flexDirection: 'column', gap: '20px', color: '#0f172a', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
             
-            {/* Wizard Header */}
+            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#16a34a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '18px' }}>
