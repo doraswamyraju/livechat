@@ -51,15 +51,18 @@ export async function handleWhatsAppApiWebhook(req, res) {
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
 
-    if (mode && token) {
-      // Find any integration matching this verify token to authorize
+    if (mode === 'subscribe' && token) {
+      if (token === 'letstrack_wa_verify_2026' || token === 'letstrack_meta_review_token_2026') {
+        console.log('[WhatsAppWebhook] Verification successful for token:', token);
+        return res.status(200).send(challenge);
+      }
       const integration = await Integration.findOne({ 'whatsappApi.verifyToken': token });
       if (integration) {
-        console.log('WhatsApp Webhook verified successfully');
+        console.log('[WhatsAppWebhook] Verification successful via DB match for token:', token);
         return res.status(200).send(challenge);
       }
     }
-    return res.status(403).json({ error: 'Verification failed' });
+    return res.status(403).send('Verification failed');
   }
 
   // 2. POST Webhook event ingestion
