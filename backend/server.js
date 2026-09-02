@@ -739,6 +739,77 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
   }
 });
 
+// 7a. Send Message in Conversation (HTTP REST & Meta Gateway Dispatcher)
+app.post('/api/conversations/:conversationId/messages', authenticateToken, async (req, res) => {
+  const { conversationId } = req.params;
+  const { text } = req.body;
+
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Message text is required' });
+  }
+
+  try {
+    let conv = null;
+    if (mongoose.Types.ObjectId.isValid(conversationId)) {
+      conv = await Conversation.findById(conversationId);
+    }
+    if (!conv) {
+      conv = await Conversation.findOne({ visitorId: conversationId });
+    }
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+    const message = new Message({
+      conversationId: conv._id,
+      senderType: 'Agent',
+      senderId: req.user.userId || 'SuperAdmin',
+      senderName: req.user.name || 'Support Agent',
+      text: text.trim(),
+      timestamp: new Date()
+    });
+    await message.save();
+
+    conv.status = 'Active';
+    conv.unreadCount = 0;
+    conv.lastMessageText = text.trim();
+    conv.updatedAt = new Date();
+    await conv.save();
+
+    const rawVisitorId = typeof conv.visitorId === 'object' && conv.visitorId !== null
+      ? (conv.visitorId._id || String(conv.visitorId))
+      : String(conv.visitorId || '');
+    const recipientId = rawVisitorId.includes(':') ? rawVisitorId.split(':')[1] : rawVisitorId;
+
+    if (conv.source === 'facebook' || conv.source === 'instagram') {
+      const integration = await Integration.findOne({
+        $or: [{ tenantId: req.user.tenantId }, { tenantId: conv.tenantId }, { 'meta.enabled': true }]
+      });
+      if (integration && integration.meta?.enabled) {
+        console.log(`[HTTP API] Dispatching Meta message to ${conv.source} recipient: ${recipientId}`);
+        await sendMetaMessage(integration, recipientId, text.trim());
+      }
+    }
+
+    if (dashboardNamespace) {
+      const tenantStr = conv.tenantId ? conv.tenantId.toString() : '';
+      if (tenantStr) {
+        dashboardNamespace.to(`tenant_${tenantStr}`).emit('agent-msg-received', {
+          conversationId: conv._id,
+          message
+        });
+      }
+      dashboardNamespace.emit('agent-msg-received', {
+        conversationId: conv._id,
+        message
+      });
+    }
+
+    res.status(200).json({ message, conversation: conv });
+  } catch (err) {
+    console.error('Error sending message via API:', err);
+    res.status(500).json({ error: err.message || 'Failed to dispatch message' });
+  }
+});
+
 // 7b. Archive or Unarchive Conversation
 app.put('/api/conversations/:conversationId/archive', authenticateToken, async (req, res) => {
   const { conversationId } = req.params;

@@ -8,17 +8,19 @@ import { dashboardNamespace } from './socket.js';
  * Sends a message via Facebook Messenger or Instagram Direct using Meta Send API
  */
 export async function sendMetaMessage(integration, recipientId, text) {
-  const { pageAccessToken } = integration.meta;
+  const { pageAccessToken, pageId } = integration.meta;
 
   if (!pageAccessToken) {
     throw new Error('Meta Integration is not fully configured (missing Page Access Token)');
   }
 
-  const url = `https://graph.facebook.com/v26.0/me/messages?access_token=${pageAccessToken}`;
+  const endpoint = pageId ? `https://graph.facebook.com/v24.0/${pageId}/messages` : `https://graph.facebook.com/v24.0/me/messages`;
+  const url = `${endpoint}?access_token=${pageAccessToken}`;
   const body = {
     recipient: {
       id: recipientId
     },
+    messaging_type: 'RESPONSE',
     message: {
       text: text
     }
@@ -34,11 +36,13 @@ export async function sendMetaMessage(integration, recipientId, text) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Meta API sending failed:', errorText);
+    console.error('[MetaSendAPI] Sending failed:', errorText);
     throw new Error(`Meta API sending failed: ${errorText}`);
   }
 
-  return await response.json();
+  const resJson = await response.json();
+  console.log('[MetaSendAPI] Message dispatched successfully to recipient:', recipientId, resJson);
+  return resJson;
 }
 
 /**

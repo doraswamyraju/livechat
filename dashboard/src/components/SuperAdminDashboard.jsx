@@ -432,10 +432,13 @@ export default function SuperAdminDashboard({
     const conv = conversations.find(c => c._id === selectedConvId);
     if (!conv) return;
 
+    const textToSend = chatInputText.trim();
+    setChatInputText('');
+
     const reply = {
       _id: 'rep_' + Date.now(),
       senderType: 'Agent',
-      text: chatInputText.trim(),
+      text: textToSend,
       timestamp: new Date().toISOString()
     };
 
@@ -443,7 +446,7 @@ export default function SuperAdminDashboard({
       if (c._id === selectedConvId) {
         return {
           ...c,
-          lastMessageText: chatInputText.trim(),
+          lastMessageText: textToSend,
           updatedAt: new Date().toISOString(),
           messages: [...(c.messages || []), reply]
         };
@@ -451,16 +454,26 @@ export default function SuperAdminDashboard({
       return c;
     }));
 
-    if (socketRef.current) {
-      socketRef.current.emit('agent-msg', {
-        conversationId: conv._id,
-        visitorId: conv.visitorId?._id || conv.visitorId,
-        text: chatInputText.trim()
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/conversations/${conv._id}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ text: textToSend })
       });
-    }
 
-    setChatInputText('');
-    showToast('💬 Reply sent via Meta API gateway');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to dispatch via Meta API');
+      }
+
+      showToast(`💬 Reply delivered to ${conv.source === 'facebook' ? 'Facebook Messenger' : conv.source === 'instagram' ? 'Instagram Direct' : 'Customer'}!`);
+    } catch (err) {
+      console.error('Send message error:', err);
+      showToast(err.message, 'error');
+    }
   };
 
   // 6. Tenant Management Handlers
