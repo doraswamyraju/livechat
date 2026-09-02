@@ -147,13 +147,19 @@ const IntegrationSchema = new mongoose.Schema({
   whatsappApi: {
     enabled: { type: Boolean, default: false },
     phoneNumberId: { type: String, default: '' },
+    wabaId: { type: String, default: '' },
+    whatsappDisplayNumber: { type: String, default: '' },
+    verifiedName: { type: String, default: '' },
     accessToken: { type: String, default: '' },
     verifyToken: { type: String, default: '' }
   },
   meta: {
     enabled: { type: Boolean, default: false },
     pageId: { type: String, default: undefined },
+    pageName: { type: String, default: '' },
     instagramAccountId: { type: String, default: undefined },
+    instagramHandle: { type: String, default: '' },
+    facebookUrl: { type: String, default: '' },
     pageAccessToken: { type: String, default: '' },
     verifyToken: { type: String, default: '' }
   }
