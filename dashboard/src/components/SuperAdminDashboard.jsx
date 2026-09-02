@@ -123,10 +123,11 @@ export default function SuperAdminDashboard({
           if (index > -1) {
             const updated = [...prev];
             const prevMessages = updated[index].messages || [];
+            const isDup = message && prevMessages.some(m => m._id === message._id || (m.text === message.text && Math.abs(new Date(m.timestamp) - new Date(message.timestamp)) < 3000));
             updated[index] = {
               ...conversation,
               visitorId: visitor || updated[index].visitorId,
-              messages: message ? [...prevMessages, message] : prevMessages
+              messages: message && !isDup ? [...prevMessages, message] : prevMessages
             };
             return updated;
           }
@@ -141,9 +142,14 @@ export default function SuperAdminDashboard({
         const { conversationId, message } = data;
         setConversations(prev => prev.map(c => {
           if (c._id === conversationId) {
+            const existing = c.messages || [];
+            const isDup = message && existing.some(m => m._id === message._id || (m.text === message.text && Math.abs(new Date(m.timestamp) - new Date(message.timestamp)) < 3000));
+            if (isDup) return c;
             return {
               ...c,
-              messages: [...(c.messages || []), message]
+              lastMessageText: message.text,
+              updatedAt: message.timestamp || new Date().toISOString(),
+              messages: [...existing, message]
             };
           }
           return c;
