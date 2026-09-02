@@ -207,8 +207,12 @@ export default function SuperAdminDashboard({
   const handleFacebookLogin = () => {
     setConnectingMeta(true);
     const appId = '1311990813621733';
-    // Use whitelisted redirect URI for Meta App 1311990813621733
-    const redirectUri = encodeURIComponent('https://manacity.in/');
+    // Use whitelisted redirect URI matching current portal domain
+    const redirectUri = encodeURIComponent(
+      window.location.origin.includes('letstrack') 
+        ? 'https://letstrack.manacity.in/' 
+        : 'https://manacity.in/'
+    );
     const scope = encodeURIComponent('public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts,pages_read_user_content,pages_manage_engagement,pages_messaging,pages_manage_metadata,instagram_basic,instagram_manage_comments,instagram_manage_insights,instagram_content_publish,instagram_manage_messages,whatsapp_business_management,whatsapp_business_messaging,ads_read,ads_management');
     const authUrl = `https://www.facebook.com/v26.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
 
