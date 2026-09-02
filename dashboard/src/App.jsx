@@ -2014,7 +2014,7 @@ function App() {
       {/* 1. Sidebar */}
       <div className="sidebar">
         <div className="sidebar-logo" style={{ padding: '14px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <img src="/logo-wide.png" alt="LetsTrack" style={{ maxHeight: '42px', maxWidth: '100%', objectFit: 'contain' }} />
+          <img src="/logo-wide.png" alt="LetsTrack" style={{ maxHeight: '42px', maxWidth: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
         </div>
 
         <div className="sidebar-menu">
@@ -2244,8 +2244,8 @@ function App() {
             <div>
               {(!tenant?.plan || tenant?.plan === 'free') && (
                 <div style={{ 
-                  background: 'linear-gradient(90deg, rgba(220,38,38,0.18), rgba(153,27,27,0.28))', 
-                  border: '1px solid rgba(220,38,38,0.4)', 
+                  background: '#fef2f2', 
+                  border: '1px solid #fecdd3', 
                   borderRadius: '12px', 
                   padding: '14px 20px', 
                   marginBottom: '16px', 
@@ -2253,15 +2253,16 @@ function App() {
                   alignItems: 'center', 
                   justifyContent: 'space-between', 
                   flexWrap: 'wrap', 
-                  gap: '12px' 
+                  gap: '12px',
+                  boxShadow: '0 2px 8px rgba(220, 38, 38, 0.06)'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <span style={{ fontSize: '22px' }}>🔒</span>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#991b1b' }}>
                         Live Activity Radar & Visitor Journeys is a Pro Feature
                       </div>
-                      <div style={{ fontSize: '12px', color: '#fca5a5', marginTop: '2px' }}>
+                      <div style={{ fontSize: '12px', color: '#dc2626', marginTop: '2px' }}>
                         Upgrade to <strong>Growth (₹299/mo)</strong> or <strong>Business (₹399/mo)</strong> to unlock real-time live page journeys and click tracking.
                       </div>
                     </div>
@@ -2269,15 +2270,15 @@ function App() {
                   <button 
                     onClick={() => { setActiveTab('billing'); fetchBillingData(); }}
                     style={{ 
-                      background: '#dc2626', 
+                      background: 'linear-gradient(135deg, #dc2626, #b91c1c)', 
                       color: '#ffffff', 
                       border: 'none', 
-                      padding: '8px 16px', 
+                      padding: '8px 18px', 
                       borderRadius: '8px', 
                       fontWeight: 700, 
-                      fontSize: '12px', 
+                      fontSize: '12.5px', 
                       cursor: 'pointer',
-                      boxShadow: '0 4px 14px rgba(220,38,38,0.4)'
+                      boxShadow: '0 4px 14px rgba(220,38,38,0.25)'
                     }}
                   >
                     ⚡ Upgrade Plan (From ₹299/mo)
@@ -4090,7 +4091,7 @@ function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#ffffff' }}>
+                      <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>
                         Current Subscription: {tenant?.plan ? tenant.plan.toUpperCase() : 'FREE'}
                       </h3>
                       <span style={{ 
@@ -4116,7 +4117,7 @@ function App() {
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>RECURRING PRICE</div>
-                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
+                      <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-primary)' }}>
                         ₹{billingData?.planPrice || (tenant?.plan === 'business' ? 399 : tenant?.plan === 'growth' ? 299 : 0)} / month
                       </div>
                     </div>
@@ -4124,14 +4125,14 @@ function App() {
                 </div>
 
                 {/* Quota Progress Bar */}
-                <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '6px' }}>
                     <span>Team Seats Allocated</span>
-                    <span style={{ fontWeight: 700, color: '#ffffff' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                       {billingData?.usedSeats || 1} / {tenant?.maxAgents || 1} Seats Used
                     </span>
                   </div>
-                  <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
                     <div style={{ 
                       width: `${Math.min(100, ((billingData?.usedSeats || 1) / (tenant?.maxAgents || 1)) * 100)}%`, 
                       height: '100%', 
@@ -4144,7 +4145,7 @@ function App() {
 
               {/* Upgrade Tiers Comparison Grid */}
               <div>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', marginBottom: '14px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '14px' }}>
                   Available Subscription Plans
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
@@ -4154,7 +4155,7 @@ function App() {
                     display: 'flex', 
                     flexDirection: 'column', 
                     justifyContent: 'space-between',
-                    border: tenant?.plan === 'growth' ? '2px solid #dc2626' : '1px solid rgba(255,255,255,0.08)',
+                    border: tenant?.plan === 'growth' ? '2px solid #dc2626' : '1px solid var(--border-color)',
                     position: 'relative'
                   }}>
                     {tenant?.plan === 'growth' && (
@@ -4163,24 +4164,24 @@ function App() {
                       </span>
                     )}
                     <div>
-                      <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 700, textTransform: 'uppercase' }}>
+                      <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 800, textTransform: 'uppercase' }}>
                         🔥 Special Offer: First 1,000 Users
                       </div>
-                      <h4 style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>Growth Plan</h4>
+                      <h4 style={{ margin: '4px 0 0 0', fontSize: '19px', fontWeight: 800, color: 'var(--text-primary)' }}>Growth Plan</h4>
                       <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: '6px 0 16px 0' }}>
                         Ideal for small teams requiring real-time live visitor radar and custom widget branding.
                       </p>
                       
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '6px' }}>
                         <span style={{ fontSize: '16px', color: '#9ca3af', textDecoration: 'line-through' }}>₹999</span>
-                        <span style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff' }}>₹299</span>
+                        <span style={{ fontSize: '26px', fontWeight: 900, color: 'var(--text-primary)' }}>₹299</span>
                         <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ month</span>
                       </div>
-                      <div style={{ fontSize: '11px', color: '#f87171', marginBottom: '16px' }}>
+                      <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600, marginBottom: '16px' }}>
                         + ₹999 one-time onboarding fee
                       </div>
 
-                      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 20px 0', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px', color: '#e5e7eb' }}>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 20px 0', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                         <li>✓ <strong>1 Admin + 2 Employees</strong> (3 Team Seats)</li>
                         <li>✓ <strong>Real-Time Live Visitor Radar</strong> & Journeys</li>
                         <li>✓ <strong>100% Whitelabel Widget</strong> (Remove Branding)</li>
@@ -4195,8 +4196,8 @@ function App() {
                       disabled={billingLoading || tenant?.plan === 'growth'}
                       className="auth-btn"
                       style={{ 
-                        background: tenant?.plan === 'growth' ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                        color: 'white',
+                        background: tenant?.plan === 'growth' ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                        color: tenant?.plan === 'growth' ? 'var(--text-muted)' : 'white',
                         cursor: tenant?.plan === 'growth' ? 'default' : 'pointer'
                       }}
                     >
@@ -4210,7 +4211,7 @@ function App() {
                     display: 'flex', 
                     flexDirection: 'column', 
                     justifyContent: 'space-between',
-                    border: tenant?.plan === 'business' ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.08)',
+                    border: tenant?.plan === 'business' ? '2px solid #10b981' : '1px solid var(--border-color)',
                     position: 'relative'
                   }}>
                     {tenant?.plan === 'business' && (
@@ -4219,24 +4220,24 @@ function App() {
                       </span>
                     )}
                     <div>
-                      <div style={{ fontSize: '11px', color: '#34d399', fontWeight: 700, textTransform: 'uppercase' }}>
+                      <div style={{ fontSize: '11px', color: '#10b981', fontWeight: 800, textTransform: 'uppercase' }}>
                         ⚡ Omnichannel Pro
                       </div>
-                      <h4 style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>Business Plan</h4>
+                      <h4 style={{ margin: '4px 0 0 0', fontSize: '19px', fontWeight: 800, color: 'var(--text-primary)' }}>Business Plan</h4>
                       <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: '6px 0 16px 0' }}>
                         For modern brands managing Website Chat + Instagram DMs and Facebook Messenger.
                       </p>
                       
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '6px' }}>
                         <span style={{ fontSize: '16px', color: '#9ca3af', textDecoration: 'line-through' }}>₹1,499</span>
-                        <span style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff' }}>₹399</span>
+                        <span style={{ fontSize: '26px', fontWeight: 900, color: 'var(--text-primary)' }}>₹399</span>
                         <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ month</span>
                       </div>
-                      <div style={{ fontSize: '11px', color: '#34d399', marginBottom: '16px' }}>
+                      <div style={{ fontSize: '11px', color: '#10b981', fontWeight: 600, marginBottom: '16px' }}>
                         + ₹999 one-time onboarding fee
                       </div>
 
-                      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 20px 0', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px', color: '#e5e7eb' }}>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 20px 0', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                         <li>✓ <strong>1 Admin + 5 Employees</strong> (6 Team Seats)</li>
                         <li>✓ <strong>Everything in Growth Plan</strong></li>
                         <li>✓ <strong>Instagram Direct & Facebook Messenger Sync</strong></li>
@@ -4251,8 +4252,8 @@ function App() {
                       disabled={billingLoading || tenant?.plan === 'business'}
                       className="auth-btn"
                       style={{ 
-                        background: tenant?.plan === 'business' ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #10b981, #059669)',
-                        color: 'white',
+                        background: tenant?.plan === 'business' ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #10b981, #059669)',
+                        color: tenant?.plan === 'business' ? 'var(--text-muted)' : 'white',
                         cursor: tenant?.plan === 'business' ? 'default' : 'pointer'
                       }}
                     >
@@ -4264,7 +4265,7 @@ function App() {
 
               {/* Payment History / Invoices */}
               <div className="glass-card" style={{ padding: '24px' }}>
-                <h4 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>Payment History & Receipts</h4>
+                <h4 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)' }}>Payment History & Receipts</h4>
                 {(!billingData?.paymentHistory || billingData.paymentHistory.length === 0) ? (
                   <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
                     No payment transactions recorded yet.
@@ -4284,7 +4285,7 @@ function App() {
                       {billingData.paymentHistory.map(p => (
                         <tr key={p._id}>
                           <td>{new Date(p.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-                          <td style={{ fontWeight: 700 }}>₹{p.amount}</td>
+                          <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>₹{p.amount}</td>
                           <td><span style={{ textTransform: 'capitalize' }}>{p.plan}</span></td>
                           <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>{p.paymentMethod}</td>
                           <td>
@@ -4305,90 +4306,97 @@ function App() {
             </div>
           )}
 
-          {/* G. SUPER ADMIN MASTER CONSOLE VIEW */}
+          {/* G. SUPER ADMIN DASHBOARD */}
           {activeTab === 'superadmin' && user?.role === 'SuperAdmin' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              
-              {/* SuperAdmin Overview Stat Grid */}
-              <div className="analytics-stats-row">
-                <div className="stat-card glass-card">
-                  <div className="stat-title">Total Businesses</div>
-                  <div className="stat-value">{superStats?.totalTenants || 0}</div>
-                  <div className="stat-footer">Registered Websites</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Metrics Summary Strip */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                <div className="glass-card" style={{ padding: '20px', borderLeft: '4px solid #dc2626' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total Registered Workspaces</div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{superStats?.totalTenants || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#10b981', marginTop: '4px' }}>+{superStats?.newTenantsLast30d || 0} joined this month</div>
                 </div>
-                <div className="stat-card glass-card">
-                  <div className="stat-title">Global Users</div>
-                  <div className="stat-value">{superStats?.totalUsers || 0}</div>
-                  <div className="stat-footer">Admins & Agents</div>
+
+                <div className="glass-card" style={{ padding: '20px', borderLeft: '4px solid #10b981' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Active Paid Mandates</div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>{superStats?.activeSubscriptions || 0}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Autopay UPI & Card Recurring</div>
                 </div>
-                <div className="stat-card glass-card">
-                  <div className="stat-title">Active Mandates</div>
-                  <div className="stat-value" style={{ color: '#10b981' }}>{superStats?.activeMandates || 0}</div>
-                  <div className="stat-footer">Razorpay Auto-Debits</div>
+
+                <div className="glass-card" style={{ padding: '20px', borderLeft: '4px solid #3b82f6' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Platform Live MRR</div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>₹{superStats?.mrr?.toLocaleString() || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '4px' }}>Total Collected: ₹{superStats?.totalRevenue?.toLocaleString() || 0}</div>
                 </div>
-                <div className="stat-card glass-card">
-                  <div className="stat-title">Total Revenue</div>
-                  <div className="stat-value" style={{ color: '#f59e0b' }}>₹{superStats?.totalRevenueINR || 0}</div>
-                  <div className="stat-footer">Subscriptions & Setup Fees</div>
-                </div>
-                <div className="stat-card glass-card">
-                  <div className="stat-title">Early Bird Quota</div>
-                  <div className="stat-value" style={{ color: '#ef4444' }}>
-                    {superStats?.earlyBird?.claimed || 0} / 1000
-                  </div>
-                  <div className="stat-footer">{superStats?.earlyBird?.remaining || 1000} slots remaining</div>
+
+                <div className="glass-card" style={{ padding: '20px', borderLeft: '4px solid #f59e0b' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total User Accounts</div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{superStats?.totalUsers || 0}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Across all client tenants</div>
                 </div>
               </div>
 
-              {/* SuperAdmin Sub-Navigation Bar */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              {/* Sub-Navigation Tabs */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  {[
-                    { key: 'tenants', label: '🏢 Businesses & Tenants', count: superTenants.length },
-                    { key: 'payments', label: '💳 Payment Ledger', count: superPayments.length },
-                    { key: 'users', label: '👥 Global Users', count: superUsers.length },
-                    { key: 'logs', label: '📊 Audit & Telemetry', count: superLogs.length }
-                  ].map(tab => (
-                    <button
-                      key={tab.key}
-                      onClick={() => setSuperActiveTab(tab.key)}
-                      style={{
-                        background: superActiveTab === tab.key ? '#dc2626' : 'rgba(255,255,255,0.06)',
-                        color: 'white',
-                        border: 'none',
-                        padding: '8px 16px',
-                        borderRadius: '8px',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {tab.label} ({tab.count})
-                    </button>
-                  ))}
+                  <button 
+                    onClick={() => setSuperActiveTab('tenants')} 
+                    style={{ 
+                      background: superActiveTab === 'tenants' ? '#fee2e2' : 'transparent', 
+                      color: superActiveTab === 'tenants' ? '#dc2626' : 'var(--text-secondary)', 
+                      border: 'none', 
+                      padding: '8px 16px', 
+                      borderRadius: '8px', 
+                      fontWeight: 700, 
+                      fontSize: '13px', 
+                      cursor: 'pointer' 
+                    }}
+                  >
+                    🏢 All Client Workspaces ({superTenants.length})
+                  </button>
+
+                  <button 
+                    onClick={() => setSuperActiveTab('payments')} 
+                    style={{ 
+                      background: superActiveTab === 'payments' ? '#fee2e2' : 'transparent', 
+                      color: superActiveTab === 'payments' ? '#dc2626' : 'var(--text-secondary)', 
+                      border: 'none', 
+                      padding: '8px 16px', 
+                      borderRadius: '8px', 
+                      fontWeight: 700, 
+                      fontSize: '13px', 
+                      cursor: 'pointer' 
+                    }}
+                  >
+                    💳 Payment Ledger ({superPayments.length})
+                  </button>
+
+                  <button 
+                    onClick={() => setSuperActiveTab('users')} 
+                    style={{ 
+                      background: superActiveTab === 'users' ? '#fee2e2' : 'transparent', 
+                      color: superActiveTab === 'users' ? '#dc2626' : 'var(--text-secondary)', 
+                      border: 'none', 
+                      padding: '8px 16px', 
+                      borderRadius: '8px', 
+                      fontWeight: 700, 
+                      fontSize: '13px', 
+                      cursor: 'pointer' 
+                    }}
+                  >
+                    👥 User Accounts ({superUsers.length})
+                  </button>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <input
                     type="text"
                     placeholder="Search records..."
-                    className="form-input"
-                    style={{ width: '220px', padding: '6px 12px', fontSize: '13px' }}
                     value={superSearch}
                     onChange={(e) => setSuperSearch(e.target.value)}
+                    style={{ background: '#ffffff', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '6px 12px', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', width: '220px' }}
                   />
-                  {superActiveTab === 'payments' && (
-                    <button
-                      onClick={() => setManualPaymentModal(true)}
-                      style={{ background: '#10b981', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      + Record Manual Payment
-                    </button>
-                  )}
-                  <button
-                    onClick={fetchSuperAdminData}
-                    style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
-                  >
+                  <button onClick={fetchSuperAdminData} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
                     🔄 Refresh
                   </button>
                 </div>
@@ -4400,10 +4408,10 @@ function App() {
                   <table className="visitor-list-table">
                     <thead>
                       <tr>
-                        <th>Business Name</th>
-                        <th>Domain / API Key</th>
+                        <th>Workspace Name</th>
+                        <th>Domain & API Key</th>
                         <th>Plan & Seats</th>
-                        <th>Admin Email</th>
+                        <th>Admin Contact</th>
                         <th>Status</th>
                         <th>Actions</th>
                       </tr>
@@ -4414,7 +4422,7 @@ function App() {
                         .map(t => (
                           <tr key={t.id}>
                             <td>
-                              <div style={{ fontWeight: 700, color: '#ffffff' }}>{t.name}</div>
+                              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{t.name}</div>
                               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Created: {new Date(t.createdAt).toLocaleDateString()}</div>
                             </td>
                             <td>
@@ -4425,7 +4433,7 @@ function App() {
                               <select
                                 value={t.plan}
                                 onChange={(e) => handleSuperUpdateTenantPlan(t.id, e.target.value)}
-                                style={{ background: '#1f2937', color: 'white', border: '1px solid #374151', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', outline: 'none' }}
+                                style={{ background: '#ffffff', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', outline: 'none' }}
                               >
                                 <option value="free">Free (1 Seat)</option>
                                 <option value="growth">Growth - ₹299 (3 Seats)</option>
@@ -4442,7 +4450,7 @@ function App() {
                             </td>
                             <td>
                               <span style={{ 
-                                background: t.isSuspended ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)', 
+                                background: t.isSuspended ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)', 
                                 color: t.isSuspended ? '#ef4444' : '#10b981', 
                                 padding: '3px 8px', 
                                 borderRadius: '4px', 
@@ -4457,13 +4465,13 @@ function App() {
                                 <button
                                   onClick={() => handleSuperImpersonate(t.id)}
                                   title="Login as Tenant Admin"
-                                  style={{ background: 'rgba(59,130,246,0.2)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.4)', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                                  style={{ background: 'rgba(59,130,246,0.12)', color: '#2563eb', border: '1px solid rgba(59,130,246,0.3)', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
                                 >
                                   🔑 Login As
                                 </button>
                                 <button
                                   onClick={() => handleSuperToggleSuspend(t.id, t.isSuspended)}
-                                  style={{ background: t.isSuspended ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', color: t.isSuspended ? '#34d399' : '#f87171', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                                  style={{ background: t.isSuspended ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)', color: t.isSuspended ? '#166534' : '#dc2626', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
                                 >
                                   {t.isSuspended ? 'Activate' : 'Suspend'}
                                 </button>
@@ -4497,10 +4505,10 @@ function App() {
                           <tr key={p._id}>
                             <td>{new Date(p.createdAt).toLocaleString()}</td>
                             <td>
-                              <div style={{ fontWeight: 700 }}>{p.tenantId?.name || 'Deleted Tenant'}</div>
+                              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{p.tenantId?.name || 'Deleted Tenant'}</div>
                               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{p.tenantId?.domain}</div>
                             </td>
-                            <td style={{ fontWeight: 800, fontSize: '14px', color: '#ffffff' }}>₹{p.amount}</td>
+                            <td style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-primary)' }}>₹{p.amount}</td>
                             <td><span style={{ textTransform: 'capitalize' }}>{p.plan}</span> ({p.type})</td>
                             <td>
                               <div style={{ fontSize: '12px' }}>{p.paymentMethod}</div>
@@ -4542,7 +4550,7 @@ function App() {
                         .map(u => (
                           <tr key={u._id}>
                             <td>
-                              <div style={{ fontWeight: 700, color: '#ffffff' }}>{u.name}</div>
+                              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{u.name}</div>
                               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Last Active: {new Date(u.lastActive || u.createdAt).toLocaleDateString()}</div>
                             </td>
                             <td>{u.email}</td>
@@ -4551,7 +4559,7 @@ function App() {
                               <select
                                 value={u.role}
                                 onChange={(e) => handleSuperUpdateUserRole(u._id, e.target.value)}
-                                style={{ background: '#1f2937', color: 'white', border: '1px solid #374151', padding: '3px 6px', borderRadius: '4px', fontSize: '11px' }}
+                                style={{ background: '#ffffff', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '3px 6px', borderRadius: '4px', fontSize: '11px' }}
                               >
                                 <option value="SuperAdmin">SuperAdmin</option>
                                 <option value="Admin">Admin</option>
