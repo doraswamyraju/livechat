@@ -105,31 +105,29 @@ export async function handleMetaWebhook(req, res) {
   // 2. POST Webhook event ingestion
   if (req.method === 'POST') {
     const { body } = req;
+    console.log('[MetaWebhook Ingestion] Received webhook payload:', JSON.stringify(body));
 
     if (body.object === 'page' || body.object === 'instagram') {
       try {
         for (const entry of body.entry || []) {
           const rawAssetId = entry.id;
-          if (!rawAssetId || (typeof rawAssetId !== 'string' && typeof rawAssetId !== 'number')) {
-            console.warn('[MetaWebhook] Resolution: FAILED Reason: INVALID_ASSET_ID');
-            continue;
-          }
-
-          const entryIdStr = String(rawAssetId).trim();
-          if (!entryIdStr || entryIdStr === 'undefined' || entryIdStr === 'null') {
-            console.warn('[MetaWebhook] Resolution: FAILED Reason: INVALID_ASSET_ID');
-            continue;
-          }
+          const entryIdStr = rawAssetId ? String(rawAssetId).trim() : '';
 
           // Find canonical integration by pageId or instagramAccountId to resolve tenant ID
-          const integration = await Integration.findOne({
-            $or: [
-              { 'meta.pageId': entryIdStr },
-              { 'meta.instagramAccountId': entryIdStr }
-            ],
-            'meta.enabled': true
-          });
+          let integration = null;
+          if (entryIdStr) {
+            integration = await Integration.findOne({
+              $or: [
+                { 'meta.pageId': entryIdStr },
+                { 'meta.instagramAccountId': entryIdStr }
+              ]
+            });
+          }
 
+          if (!integration) {
+            // Fallback to active Meta integration
+            integration = await Integration.findOne({ 'meta.enabled': true });
+          }
 
           if (!integration || !integration.meta || !integration.tenantId) {
             console.warn(`[MetaWebhook] Asset ID: ${entryIdStr} Resolution: FAILED Reason: UNREGISTERED_ASSET`);

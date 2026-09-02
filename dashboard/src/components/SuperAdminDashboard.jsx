@@ -658,7 +658,7 @@ export default function SuperAdminDashboard({
     return true;
   });
 
-  const activeConv = conversations.find(c => c._id === selectedConvId) || conversations[0];
+  const activeConv = filteredConversations.find(c => c._id === selectedConvId) || conversations.find(c => c._id === selectedConvId) || filteredConversations[0] || conversations[0];
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', background: '#0B0E14', overflow: 'hidden', color: '#F3F4F6', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
@@ -1262,31 +1262,50 @@ export default function SuperAdminDashboard({
                 <div style={{ padding: '14px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
                     <button
-                      onClick={() => setChatChannelFilter('all')}
+                      onClick={() => {
+                        setChatChannelFilter('all');
+                        if (conversations.length > 0) setSelectedConvId(conversations[0]._id);
+                      }}
                       style={{ padding: '6px 2px', borderRadius: '6px', border: 'none', background: chatChannelFilter === 'all' ? '#0f172a' : 'transparent', color: chatChannelFilter === 'all' ? '#fff' : '#64748b', fontSize: '10.5px', fontWeight: 800, cursor: 'pointer' }}
                     >
                       All
                     </button>
                     <button
-                      onClick={() => setChatChannelFilter('instagram')}
+                      onClick={() => {
+                        setChatChannelFilter('instagram');
+                        const matching = conversations.filter(c => c.source === 'instagram');
+                        if (matching.length > 0) setSelectedConvId(matching[0]._id);
+                      }}
                       style={{ padding: '6px 2px', borderRadius: '6px', border: 'none', background: chatChannelFilter === 'instagram' ? '#a855f7' : 'transparent', color: chatChannelFilter === 'instagram' ? '#fff' : '#64748b', fontSize: '10.5px', fontWeight: 800, cursor: 'pointer' }}
                     >
                       📸 IG
                     </button>
                     <button
-                      onClick={() => setChatChannelFilter('whatsapp-api')}
+                      onClick={() => {
+                        setChatChannelFilter('whatsapp-api');
+                        const matching = conversations.filter(c => c.source === 'whatsapp-api');
+                        if (matching.length > 0) setSelectedConvId(matching[0]._id);
+                      }}
                       style={{ padding: '6px 2px', borderRadius: '6px', border: 'none', background: chatChannelFilter === 'whatsapp-api' ? '#16a34a' : 'transparent', color: chatChannelFilter === 'whatsapp-api' ? '#fff' : '#64748b', fontSize: '10.5px', fontWeight: 800, cursor: 'pointer' }}
                     >
                       🟢 WA
                     </button>
                     <button
-                      onClick={() => setChatChannelFilter('facebook')}
+                      onClick={() => {
+                        setChatChannelFilter('facebook');
+                        const matching = conversations.filter(c => c.source === 'facebook');
+                        if (matching.length > 0) setSelectedConvId(matching[0]._id);
+                      }}
                       style={{ padding: '6px 2px', borderRadius: '6px', border: 'none', background: chatChannelFilter === 'facebook' ? '#1877f2' : 'transparent', color: chatChannelFilter === 'facebook' ? '#fff' : '#64748b', fontSize: '10.5px', fontWeight: 800, cursor: 'pointer' }}
                     >
                       f FB
                     </button>
                     <button
-                      onClick={() => setChatChannelFilter('webchat')}
+                      onClick={() => {
+                        setChatChannelFilter('webchat');
+                        const matching = conversations.filter(c => c.source === 'webchat');
+                        if (matching.length > 0) setSelectedConvId(matching[0]._id);
+                      }}
                       style={{ padding: '6px 2px', borderRadius: '6px', border: 'none', background: chatChannelFilter === 'webchat' ? '#3b82f6' : 'transparent', color: chatChannelFilter === 'webchat' ? '#fff' : '#64748b', fontSize: '10.5px', fontWeight: 800, cursor: 'pointer' }}
                     >
                       💬 Web
