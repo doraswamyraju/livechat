@@ -617,20 +617,28 @@ export const initializeSocket = (httpServer) => {
           await conv.save();
 
           // ROUTING OUTGOING MESSAGES
+          const rawVisitorId = typeof conv.visitorId === 'object' && conv.visitorId !== null 
+            ? (conv.visitorId._id || String(conv.visitorId)) 
+            : String(conv.visitorId || '');
+          const recipientId = rawVisitorId.includes(':') ? rawVisitorId.split(':')[1] : rawVisitorId;
+
           if (conv.source === 'whatsapp-web') {
             throw new Error('WhatsApp Web integration is temporarily disabled');
           } else if (conv.source === 'whatsapp-api') {
-            const integration = await Integration.findOne({ tenantId: currentTenantId });
+            const integration = await Integration.findOne({
+              $or: [{ tenantId: currentTenantId }, { tenantId: conv.tenantId }]
+            });
             if (integration && integration.whatsappApi?.enabled) {
-              const recipientPhone = conv.visitorId.split(':')[1];
-              await sendWhatsAppApiMessage(integration, recipientPhone, text);
+              await sendWhatsAppApiMessage(integration, recipientId, text);
             } else {
               throw new Error('Official WhatsApp API integration is not enabled/configured');
             }
           } else if (conv.source === 'facebook' || conv.source === 'instagram') {
-            const integration = await Integration.findOne({ tenantId: currentTenantId });
+            const integration = await Integration.findOne({
+              $or: [{ tenantId: currentTenantId }, { tenantId: conv.tenantId }]
+            });
             if (integration && integration.meta?.enabled) {
-              const recipientId = conv.visitorId.split(':')[1];
+              console.log(`[Socket] Sending reply to ${conv.source} recipient ${recipientId}`);
               await sendMetaMessage(integration, recipientId, text);
             } else {
               throw new Error('Meta (Facebook/Instagram) integration is not enabled/configured');

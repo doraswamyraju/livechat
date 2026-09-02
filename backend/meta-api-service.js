@@ -48,27 +48,30 @@ async function fetchMetaUserProfile(userId, pageAccessToken, isInstagram = false
   try {
     let url;
     if (isInstagram) {
-      url = `https://graph.facebook.com/v26.0/${userId}?fields=name,username&access_token=${pageAccessToken}`;
+      url = `https://graph.facebook.com/v26.0/${userId}?fields=name,username,profile_pic&access_token=${pageAccessToken}`;
     } else {
-      url = `https://graph.facebook.com/v26.0/${userId}?fields=first_name,last_name&access_token=${pageAccessToken}`;
+      url = `https://graph.facebook.com/v26.0/${userId}?fields=first_name,last_name,name,profile_pic&access_token=${pageAccessToken}`;
     }
-
 
     const res = await fetch(url);
     if (res.ok) {
       const data = await res.json();
       if (isInstagram) {
-        return data.name || data.username || `Instagram User`;
+        return data.name || (data.username ? `@${data.username}` : `Instagram User`);
       } else {
+        if (data.name) return data.name;
         if (data.first_name || data.last_name) {
           return `${data.first_name || ''} ${data.last_name || ''}`.trim();
         }
       }
+    } else {
+      const errTxt = await res.text();
+      console.warn('Meta profile fetch response not ok:', errTxt);
     }
   } catch (err) {
     console.error('Failed to fetch Meta user profile details:', err);
   }
-  return isInstagram ? 'Instagram User' : 'Messenger User';
+  return isInstagram ? 'Instagram User' : 'Facebook User';
 }
 
 /**
