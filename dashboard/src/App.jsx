@@ -1992,6 +1992,8 @@ function App() {
         {toast && <div className={`toast-msg ${toast.type}`}>{toast.text}</div>}
       </div>
     );
+  }
+
   // Top-Level Role Detection: Serve Dedicated SuperAdmin App directly
   if (user?.role === 'SuperAdmin' && !user?.isImpersonated) {
     return (
