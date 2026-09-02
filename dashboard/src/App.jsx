@@ -34,8 +34,74 @@ function App() {
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('letstrack_user')) || null);
   const [tenant, setTenant] = useState(JSON.parse(localStorage.getItem('letstrack_tenant')) || null);
   
-  // Navigation
-  const [activeTab, setActiveTab] = useState('analytics'); // analytics, monitor, chat, customize, agents
+  // Hash-based Navigation Mapping (ensures URL updates on tab switch)
+  const tabToHash = {
+    analytics: 'overview',
+    monitor: 'monitor',
+    chat: 'inbox',
+    whatsapp: 'whatsapp',
+    agents: 'team',
+    customize: 'widget',
+    billing: 'billing',
+    superadmin: 'superadmin',
+    profile: 'profile'
+  };
+  const hashToTab = {
+    overview: 'analytics',
+    monitor: 'monitor',
+    inbox: 'chat',
+    whatsapp: 'whatsapp',
+    team: 'agents',
+    widget: 'customize',
+    billing: 'billing',
+    superadmin: 'superadmin',
+    profile: 'profile'
+  };
+
+  const getInitialTab = () => {
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+    return hashToTab[hash] || 'analytics';
+  };
+
+  const [activeTab, setActiveTabState] = useState(getInitialTab);
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    if (tabToHash[tab]) {
+      window.location.hash = tabToHash[tab];
+    }
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '').toLowerCase();
+      if (hashToTab[hash]) {
+        setActiveTabState(hashToTab[hash]);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Collapsible Layouts State
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('letstrack_sidebar_collapsed') === 'true');
+  const [chatDetailsCollapsed, setChatDetailsCollapsed] = useState(() => localStorage.getItem('letstrack_chat_details_collapsed') === 'true');
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('letstrack_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
+
+  const toggleChatDetails = () => {
+    setChatDetailsCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('letstrack_chat_details_collapsed', String(next));
+      return next;
+    });
+  };
   
   // DB & WebSockets State Arrays
   const [visitors, setVisitors] = useState([]);
@@ -2097,36 +2163,62 @@ function App() {
       )}
 
       {/* 1. Sidebar */}
-      <div className="sidebar">
-        <div className="sidebar-logo" style={{ padding: '14px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <img src="/logo-wide.png" alt="LetsTrack" style={{ maxHeight: '42px', maxWidth: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
+      <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <div className="sidebar-logo" style={{ padding: '14px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+          <img src="/logo-wide.png" alt="LetsTrack" style={{ maxHeight: '40px', maxWidth: sidebarCollapsed ? '32px' : '130px', objectFit: 'contain', mixBlendMode: 'multiply' }} />
+          <button 
+            onClick={toggleSidebar}
+            title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            className="sidebar-collapse-btn"
+            style={{ padding: '4px 6px', fontSize: '11px' }}
+          >
+            {sidebarCollapsed ? '▶' : '◀'}
+          </button>
         </div>
 
         <div className="sidebar-menu">
-          <button className={`menu-item ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
+          <button className={`menu-item ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')} title="Overview Panel">
             <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
-            Overview Panel
+            <span>Overview Panel</span>
           </button>
           
-          <button className={`menu-item ${activeTab === 'monitor' ? 'active' : ''}`} onClick={() => setActiveTab('monitor')}>
+          <button className={`menu-item ${activeTab === 'monitor' ? 'active' : ''}`} onClick={() => setActiveTab('monitor')} title="Active Monitor">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
-            Active Monitor
+            <span>Active Monitor</span>
           </button>
 
-          <button className={`menu-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
+          <button className={`menu-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')} title="Inbox Console">
             <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
-            Inbox Console
+            <span>Inbox Console</span>
           </button>
 
-          <button className={`menu-item ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => { setActiveTab('agents'); fetchAgentsData(); }}>
+          {/* New WhatsApp Business API tab (Coming Soon) */}
+          <button className={`menu-item ${activeTab === 'whatsapp' ? 'active' : ''}`} onClick={() => setActiveTab('whatsapp')} title="WhatsApp Business API (Coming Soon)">
+            <svg viewBox="0 0 24 24" style={{ fill: '#25D366' }}><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 6.46 17.5 2 12.04 2M12.05 3.67C16.58 3.67 20.28 7.37 20.28 11.92C20.28 16.46 16.58 20.17 12.05 20.17C10.58 20.17 9.15 19.78 7.91 19.05L7.61 18.87L4.5 19.69L5.33 16.65L5.13 16.34C4.34 15.08 3.8 13.53 3.8 11.92C3.8 7.37 7.5 3.67 12.05 3.67Z"/></svg>
+            <span>WhatsApp API</span>
+            <span style={{ 
+              marginLeft: 'auto', 
+              fontSize: '9.5px', 
+              fontWeight: 800, 
+              background: 'linear-gradient(135deg, #25D366, #128C7E)', 
+              color: '#ffffff', 
+              padding: '2px 6px', 
+              borderRadius: '8px', 
+              boxShadow: '0 2px 6px rgba(37, 211, 102, 0.25)' 
+            }}>
+              🚀 Soon
+            </span>
+          </button>
+
+          <button className={`menu-item ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => { setActiveTab('agents'); fetchAgentsData(); }} title="Team & Staff">
             <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
             <span>Team & Staff</span>
             <span style={{ 
               marginLeft: 'auto', 
               fontSize: '10px', 
               fontWeight: 700, 
-              background: seatInfo.used >= seatInfo.max ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.08)', 
-              color: seatInfo.used >= seatInfo.max ? '#F87171' : 'var(--text-secondary)',
+              background: seatInfo.used >= seatInfo.max ? 'rgba(239, 68, 68, 0.2)' : 'rgba(0,0,0,0.06)', 
+              color: seatInfo.used >= seatInfo.max ? '#dc2626' : 'var(--text-secondary)',
               padding: '2px 7px', 
               borderRadius: '10px' 
             }}>
@@ -2134,15 +2226,15 @@ function App() {
             </span>
           </button>
 
-          <button className={`menu-item ${activeTab === 'customize' ? 'active' : ''}`} onClick={() => setActiveTab('customize')}>
+          <button className={`menu-item ${activeTab === 'customize' ? 'active' : ''}`} onClick={() => setActiveTab('customize')} title="Widget Customizer">
             <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
-            Widget Customizer
+            <span>Widget Customizer</span>
           </button>
 
           {(user.role === 'Admin' || user.role === 'SuperAdmin') && (
-            <button className={`menu-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => { setActiveTab('billing'); fetchBillingData(); }}>
+            <button className={`menu-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => { setActiveTab('billing'); fetchBillingData(); }} title="Billing & Plan">
               <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
-              Billing & Plan
+              <span>Billing & Plan</span>
             </button>
           )}
 
@@ -2157,15 +2249,16 @@ function App() {
                 fontWeight: 700,
                 marginTop: '10px'
               }}
+              title="Super Admin Console"
             >
               <span style={{ fontSize: '15px' }}>👑</span>
-              Super Admin Console
+              <span>Super Admin Console</span>
             </button>
           )}
 
-          <button className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
+          <button className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')} title="Profile Settings">
             <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-            Profile Settings
+            <span>Profile Settings</span>
           </button>
         </div>
 
@@ -2181,16 +2274,26 @@ function App() {
       <div className="main-frame">
         {/* Top Navbar */}
         <div className="top-navbar">
-          <div className="navbar-title">
-            {activeTab === 'analytics' && 'Operational Metrics Overview'}
-            {activeTab === 'monitor' && 'Live Traffic Analytics'}
-            {activeTab === 'chat' && 'Live Chat Dashboard'}
-            {activeTab === 'customize' && 'Widget Configuration Center'}
-            {activeTab === 'agents' && 'Employee Administration'}
-            {activeTab === 'integrations' && 'Unified Inbox Integrations Hub'}
-            {activeTab === 'billing' && 'Subscription & Billing Mandates'}
-            {activeTab === 'superadmin' && 'Platform Super Admin Command Center'}
-            {activeTab === 'profile' && 'Employee Profile Center'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <button 
+              onClick={toggleSidebar}
+              className="sidebar-collapse-btn"
+              title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              ☰
+            </button>
+            <div className="navbar-title">
+              {activeTab === 'analytics' && 'Operational Metrics Overview'}
+              {activeTab === 'monitor' && 'Live Traffic Analytics'}
+              {activeTab === 'chat' && 'Live Chat Dashboard'}
+              {activeTab === 'whatsapp' && 'Meta WhatsApp Business API Hub'}
+              {activeTab === 'customize' && 'Widget Configuration Center'}
+              {activeTab === 'agents' && 'Employee Administration'}
+              {activeTab === 'integrations' && 'Unified Inbox Integrations Hub'}
+              {activeTab === 'billing' && 'Subscription & Billing Mandates'}
+              {activeTab === 'superadmin' && 'Platform Super Admin Command Center'}
+              {activeTab === 'profile' && 'Employee Profile Center'}
+            </div>
           </div>
 
           <div className="navbar-profile">
@@ -3078,6 +3181,25 @@ function App() {
 
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <button
+                          onClick={toggleChatDetails}
+                          style={{
+                            backgroundColor: chatDetailsCollapsed ? '#fee2e2' : 'var(--bg-tertiary)',
+                            color: chatDetailsCollapsed ? '#dc2626' : 'var(--text-primary)',
+                            border: chatDetailsCollapsed ? '1px solid #fca5a5' : '1px solid var(--border-color)',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}
+                          title={chatDetailsCollapsed ? "Expand Customer Profile Drawer" : "Collapse Customer Profile Drawer"}
+                        >
+                          👤 {chatDetailsCollapsed ? 'Show Details' : 'Hide Details'}
+                        </button>
+                        <button
                           onClick={() => handleArchiveConversation(selectedConversation._id, selectedConversation.isArchived || selectedConversation.status === 'Archived')}
                           style={{
                             backgroundColor: 'var(--bg-tertiary)',
@@ -3354,6 +3476,46 @@ function App() {
                       )}
                     </div>
 
+                    {/* In-Chat Agent Upsell & Deal Closer Co-Pilot */}
+                    <div className="upsell-copilot-bar">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 800, color: '#b45309', whiteSpace: 'nowrap' }}>
+                        <span>⚡ Upsell Pitch:</span>
+                      </div>
+                      
+                      <button
+                        className="upsell-pill"
+                        title="Insert Growth Plan Pitch"
+                        onClick={() => setChatInput(prev => prev ? `${prev} We noticed you are exploring our Growth Plan! We currently have a special promotion where you get 20% off plus free onboarding setup.` : 'Hi! We noticed you are exploring our Growth Plan! We currently have a special promotion where you get 20% off plus free onboarding setup.')}
+                      >
+                        💼 Pitch Growth (₹299/mo)
+                      </button>
+
+                      <button
+                        className="upsell-pill"
+                        title="Insert 20% Coupon Code"
+                        onClick={() => setChatInput(prev => prev ? `${prev} Use exclusive coupon code LETS20 for an instant 20% discount on any annual plan!` : 'Here is an exclusive coupon code for you: LETS20 for an instant 20% discount on any annual plan!')}
+                      >
+                        🏷️ 20% Coupon (LETS20)
+                      </button>
+
+                      <button
+                        className="upsell-pill"
+                        title="Insert Direct Checkout Link"
+                        onClick={() => setChatInput(prev => prev ? `${prev} Here is your instant checkout link: https://letstrack.manacity.in/#billing` : 'You can activate your subscription directly here: https://letstrack.manacity.in/#billing')}
+                      >
+                        💳 Send Payment Link
+                      </button>
+
+                      <button
+                        className="upsell-pill"
+                        style={{ borderColor: '#d1d5db', color: 'var(--text-secondary)' }}
+                        title="Offer custom trial extension"
+                        onClick={() => setChatInput(prev => prev ? `${prev} I can also extend your free trial by an extra 7 days so you can test all features with your team!` : 'I can also extend your free trial by an extra 7 days so you can test all features with your team!')}
+                      >
+                        🎁 +7 Day Trial
+                      </button>
+                    </div>
+
                     <div className="chat-input-bar">
                       <input
                         type="text"
@@ -3378,8 +3540,8 @@ function App() {
                 )}
               </div>
 
-              {/* 3. Right Details & Customer 360 Drawer */}
-              <div className="pane-details">
+              {/* 3. Right Details & Customer 360 Drawer (Collapsible) */}
+              <div className={`pane-details ${chatDetailsCollapsed ? 'collapsed' : ''}`}>
                 {selectedConversation ? (
                   <>
                     {/* Card 1: Contact Identity */}
@@ -3528,7 +3690,100 @@ function App() {
             </div>
           )}
 
-          {/* D. WIDGET CUSTOMIZER */}
+          {/* D. WHATSAPP BUSINESS API HUB (COMING SOON) */}
+          {activeTab === 'whatsapp' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1100px', margin: '0 auto', width: '100%' }}>
+              {/* Hero Banner */}
+              <div className="glass-card" style={{ 
+                padding: '36px', 
+                background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)', 
+                border: '1px solid #bbf7d0', 
+                borderRadius: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '20px',
+                boxShadow: '0 4px 20px rgba(37, 211, 102, 0.08)'
+              }}>
+                <div style={{ maxWidth: '640px' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#dcfce7', color: '#15803d', padding: '4px 12px', borderRadius: '14px', fontSize: '12px', fontWeight: 800, marginBottom: '12px' }}>
+                    <span>🚀 COMING SOON</span>
+                    <span>•</span>
+                    <span>OFFICIAL META TECH PARTNER INTEGRATION</span>
+                  </div>
+                  <h2 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '10px', fontFamily: 'Outfit, sans-serif' }}>
+                    WhatsApp Business Cloud API
+                  </h2>
+                  <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                    Connect your official Meta WhatsApp Business number directly to LetsTrack. Manage customer chats with multi-agent inbox routing, send automated OTP/Order notifications, and broadcast campaigns with verified green-tick branding.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: '220px' }}>
+                  <button
+                    onClick={() => showToast('🎉 You have been added to the VIP WhatsApp API Beta Waitlist!')}
+                    style={{
+                      background: 'linear-gradient(135deg, #25D366, #128C7E)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '12px 24px',
+                      borderRadius: '10px',
+                      fontWeight: 800,
+                      fontSize: '14px',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 16px rgba(37, 211, 102, 0.35)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <span>⚡ Request Early Access</span>
+                  </button>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                    Zero setup fees for existing active subscriptions
+                  </span>
+                </div>
+              </div>
+
+              {/* 4 Feature Highlights Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+                <div className="glass-card" style={{ padding: '24px', borderRadius: '14px', background: '#ffffff' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '12px' }}>👥</div>
+                  <h4 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)' }}>Multi-Agent WhatsApp Routing</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                    Assign 1 WhatsApp number across your entire team. Route inquiries to sales or support agents automatically without sharing phones.
+                  </p>
+                </div>
+
+                <div className="glass-card" style={{ padding: '24px', borderRadius: '14px', background: '#ffffff' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '12px' }}>🔔</div>
+                  <h4 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)' }}>Automated HSM Notifications</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                    Send automated booking confirmations, payment links, and abandoned cart alerts directly from your website via Webhooks.
+                  </p>
+                </div>
+
+                <div className="glass-card" style={{ padding: '24px', borderRadius: '14px', background: '#ffffff' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '12px' }}>🛡️</div>
+                  <h4 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)' }}>Verified Meta Green Tick</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                    Showcase your official brand name and green verified checkmark on WhatsApp instead of an unknown mobile number.
+                  </p>
+                </div>
+
+                <div className="glass-card" style={{ padding: '24px', borderRadius: '14px', background: '#ffffff' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '12px' }}>🤖</div>
+                  <h4 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)' }}>Interactive Chatbot Flows</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                    Auto-respond 24/7 with interactive button menus, catalog sharing, and smart lead qualification before handing off to live agents.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* E. WIDGET CUSTOMIZER */}
           {activeTab === 'customize' && (
             <div className="customizer-grid">
               <div className="config-form">

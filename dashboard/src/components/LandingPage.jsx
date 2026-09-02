@@ -655,7 +655,24 @@ export default function App() {
             </div>
             <h3 className="feature-title">Multi-Channel Unified Inbox</h3>
             <p className="feature-text">
-              Receive messages from your Website Chat, Instagram DMs, Facebook Messenger, WhatsApp, and custom Webhooks into one single agent application.
+              Receive messages from your Website Chat, Instagram DMs, Facebook Messenger, and custom Webhooks into one single agent application.
+            </p>
+          </div>
+
+          <div className="feature-card" style={{ border: '1px solid #bbf7d0', background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)' }}>
+            <div className="feature-icon-wrapper" style={{ backgroundColor: '#25D366', color: '#ffffff' }}>
+              <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 6.46 17.5 2 12.04 2M12.05 3.67C16.58 3.67 20.28 7.37 20.28 11.92C20.28 16.46 16.58 20.17 12.05 20.17C10.58 20.17 9.15 19.78 7.91 19.05L7.61 18.87L4.5 19.69L5.33 16.65L5.13 16.34C4.34 15.08 3.8 13.53 3.8 11.92C3.8 7.37 7.5 3.67 12.05 3.67Z"/>
+              </svg>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+              <h3 className="feature-title" style={{ margin: 0 }}>WhatsApp Business API</h3>
+              <span style={{ fontSize: '10px', fontWeight: 800, background: 'linear-gradient(135deg, #25D366, #128C7E)', color: '#ffffff', padding: '2px 7px', borderRadius: '10px' }}>
+                🚀 Coming Soon
+              </span>
+            </div>
+            <p className="feature-text">
+              Official Meta WhatsApp Cloud API integration. Send automated transactional alerts, OTPs, and multi-agent 2-way chat with verified Green Tick branding.
             </p>
           </div>
 
