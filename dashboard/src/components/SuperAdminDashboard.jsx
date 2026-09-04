@@ -60,9 +60,29 @@ export default function SuperAdminDashboard({
   const [selectedConvId, setSelectedConvId] = useState(null);
   const [chatChannelFilter, setChatChannelFilter] = useState('all'); // 'all' | 'instagram' | 'whatsapp-api' | 'facebook' | 'webchat'
   const [chatInputText, setChatInputText] = useState('');
-  const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(true);
+  const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
   const [cannedReplySelect, setCannedReplySelect] = useState('');
   const [upsellPitchSelect, setUpsellPitchSelect] = useState('');
+
+  // Audio Chime Synthesizer
+  const playNotificationSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch (e) {}
+  };
 
   // Presets
   const quickReplies = [
@@ -82,6 +102,26 @@ export default function SuperAdminDashboard({
 
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
+
+  const fetchMessagesForSelectedConv = async (convId) => {
+    if (!convId || !token) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/conversations/${convId}/messages`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const msgs = await res.json();
+        setConversations(prev => prev.map(c => {
+          if (c._id === convId) {
+            return { ...c, messages: msgs };
+          }
+          return c;
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching messages for conv:', err);
+    }
+  };
 
   // 1. Initial Load & WebSocket Setup
   useEffect(() => {
@@ -152,6 +192,7 @@ export default function SuperAdminDashboard({
         if (!selectedConvId) {
           setSelectedConvId(conversation._id);
         }
+        playNotificationSound();
         showToast(`💬 Inbound message from ${visitor?.name || conversation?.visitorId?.name || 'Visitor'}: "${message?.text?.substring(0, 35) || 'New message'}"`);
       });
 
@@ -198,6 +239,12 @@ export default function SuperAdminDashboard({
       };
     }
   }, [token, user]);
+
+  useEffect(() => {
+    if (selectedConvId) {
+      fetchMessagesForSelectedConv(selectedConvId);
+    }
+  }, [selectedConvId]);
 
   const fetchConversations = async () => {
     if (!token) return;
@@ -1411,7 +1458,7 @@ export default function SuperAdminDashboard({
             <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0', display: 'flex', height: '680px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
               
               {/* Left Pane: Conversation Threads */}
-              <div style={{ width: '340px', minWidth: '340px', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', background: '#ffffff' }}>
+              <div style={{ width: '280px', minWidth: '260px', flexShrink: 0, borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', background: '#ffffff' }}>
                 
                 {/* Search & Channel Badges */}
                 <div style={{ padding: '14px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1573,7 +1620,7 @@ export default function SuperAdminDashboard({
               </div>
 
               {/* Center Pane: Active Message Stream */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#f8fafc' }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: '#f8fafc' }}>
                 {activeConv ? (
                   <>
                     {/* Header */}
@@ -1691,7 +1738,7 @@ export default function SuperAdminDashboard({
 
               {/* Right Pane: Visitor Details Sidebar */}
               {detailsDrawerOpen && activeConv && (
-                <div style={{ width: '280px', minWidth: '280px', borderLeft: '1px solid #e2e8f0', background: '#ffffff', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+                <div style={{ width: '260px', minWidth: '240px', flexShrink: 0, borderLeft: '1px solid #e2e8f0', background: '#ffffff', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto' }}>
                   <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>Visitor & Lead Profile</h4>
                   
                   <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
