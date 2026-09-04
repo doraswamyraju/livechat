@@ -2266,6 +2266,48 @@ app.post('/api/superadmin/meta/sync-subscriptions', authenticateToken, requireSu
   }
 });
 
+// 11b2. Disconnect Meta Assets (Facebook, Instagram, WhatsApp)
+app.post('/api/superadmin/meta/disconnect', authenticateToken, requireSuperAdmin, async (req, res) => {
+  const { target } = req.body; // 'meta' | 'whatsapp' | 'all'
+  try {
+    const integration = await Integration.findOne({ tenantId: req.user.tenantId });
+    if (!integration) {
+      return res.status(404).json({ error: 'Integration record not found' });
+    }
+
+    if (target === 'whatsapp') {
+      integration.whatsappApi = { enabled: false };
+    } else if (target === 'meta') {
+      integration.meta = { enabled: false };
+    } else {
+      integration.meta = { enabled: false };
+      if (integration.whatsappApi) {
+        integration.whatsappApi.enabled = false;
+      }
+    }
+
+    await integration.save();
+
+    await AuditLog.create({
+      tenantId: req.user.tenantId,
+      userId: req.user.userId,
+      actorEmail: req.user.email || 'SuperAdmin',
+      action: 'META_ASSETS_DISCONNECTED',
+      details: { target: target || 'all' }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Meta assets (${target || 'all'}) disconnected successfully`,
+      meta: integration.meta || { enabled: false },
+      whatsappApi: integration.whatsappApi || { enabled: false }
+    });
+  } catch (err) {
+    console.error('Error disconnecting Meta assets:', err);
+    res.status(500).json({ error: err.message || 'Failed to disconnect Meta assets' });
+  }
+});
+
 // 11c. WhatsApp Cloud API Onboarding Wizard Endpoint
 app.post('/api/superadmin/whatsapp-api/onboard', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { phoneNumberId, wabaId, displayNumber, displayName, pin } = req.body;

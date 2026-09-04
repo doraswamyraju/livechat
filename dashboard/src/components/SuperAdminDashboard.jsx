@@ -241,6 +241,34 @@ export default function SuperAdminDashboard({
     }
   };
 
+  // Disconnect Meta Assets (Facebook, Instagram, WhatsApp)
+  const handleDisconnectMeta = async (target = 'all') => {
+    const confirmMsg = target === 'all'
+      ? 'Are you sure you want to disconnect all Meta assets (Facebook, Instagram, and WhatsApp API)?'
+      : target === 'whatsapp'
+      ? 'Are you sure you want to disconnect WhatsApp Business Cloud API?'
+      : 'Are you sure you want to disconnect Facebook and Instagram?';
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/meta/disconnect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ target })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to disconnect');
+      showToast(data.message || 'Meta assets disconnected successfully');
+      fetchMetaAssets();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
   // 2. Meta OAuth Login
   const handleFacebookLogin = () => {
     setConnectingMeta(true);
@@ -1061,12 +1089,22 @@ export default function SuperAdminDashboard({
                       <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>Authorized Facebook Pages, Instagram Profiles, and WhatsApp Cloud APIs receiving live customer webhooks.</p>
                     </div>
                   </div>
-                  <button
-                    onClick={handleFacebookLogin}
-                    style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    🔄 Switch / Add Facebook Page
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {(metaAssets.meta?.enabled || metaAssets.whatsappApi?.enabled) && (
+                      <button
+                        onClick={() => handleDisconnectMeta('all')}
+                        style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        ❌ Disconnect All
+                      </button>
+                    )}
+                    <button
+                      onClick={handleFacebookLogin}
+                      style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      🔄 Switch / Add Facebook Page
+                    </button>
+                  </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '18px' }}>
@@ -1113,13 +1151,19 @@ export default function SuperAdminDashboard({
                         }}
                         style={{ background: '#f8fafc', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '8px 12px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
                       >
-                        ⚡ Re-Sync Webhook
+                        ⚡ Re-Sync
+                      </button>
+                      <button
+                        onClick={() => handleDisconnectMeta('meta')}
+                        style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', padding: '8px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Disconnect
                       </button>
                       <button
                         onClick={() => setActiveTab('inbox')}
                         style={{ flex: 1, background: '#1877f2', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
                       >
-                        💬 Open Live Inbox
+                        💬 Open Inbox
                       </button>
                     </div>
                   </div>
@@ -1214,15 +1258,24 @@ export default function SuperAdminDashboard({
                         onClick={() => setShowWaOnboardingModal(true)}
                         style={{ flex: 1, background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
                       >
-                        {metaAssets.whatsappApi?.enabled ? '⚙️ Manage / Reconfigure WABA' : '🚀 Launch WhatsApp API Wizard'}
+                        {metaAssets.whatsappApi?.enabled ? '⚙️ Manage / Reconfigure' : '🚀 Launch WhatsApp API Wizard'}
                       </button>
                       {metaAssets.whatsappApi?.enabled && (
-                        <button
-                          onClick={() => handleTriggerInboundMsg('whatsapp')}
-                          style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          🟢 Test Lead
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleTriggerInboundMsg('whatsapp')}
+                            style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            🟢 Test Lead
+                          </button>
+                          <button
+                            onClick={() => handleDisconnectMeta('whatsapp')}
+                            style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                            title="Disconnect WhatsApp API"
+                          >
+                            Disconnect
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
