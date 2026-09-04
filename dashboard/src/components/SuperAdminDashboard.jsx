@@ -1425,7 +1425,7 @@ export default function SuperAdminDashboard({
                             </span>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                             <span style={{
                               background: c.source === 'instagram' ? '#fdf2f8' : c.source === 'whatsapp-api' ? '#f0fdf4' : c.source === 'facebook' ? '#eff6ff' : '#f8fafc',
                               color: c.source === 'instagram' ? '#be185d' : c.source === 'whatsapp-api' ? '#15803d' : c.source === 'facebook' ? '#1d4ed8' : '#475569',
@@ -1436,7 +1436,12 @@ export default function SuperAdminDashboard({
                             }}>
                               {c.source === 'instagram' ? '📸 Instagram' : c.source === 'whatsapp-api' ? '🟢 WhatsApp' : c.source === 'facebook' ? 'f Facebook' : '💬 Live Web'}
                             </span>
-                            <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {c.tenantId?.name && (
+                              <span style={{ background: '#f1f5f9', color: '#334155', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
+                                🏢 {c.tenantId.name}
+                              </span>
+                            )}
+                            <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
                               {c.lastMessageText || 'Chat started'}
                             </span>
                           </div>
@@ -1463,9 +1468,16 @@ export default function SuperAdminDashboard({
                           {activeConv.source === 'instagram' ? 'IG' : activeConv.source === 'whatsapp-api' ? 'WA' : activeConv.source === 'facebook' ? 'FB' : 'LT'}
                         </div>
                         <div>
-                          <div style={{ fontWeight: 800, fontSize: '14.5px', color: '#0f172a' }}>{activeConv.visitorId?.name || (typeof activeConv.visitorId === 'string' ? activeConv.visitorId : 'Visitor')}</div>
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>
-                            Channel: <strong>{activeConv.source}</strong> | UTM: <strong>{activeConv.visitorId?.utmCampaign || 'Direct'}</strong>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontWeight: 800, fontSize: '14.5px', color: '#0f172a' }}>{activeConv.visitorId?.name || (typeof activeConv.visitorId === 'string' ? activeConv.visitorId : 'Visitor')}</span>
+                            {activeConv.tenantId?.name && (
+                              <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
+                                🏢 {activeConv.tenantId.name}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                            Channel: <strong>{activeConv.source}</strong> | Workspace: <strong>{activeConv.tenantId?.name || 'Main'}</strong> | UTM: <strong>{activeConv.visitorId?.utmCampaign || 'Direct'}</strong>
                           </div>
                         </div>
                       </div>

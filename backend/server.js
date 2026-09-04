@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 
 import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, UpsellPitch, Integration, Payment, AuditLog } from './models.js';
-import { initializeSocket, dashboardNamespace } from './socket.js';
+import { initializeSocket, dashboardNamespace, visitorNamespace } from './socket.js';
 import { 
   initializeWhatsAppClient, 
   disconnectWhatsAppClient, 
@@ -787,6 +787,20 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
         console.log(`[HTTP API] Dispatching Meta message to ${conv.source} recipient: ${recipientId}`);
         await sendMetaMessage(integration, recipientId, text.trim());
       }
+    } else if (conv.source === 'whatsapp-api') {
+      const integration = await Integration.findOne({
+        $or: [{ tenantId: req.user.tenantId }, { tenantId: conv.tenantId }, { 'whatsappApi.enabled': true }]
+      });
+      if (integration && integration.whatsappApi?.enabled) {
+        await sendWhatsAppApiMessage(integration, recipientId, text.trim());
+      }
+    } else {
+      // Default: webchat (VR Here, etc.)
+      if (visitorNamespace) {
+        const vId = rawVisitorId.includes(':') ? rawVisitorId.split(':')[1] : rawVisitorId;
+        visitorNamespace.to(`visitor_${vId}`).emit('msg-received', message);
+        visitorNamespace.to(`visitor_${rawVisitorId}`).emit('msg-received', message);
+      }
     }
 
     if (dashboardNamespace) {
@@ -797,6 +811,10 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
           message
         });
       }
+      dashboardNamespace.to('superadmin_global').emit('agent-msg-received', {
+        conversationId: conv._id,
+        message
+      });
       dashboardNamespace.emit('agent-msg-received', {
         conversationId: conv._id,
         message
@@ -1865,9 +1883,10 @@ app.get('/api/superadmin/conversations', authenticateToken, async (req, res) => 
   try {
     const conversations = await Conversation.find({ status: { $ne: 'Closed' } })
       .populate('visitorId')
+      .populate('tenantId', 'name domain')
       .populate('assignedAgentId', 'name email avatarUrl status')
       .sort({ updatedAt: -1 })
-      .limit(60);
+      .limit(100);
 
     const populated = await Promise.all(conversations.map(async (c) => {
       const messages = await Message.find({ conversationId: c._id }).sort({ timestamp: 1 });

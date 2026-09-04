@@ -8,6 +8,21 @@ import { sendWhatsAppApiMessage } from './whatsapp-api-service.js';
 import { sendMetaMessage } from './meta-api-service.js';
 
 export let dashboardNamespace;
+export let visitorNamespace;
+
+/**
+ * Broadcast helper to emit an event to a tenant's room AND superadmin global room
+ */
+export const emitToDashboard = (tenantId, event, data) => {
+  if (dashboardNamespace) {
+    if (tenantId) {
+      const strTenantId = tenantId.toString();
+      dashboardNamespace.to(`tenant_${strTenantId}`).emit(event, data);
+    }
+    dashboardNamespace.to('superadmin_global').emit(event, data);
+    dashboardNamespace.emit(event, data);
+  }
+};
 
 // Real Geo-IP lookup resolver using ip-api.com with stable fallback
 const getGeoIP = async (ip) => {
@@ -80,7 +95,7 @@ export const initializeSocket = (httpServer) => {
     }
   });
 
-  const visitorNamespace = io.of('/visitor');
+  visitorNamespace = io.of('/visitor');
   dashboardNamespace = io.of('/dashboard');
 
   // Track active visitor socket connections to handle multi-tabbing or abrupt disconnect grace periods
@@ -244,7 +259,7 @@ export const initializeSocket = (httpServer) => {
               });
               await systemMsg.save();
 
-              dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-msg-received', {
+              emitToDashboard(currentTenantId, 'agent-msg-received', {
                 conversationId: lastConv._id,
                 message: systemMsg
               });
@@ -257,7 +272,7 @@ export const initializeSocket = (httpServer) => {
           tenantId: currentTenantId,
           visitorId: currentVisitorId,
           status: { $ne: 'Archived' }
-        }).populate('assignedAgentId', 'name email role status').populate('visitorId');
+        }).populate('assignedAgentId', 'name email role status').populate('visitorId').populate('tenantId', 'name domain');
 
         if (!activeConv) {
           activeConv = new Conversation({
@@ -271,17 +286,18 @@ export const initializeSocket = (httpServer) => {
           });
           await activeConv.save();
           await activeConv.populate('visitorId');
-          dashboardNamespace.to(`tenant_${currentTenantId}`).emit('conversation-created', activeConv);
+          await activeConv.populate('tenantId', 'name domain');
+          emitToDashboard(currentTenantId, 'conversation-created', activeConv);
         } else {
           activeConv.updatedAt = new Date();
           await activeConv.save();
-          dashboardNamespace.to(`tenant_${currentTenantId}`).emit('conversation-updated', activeConv);
+          emitToDashboard(currentTenantId, 'conversation-updated', activeConv);
         }
 
-        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-connected', visitor);
+        emitToDashboard(currentTenantId, 'visitor-connected', visitor);
 
         if (!wasOffline && oldUrl !== visitor.currentUrl) {
-          dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-navigated', {
+          emitToDashboard(currentTenantId, 'visitor-navigated', {
             visitorId: currentVisitorId,
             currentUrl: visitor.currentUrl
           });
@@ -303,7 +319,7 @@ export const initializeSocket = (httpServer) => {
             });
             await systemMsg.save();
 
-            dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-msg-received', {
+            emitToDashboard(currentTenantId, 'agent-msg-received', {
               conversationId: activeConv._id,
               message: systemMsg
             });
@@ -358,7 +374,7 @@ export const initializeSocket = (httpServer) => {
         }
 
         // Broadcast navigating event to Dashboard
-        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-navigated', {
+        emitToDashboard(currentTenantId, 'visitor-navigated', {
           visitorId: currentVisitorId,
           currentUrl
         });
@@ -380,7 +396,7 @@ export const initializeSocket = (httpServer) => {
           });
           await systemMsg.save();
 
-          dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-msg-received', {
+          emitToDashboard(currentTenantId, 'agent-msg-received', {
             conversationId: conversation._id,
             message: systemMsg
           });
@@ -432,12 +448,17 @@ export const initializeSocket = (httpServer) => {
         conversation.updatedAt = new Date();
         await conversation.save();
 
+        const populatedConv = await Conversation.findById(conversation._id)
+          .populate('visitorId')
+          .populate('tenantId', 'name domain')
+          .populate('assignedAgentId', 'name email avatarUrl status');
+
         // 4. Emit to visitor room
         visitorNamespace.to(`visitor_${currentVisitorId}`).emit('msg-received', message);
 
-        // 5. Emit to Dashboard agents room
-        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-msg', {
-          conversation,
+        // 5. Emit to Dashboard agents and SuperAdmin
+        emitToDashboard(currentTenantId, 'visitor-msg', {
+          conversation: populatedConv || conversation,
           message,
           visitor
         });
@@ -485,7 +506,7 @@ export const initializeSocket = (httpServer) => {
     socket.on('visitor-typing', (data) => {
       const { isTyping } = data;
       if (!currentVisitorId || !currentTenantId) return;
-      dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-typing', {
+      emitToDashboard(currentTenantId, 'visitor-typing', {
         visitorId: currentVisitorId,
         isTyping
       });
@@ -507,7 +528,7 @@ export const initializeSocket = (httpServer) => {
               visitor.isOnline = false;
               await visitor.save();
             }
-            dashboardNamespace.to(`tenant_${currentTenantId}`).emit('visitor-disconnected', { visitorId: currentVisitorId });
+            emitToDashboard(currentTenantId, 'visitor-disconnected', { visitorId: currentVisitorId });
           }
           disconnectTimers.delete(currentVisitorId);
         } catch (err) {
@@ -534,31 +555,49 @@ export const initializeSocket = (httpServer) => {
       try {
         socket.join(`tenant_${currentTenantId}`);
         socket.join(`agent_${currentAgentId}`);
+        socket.join('superadmin_global');
 
         // Update Agent status in database
-        const agent = await User.findById(currentAgentId);
-        if (agent) {
-          agent.status = 'Online';
-          await agent.save();
+        let isSuperAdmin = false;
+        if (currentAgentId && mongoose.Types.ObjectId.isValid(currentAgentId)) {
+          const agent = await User.findById(currentAgentId);
+          if (agent) {
+            agent.status = 'Online';
+            await agent.save();
+            if (agent.role === 'SuperAdmin' || agent.email === 'rajugariventures@gmail.com') {
+              isSuperAdmin = true;
+            }
+          }
         }
 
         // Notify other agents that this employee is online
-        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-status-changed', {
+        emitToDashboard(currentTenantId, 'agent-status-changed', {
           agentId: currentAgentId,
           status: 'Online'
         });
 
-        const tenantQuery = mongoose.Types.ObjectId.isValid(currentTenantId) 
-          ? { $in: [currentTenantId, new mongoose.Types.ObjectId(currentTenantId)] }
-          : currentTenantId;
+        let visitors, conversations, agents;
+        if (isSuperAdmin) {
+          visitors = await Visitor.find().sort({ lastSeen: -1 }).limit(100);
+          conversations = await Conversation.find({ status: { $ne: 'Closed' } })
+            .populate('visitorId')
+            .populate('tenantId', 'name domain')
+            .populate('assignedAgentId', 'name email avatarUrl status')
+            .sort({ updatedAt: -1 })
+            .limit(100);
+          agents = await User.find().select('-passwordHash');
+        } else {
+          const tenantQuery = mongoose.Types.ObjectId.isValid(currentTenantId) 
+            ? { $in: [currentTenantId, new mongoose.Types.ObjectId(currentTenantId)] }
+            : currentTenantId;
 
-        const visitors = await Visitor.find({ tenantId: tenantQuery });
-        const conversations = await Conversation.find({ tenantId: tenantQuery, status: { $ne: 'Closed' } })
-          .populate('visitorId')
-          .populate('assignedAgentId', 'name email avatarUrl status');
-
-        const agents = await User.find({ tenantId: tenantQuery }).select('-passwordHash');
-
+          visitors = await Visitor.find({ tenantId: tenantQuery });
+          conversations = await Conversation.find({ tenantId: tenantQuery, status: { $ne: 'Closed' } })
+            .populate('visitorId')
+            .populate('tenantId', 'name domain')
+            .populate('assignedAgentId', 'name email avatarUrl status');
+          agents = await User.find({ tenantId: tenantQuery }).select('-passwordHash');
+        }
 
         socket.emit('dashboard-sync', { visitors, conversations, agents });
 
@@ -578,7 +617,7 @@ export const initializeSocket = (httpServer) => {
           agent.status = status;
           await agent.save();
         }
-        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-status-changed', {
+        emitToDashboard(currentTenantId, 'agent-status-changed', {
           agentId: currentAgentId,
           status
         });
@@ -590,7 +629,7 @@ export const initializeSocket = (httpServer) => {
     // Handle Agent Sending Message to Visitor
     socket.on('agent-msg', async (data) => {
       const { conversationId, text, visitorId } = data;
-      if (!currentAgentId || !currentTenantId) return;
+      if (!currentAgentId) return;
 
       try {
         const agent = await User.findById(currentAgentId);
@@ -626,7 +665,7 @@ export const initializeSocket = (httpServer) => {
             throw new Error('WhatsApp Web integration is temporarily disabled');
           } else if (conv.source === 'whatsapp-api') {
             const integration = await Integration.findOne({
-              $or: [{ tenantId: currentTenantId }, { tenantId: conv.tenantId }]
+              $or: [{ tenantId: currentTenantId }, { tenantId: conv.tenantId }, { 'whatsappApi.enabled': true }]
             });
             if (integration && integration.whatsappApi?.enabled) {
               await sendWhatsAppApiMessage(integration, recipientId, text);
@@ -635,7 +674,7 @@ export const initializeSocket = (httpServer) => {
             }
           } else if (conv.source === 'facebook' || conv.source === 'instagram') {
             const integration = await Integration.findOne({
-              $or: [{ tenantId: currentTenantId }, { tenantId: conv.tenantId }]
+              $or: [{ tenantId: currentTenantId }, { tenantId: conv.tenantId }, { 'meta.enabled': true }]
             });
             if (integration && integration.meta?.enabled) {
               console.log(`[Socket] Sending reply to ${conv.source} recipient ${recipientId}`);
@@ -644,13 +683,14 @@ export const initializeSocket = (httpServer) => {
               throw new Error('Meta (Facebook/Instagram) integration is not enabled/configured');
             }
           } else {
-            // Default: webchat
-            visitorNamespace.to(`visitor_${visitorId}`).emit('msg-received', message);
+            // Default: webchat (VR Here, Rajugari Ventures, etc.)
+            const vId = visitorId || rawVisitorId;
+            visitorNamespace.to(`visitor_${vId}`).emit('msg-received', message);
           }
         }
 
-        // Broadcast to all dashboard agents in tenant
-        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('agent-msg-received', {
+        // Broadcast to all dashboard agents & SuperAdmin
+        emitToDashboard(conv ? conv.tenantId : currentTenantId, 'agent-msg-received', {
           conversationId,
           message
         });
@@ -666,7 +706,7 @@ export const initializeSocket = (httpServer) => {
       if (!conversationId || !currentTenantId) return;
       try {
         await Conversation.findByIdAndUpdate(conversationId, { unreadCount: 0 });
-        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('conversation-read', { conversationId });
+        emitToDashboard(currentTenantId, 'conversation-read', { conversationId });
       } catch (err) {
         console.error('Error in mark-conversation-read:', err);
       }
@@ -697,7 +737,10 @@ export const initializeSocket = (httpServer) => {
           conv.updatedAt = new Date();
           await conv.save();
         }
-        const updatedConversation = await Conversation.findById(conversationId).populate('assignedAgentId', 'name email avatarUrl status');
+        const updatedConversation = await Conversation.findById(conversationId)
+          .populate('assignedAgentId', 'name email avatarUrl status')
+          .populate('visitorId')
+          .populate('tenantId', 'name domain');
 
         // Create System Message log
         const systemMessage = new Message({
@@ -720,8 +763,8 @@ export const initializeSocket = (httpServer) => {
           agentName
         });
 
-        // Broadcast update to all dashboard agents
-        dashboardNamespace.to(`tenant_${currentTenantId}`).emit('chat-assigned-update', {
+        // Broadcast update to all dashboard agents & SuperAdmin
+        emitToDashboard(prevConv.tenantId || currentTenantId, 'chat-assigned-update', {
           conversation: updatedConversation,
           systemMessage
         });
@@ -731,47 +774,50 @@ export const initializeSocket = (httpServer) => {
       }
     });
 
-     // Handle Agent Typing Indicator
-     socket.on('agent-typing', (data) => {
-       const { visitorId, isTyping } = data;
-       if (!currentAgentId || !currentTenantId) return;
- 
-       visitorNamespace.to(`visitor_${visitorId}`).emit('agent-typing', { isTyping });
-     });
+    // Handle Agent Typing Indicator
+    socket.on('agent-typing', (data) => {
+      const { visitorId, isTyping } = data;
+      if (!currentAgentId || !currentTenantId) return;
 
-     // Handle Agent Proactively Starting/Finding Conversations
-     socket.on('start-conversation', async (data) => {
-       const { visitorId } = data;
-       if (!currentAgentId || !currentTenantId) return;
+      visitorNamespace.to(`visitor_${visitorId}`).emit('agent-typing', { isTyping });
+    });
 
-       try {
-         let conversation = await Conversation.findOne({
-           tenantId: currentTenantId,
-           visitorId,
-           status: { $in: ['Unassigned', 'Active'] }
-         }).populate('assignedAgentId', 'name email avatarUrl status');
+    // Handle Agent Proactively Starting/Finding Conversations
+    socket.on('start-conversation', async (data) => {
+      const { visitorId } = data;
+      if (!currentAgentId || !currentTenantId) return;
 
-         if (!conversation) {
-           conversation = new Conversation({
-             tenantId: currentTenantId,
-             visitorId,
-             status: 'Unassigned',
-             assignedAgentId: null
-           });
-           await conversation.save();
+      try {
+        let conversation = await Conversation.findOne({
+          tenantId: currentTenantId,
+          visitorId,
+          status: { $in: ['Unassigned', 'Active'] }
+        }).populate('assignedAgentId', 'name email avatarUrl status').populate('visitorId').populate('tenantId', 'name domain');
 
-           conversation = await Conversation.findById(conversation._id).populate('assignedAgentId', 'name email avatarUrl status');
+        if (!conversation) {
+          conversation = new Conversation({
+            tenantId: currentTenantId,
+            visitorId,
+            status: 'Unassigned',
+            assignedAgentId: null
+          });
+          await conversation.save();
 
-           // Broadcast newly created conversation to all agents
-           dashboardNamespace.to(`tenant_${currentTenantId}`).emit('conversation-created', conversation);
-         }
+          conversation = await Conversation.findById(conversation._id)
+            .populate('assignedAgentId', 'name email avatarUrl status')
+            .populate('visitorId')
+            .populate('tenantId', 'name domain');
 
-         socket.emit('start-conversation-success', { conversation });
+          // Broadcast newly created conversation to all agents & SuperAdmin
+          emitToDashboard(currentTenantId, 'conversation-created', conversation);
+        }
 
-       } catch (err) {
-         console.error('Error in start-conversation:', err);
-       }
-     });
+        socket.emit('start-conversation-success', { conversation });
+
+      } catch (err) {
+        console.error('Error in start-conversation:', err);
+      }
+    });
 
     socket.on('disconnect', async () => {
       if (!currentAgentId || !currentTenantId) return;
