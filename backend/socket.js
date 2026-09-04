@@ -18,21 +18,30 @@ export const getDashboardNamespace = () => dashboardNamespace;
 /**
  * Helper to emit event directly to a visitor's room and active socket
  */
-export const emitToVisitor = (visitorId, event, data) => {
-  if (!visitorNamespace || !visitorId) return;
-  const rawId = typeof visitorId === 'object' && visitorId !== null
-    ? (visitorId._id || String(visitorId))
-    : String(visitorId);
-  const cleanId = rawId.includes(':') ? rawId.split(':')[1] : rawId;
-
+export const emitToVisitor = (visitorId, event, data, conversationId = null) => {
+  if (!visitorNamespace) return;
   const payload = data && typeof data.toObject === 'function' ? data.toObject() : data;
 
-  visitorNamespace.to(`visitor_${cleanId}`).emit(event, payload);
-  visitorNamespace.to(`visitor_${rawId}`).emit(event, payload);
+  if (visitorId) {
+    const rawId = typeof visitorId === 'object' && visitorId !== null
+      ? (visitorId._id || String(visitorId))
+      : String(visitorId);
+    const cleanId = rawId.includes(':') ? rawId.split(':')[1] : rawId;
 
-  const socketId = activeVisitorSockets.get(cleanId) || activeVisitorSockets.get(rawId);
-  if (socketId) {
-    visitorNamespace.to(socketId).emit(event, payload);
+    visitorNamespace.to(`visitor_${cleanId}`).emit(event, payload);
+    visitorNamespace.to(`visitor_${rawId}`).emit(event, payload);
+
+    const socketId = activeVisitorSockets.get(cleanId) || activeVisitorSockets.get(rawId);
+    if (socketId) {
+      visitorNamespace.to(socketId).emit(event, payload);
+    }
+  }
+
+  if (conversationId) {
+    const convIdStr = typeof conversationId === 'object' && conversationId !== null
+      ? (conversationId._id || String(conversationId))
+      : String(conversationId);
+    visitorNamespace.to(`conv_${convIdStr}`).emit(event, payload);
   }
 };
 
@@ -332,14 +341,18 @@ export const initializeSocket = (httpServer) => {
           await activeConv.save();
           await activeConv.populate('visitorId');
           await activeConv.populate('tenantId', 'name domain');
-          emitToDashboard(currentTenantId, 'conversation-created', activeConv);
+          emitToDashboard(currentTenantId, 'conversation-created', activeConv ? activeConv.toObject() : activeConv);
         } else {
           activeConv.updatedAt = new Date();
           await activeConv.save();
-          emitToDashboard(currentTenantId, 'conversation-updated', activeConv);
+          emitToDashboard(currentTenantId, 'conversation-updated', activeConv ? activeConv.toObject() : activeConv);
         }
 
-        emitToDashboard(currentTenantId, 'visitor-connected', visitor);
+        if (activeConv) {
+          socket.join(`conv_${activeConv._id.toString()}`);
+        }
+
+        emitToDashboard(currentTenantId, 'visitor-connected', visitor ? visitor.toObject() : visitor);
 
         if (!wasOffline && oldUrl !== visitor.currentUrl) {
           emitToDashboard(currentTenantId, 'visitor-navigated', {
@@ -474,6 +487,10 @@ export const initializeSocket = (httpServer) => {
           await conversation.save();
         }
 
+        if (conversation) {
+          socket.join(`conv_${conversation._id.toString()}`);
+        }
+
         const visitor = await Visitor.findById(currentVisitorId);
 
         // 2. Save Message
@@ -499,7 +516,7 @@ export const initializeSocket = (httpServer) => {
           .populate('assignedAgentId', 'name email avatarUrl status');
 
         // 4. Emit to visitor room & direct socket
-        emitToVisitor(currentVisitorId, 'msg-received', message);
+        emitToVisitor(currentVisitorId, 'msg-received', message, conversation._id);
 
         // 5. Emit to Dashboard agents and SuperAdmin
         emitToDashboard(currentTenantId, 'visitor-msg', {
@@ -581,7 +598,9 @@ export const initializeSocket = (httpServer) => {
     socket.on('disconnect', () => {
       if (!currentVisitorId || !currentTenantId) return;
 
-      activeVisitorSockets.delete(currentVisitorId);
+      if (activeVisitorSockets.get(currentVisitorId) === socket.id) {
+        activeVisitorSockets.delete(currentVisitorId);
+      }
 
       // Start 5 second disconnect grace period
       const timer = setTimeout(async () => {
@@ -750,7 +769,7 @@ export const initializeSocket = (httpServer) => {
           } else {
             // Default: webchat (VR Here, Rajugari Ventures, etc.)
             const vId = visitorId || rawVisitorId;
-            emitToVisitor(vId, 'msg-received', message);
+            emitToVisitor(vId, 'msg-received', message, conversationId || (conv ? conv._id : null));
           }
         }
 

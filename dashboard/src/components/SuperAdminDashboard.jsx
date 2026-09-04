@@ -137,12 +137,17 @@ export default function SuperAdminDashboard({
       });
       socketRef.current = socket;
 
-      socket.on('connect', () => {
+      const sendAgentInit = () => {
         socket.emit('agent-init', {
           tenantId: user?.tenantId,
           agentId: user?._id || user?.userId
         });
-      });
+      };
+
+      if (socket.connected) {
+        sendAgentInit();
+      }
+      socket.on('connect', sendAgentInit);
 
       socket.on('dashboard-sync', (data) => {
         if (data.conversations && data.conversations.length > 0) {
@@ -155,11 +160,15 @@ export default function SuperAdminDashboard({
       });
 
       socket.on('visitor-msg', (data) => {
-        const { conversation, message, visitor } = data || {};
-        if (!conversation) return;
+        const conversation = data?.conversation;
+        const conversationId = conversation?._id || data?.conversationId;
+        const message = data?.message;
+        const visitor = data?.visitor || conversation?.visitorId;
+        const targetId = conversationId || conversation?._id;
+        if (!targetId && !conversation) return;
 
         setConversations(prev => {
-          const index = prev.findIndex(c => c._id === conversation._id);
+          const index = prev.findIndex(c => c._id === targetId);
           let targetConv;
           if (index > -1) {
             const existing = prev[index];
@@ -167,30 +176,32 @@ export default function SuperAdminDashboard({
             const isDup = message && prevMessages.some(m => m._id === message._id || (m.text === message.text && Math.abs(new Date(m.timestamp) - new Date(message.timestamp)) < 3000));
             targetConv = {
               ...existing,
-              ...conversation,
-              tenantId: conversation.tenantId || existing.tenantId,
-              visitorId: visitor || conversation.visitorId || existing.visitorId,
-              unreadCount: (selectedConvId === conversation._id) ? 0 : ((existing.unreadCount || 0) + 1),
-              lastMessageText: message?.text || conversation.lastMessageText,
+              ...(conversation || {}),
+              tenantId: conversation?.tenantId || existing.tenantId,
+              visitorId: visitor || conversation?.visitorId || existing.visitorId,
+              unreadCount: (selectedConvId === targetId) ? 0 : ((existing.unreadCount || 0) + 1),
+              lastMessageText: message?.text || conversation?.lastMessageText || existing.lastMessageText,
               updatedAt: message?.timestamp || new Date().toISOString(),
               messages: message && !isDup ? [...prevMessages, message] : prevMessages
             };
-          } else {
+          } else if (conversation) {
             targetConv = {
               ...conversation,
-              unreadCount: (selectedConvId === conversation._id) ? 0 : 1,
+              unreadCount: (selectedConvId === targetId) ? 0 : 1,
               visitorId: visitor || conversation.visitorId,
               lastMessageText: message?.text || conversation.lastMessageText,
               updatedAt: message?.timestamp || new Date().toISOString(),
               messages: message ? [message] : []
             };
+          } else {
+            return prev;
           }
-          const remaining = prev.filter(c => c._id !== conversation._id);
+          const remaining = prev.filter(c => c._id !== targetId);
           return [targetConv, ...remaining];
         });
 
-        if (!selectedConvId) {
-          setSelectedConvId(conversation._id);
+        if (!selectedConvId && targetId) {
+          setSelectedConvId(targetId);
         }
         playNotificationSound();
         showToast(`💬 Inbound message from ${visitor?.name || conversation?.visitorId?.name || 'Visitor'}: "${message?.text?.substring(0, 35) || 'New message'}"`);

@@ -796,7 +796,7 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
       }
     } else {
       // Default: webchat (VR Here, etc.)
-      emitToVisitor(rawVisitorId, 'msg-received', message);
+      emitToVisitor(rawVisitorId, 'msg-received', message, conv._id);
     }
 
     emitToDashboard(conv.tenantId, 'agent-msg-received', {
