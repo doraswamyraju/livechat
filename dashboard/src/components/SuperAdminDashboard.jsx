@@ -120,44 +120,77 @@ export default function SuperAdminDashboard({
 
         setConversations(prev => {
           const index = prev.findIndex(c => c._id === conversation._id);
+          let targetConv;
           if (index > -1) {
-            const updated = [...prev];
-            const prevMessages = updated[index].messages || [];
+            const existing = prev[index];
+            const prevMessages = existing.messages || [];
             const isDup = message && prevMessages.some(m => m._id === message._id || (m.text === message.text && Math.abs(new Date(m.timestamp) - new Date(message.timestamp)) < 3000));
-            updated[index] = {
+            targetConv = {
+              ...existing,
               ...conversation,
-              visitorId: visitor || updated[index].visitorId,
+              tenantId: conversation.tenantId || existing.tenantId,
+              visitorId: visitor || conversation.visitorId || existing.visitorId,
+              unreadCount: (selectedConvId === conversation._id) ? 0 : ((existing.unreadCount || 0) + 1),
+              lastMessageText: message?.text || conversation.lastMessageText,
+              updatedAt: message?.timestamp || new Date().toISOString(),
               messages: message && !isDup ? [...prevMessages, message] : prevMessages
             };
-            return updated;
+          } else {
+            targetConv = {
+              ...conversation,
+              unreadCount: (selectedConvId === conversation._id) ? 0 : 1,
+              visitorId: visitor || conversation.visitorId,
+              lastMessageText: message?.text || conversation.lastMessageText,
+              updatedAt: message?.timestamp || new Date().toISOString(),
+              messages: message ? [message] : []
+            };
           }
-          return [{ ...conversation, visitorId: visitor, messages: message ? [message] : [] }, ...prev];
+          const remaining = prev.filter(c => c._id !== conversation._id);
+          return [targetConv, ...remaining];
         });
 
-        setSelectedConvId(prev => prev || conversation._id);
-        showToast(`💬 Inbound ${conversation.source || 'chat'} message received!`);
+        if (!selectedConvId) {
+          setSelectedConvId(conversation._id);
+        }
+        showToast(`💬 Inbound message from ${visitor?.name || conversation?.visitorId?.name || 'Visitor'}: "${message?.text?.substring(0, 35) || 'New message'}"`);
       });
 
       socket.on('agent-msg-received', (data) => {
         const { conversationId, message } = data;
-        setConversations(prev => prev.map(c => {
-          if (c._id === conversationId) {
-            const existing = c.messages || [];
-            const isDup = message && existing.some(m => m._id === message._id || (m.text === message.text && Math.abs(new Date(m.timestamp) - new Date(message.timestamp)) < 3000));
-            if (isDup) return c;
-            return {
-              ...c,
+        setConversations(prev => {
+          const index = prev.findIndex(c => c._id === conversationId);
+          if (index > -1) {
+            const existing = prev[index];
+            const prevMessages = existing.messages || [];
+            const isDup = message && prevMessages.some(m => m._id === message._id || (m.text === message.text && Math.abs(new Date(m.timestamp) - new Date(message.timestamp)) < 3000));
+            const updated = {
+              ...existing,
               lastMessageText: message.text,
               updatedAt: message.timestamp || new Date().toISOString(),
-              messages: [...existing, message]
+              messages: isDup ? prevMessages : [...prevMessages, message]
             };
+            const remaining = prev.filter(c => c._id !== conversationId);
+            return [updated, ...remaining];
           }
-          return c;
-        }));
+          return prev;
+        });
+      });
+
+      socket.on('conversation-created', (newConv) => {
+        if (!newConv) return;
+        setConversations(prev => {
+          if (prev.some(c => c._id === newConv._id)) return prev;
+          return [newConv, ...prev];
+        });
       });
 
       socket.on('conversation-updated', (updatedConv) => {
-        setConversations(prev => prev.map(c => c._id === updatedConv._id ? { ...c, ...updatedConv } : c));
+        if (!updatedConv) return;
+        setConversations(prev => {
+          const remaining = prev.filter(c => c._id !== updatedConv._id);
+          const existing = prev.find(c => c._id === updatedConv._id) || {};
+          return [{ ...existing, ...updatedConv }, ...remaining];
+        });
       });
 
       return () => {
@@ -679,12 +712,14 @@ export default function SuperAdminDashboard({
     u.tenantId?.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredConversations = conversations.filter(c => {
-    if (chatChannelFilter !== 'all' && c.source !== chatChannelFilter) return false;
-    const vName = c.visitorId?.name || (typeof c.visitorId === 'string' ? c.visitorId : '');
-    if (searchQuery && !vName.toLowerCase().includes(searchQuery.toLowerCase()) && !c.lastMessageText?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  });
+  const filteredConversations = conversations
+    .filter(c => {
+      if (chatChannelFilter !== 'all' && c.source !== chatChannelFilter) return false;
+      const vName = c.visitorId?.name || (typeof c.visitorId === 'string' ? c.visitorId : '');
+      if (searchQuery && !vName.toLowerCase().includes(searchQuery.toLowerCase()) && !c.lastMessageText?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      return true;
+    })
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
 
   const activeConv = filteredConversations.find(c => c._id === selectedConvId) || conversations.find(c => c._id === selectedConvId) || filteredConversations[0] || conversations[0];
 
@@ -1398,19 +1433,27 @@ export default function SuperAdminDashboard({
                     filteredConversations.map(c => {
                       const isSel = c._id === selectedConvId;
                       const vName = c.visitorId?.name || (typeof c.visitorId === 'string' ? c.visitorId : 'Visitor');
+                      const hasUnread = Boolean(c.unreadCount && c.unreadCount > 0);
                       return (
                         <div
                           key={c._id}
-                          onClick={() => setSelectedConvId(c._id)}
+                          onClick={() => {
+                            setSelectedConvId(c._id);
+                            setConversations(prev => prev.map(conv => conv._id === c._id ? { ...conv, unreadCount: 0 } : conv));
+                            if (socketRef.current) {
+                              socketRef.current.emit('mark-conversation-read', { conversationId: c._id });
+                            }
+                          }}
                           style={{
                             padding: '14px',
                             borderBottom: '1px solid #f1f5f9',
                             cursor: 'pointer',
-                            background: isSel ? '#eff6ff' : '#ffffff',
-                            borderLeft: isSel ? '4px solid #1d4ed8' : '4px solid transparent',
+                            background: isSel ? '#eff6ff' : (hasUnread ? '#f8fafc' : '#ffffff'),
+                            borderLeft: isSel ? '4px solid #1d4ed8' : (hasUnread ? '4px solid #ef4444' : '4px solid transparent'),
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '6px'
+                            gap: '6px',
+                            transition: 'background 0.15s ease'
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1418,11 +1461,26 @@ export default function SuperAdminDashboard({
                               <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: c.source === 'instagram' ? '#a855f7' : c.source === 'whatsapp-api' ? '#16a34a' : c.source === 'facebook' ? '#1877f2' : '#3b82f6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '11px' }}>
                                 {c.source === 'instagram' ? 'IG' : c.source === 'whatsapp-api' ? 'WA' : c.source === 'facebook' ? 'FB' : 'LT'}
                               </div>
-                              <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f172a' }}>{vName}</span>
+                              <span style={{ fontWeight: hasUnread ? 900 : 700, fontSize: '13px', color: hasUnread ? '#0f172a' : '#334155' }}>{vName}</span>
                             </div>
-                            <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>
-                              {new Date(c.updatedAt || c.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {hasUnread && (
+                                <span style={{
+                                  background: '#ef4444',
+                                  color: '#ffffff',
+                                  padding: '1px 6px',
+                                  borderRadius: '10px',
+                                  fontSize: '10.5px',
+                                  fontWeight: 900,
+                                  boxShadow: '0 2px 4px rgba(239, 68, 68, 0.4)'
+                                }}>
+                                  {c.unreadCount}
+                                </span>
+                              )}
+                              <span style={{ fontSize: '10.5px', color: hasUnread ? '#ef4444' : '#94a3b8', fontWeight: hasUnread ? 800 : 500 }}>
+                                {new Date(c.updatedAt || c.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -1441,7 +1499,15 @@ export default function SuperAdminDashboard({
                                 🏢 {c.tenantId.name}
                               </span>
                             )}
-                            <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                            <span style={{
+                              fontSize: '12px',
+                              color: hasUnread ? '#0f172a' : '#64748b',
+                              fontWeight: hasUnread ? 700 : 400,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              flex: 1
+                            }}>
                               {c.lastMessageText || 'Chat started'}
                             </span>
                           </div>

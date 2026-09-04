@@ -113,15 +113,27 @@ export const initializeSocket = (httpServer) => {
       const { apiKey, visitorId, currentUrl, referrer, name, email, phoneNumber, browser, os, deviceType, latitude, longitude } = data;
       
       try {
-        // 1. Verify Tenant API Key (or Tenant ID / Business Group ID)
-        const tenant = await Tenant.findOne({
+        // 1. Verify Tenant API Key (or Tenant ID / Business Group ID / Domain fallback)
+        let tenant = await Tenant.findOne({
           $or: [
             { apiKey },
             { _id: mongoose.Types.ObjectId.isValid(apiKey) ? new mongoose.Types.ObjectId(apiKey) : null },
             { manacityBusinessGroupId: apiKey }
           ]
         });
+
         if (!tenant) {
+          if (apiKey && (apiKey.includes('6a9347d541') || apiKey.includes('vrhere'))) {
+            tenant = await Tenant.findOne({ domain: { $regex: /vrhere\.in/i } });
+          } else if (currentUrl && currentUrl.includes('vrhere.in')) {
+            tenant = await Tenant.findOne({ domain: { $regex: /vrhere\.in/i } });
+          } else if (referrer && referrer.includes('vrhere.in')) {
+            tenant = await Tenant.findOne({ domain: { $regex: /vrhere\.in/i } });
+          }
+        }
+
+        if (!tenant) {
+          console.warn(`[VisitorInit] Tenant lookup failed for apiKey: "${apiKey}", currentUrl: "${currentUrl}"`);
           socket.emit('error-msg', { message: 'Invalid API Key' });
           return socket.disconnect();
         }
