@@ -374,6 +374,31 @@ export default function SuperAdminDashboard({
     }, 600);
   };
 
+  const handleConnectManualToken = async () => {
+    const manualToken = window.prompt('Enter your Meta Permanent Page Access Token or System User Token:');
+    if (!manualToken || !manualToken.trim()) return;
+
+    try {
+      setConnectingMeta(true);
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/meta/connect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ accessToken: manualToken.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to connect Meta token');
+      showToast(data.message || '🎉 Meta Token connected successfully!');
+      fetchMetaAssets();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setConnectingMeta(false);
+    }
+  };
+
   const handleSelectAsset = async (pageId, wabaPhoneId) => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/superadmin/meta/connect`, {
@@ -539,7 +564,12 @@ export default function SuperAdminDashboard({
       showToast(`💬 Reply delivered to ${conv.source === 'facebook' ? 'Facebook Messenger' : conv.source === 'instagram' ? 'Instagram Direct' : 'Customer'}!`);
     } catch (err) {
       console.error('Send message error:', err);
-      showToast(err.message, 'error');
+      const errMsg = err.message || '';
+      if (errMsg.includes('expired') || errMsg.includes('OAuthException') || errMsg.includes('190') || errMsg.includes('subcode":463') || errMsg.includes('access token')) {
+        showToast('⚠️ Meta Token Expired! Please click "Connect Meta Facebook & IG" in Meta Hub to refresh session.', 'error');
+      } else {
+        showToast(errMsg, 'error');
+      }
     }
   };
 
@@ -1089,6 +1119,25 @@ export default function SuperAdminDashboard({
                       }}
                     >
                       🚀 WhatsApp API Onboarding Wizard
+                    </button>
+                    <button
+                      onClick={handleConnectManualToken}
+                      disabled={connectingMeta}
+                      style={{
+                        background: '#334155',
+                        color: '#ffffff',
+                        border: '1px solid #475569',
+                        padding: '12px 18px',
+                        borderRadius: '10px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      🔑 Paste Permanent Token
                     </button>
                     <button
                       onClick={handleFacebookLogin}

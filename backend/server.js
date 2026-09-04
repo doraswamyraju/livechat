@@ -2092,41 +2092,76 @@ app.post('/api/superadmin/meta/connect', authenticateToken, requireSuperAdmin, a
 
   try {
     // 1. Discover Facebook Pages and linked Instagram accounts
+    let pages = [];
     const fbRes = await fetch(`https://graph.facebook.com/v26.0/me/accounts?fields=id,name,link,access_token&access_token=${accessToken}`);
     const fbData = await fbRes.json();
 
-    if (fbData.error) {
-      return res.status(400).json({ error: fbData.error.message || 'Meta Graph API Error' });
-    }
+    if (fbData.data && fbData.data.length > 0) {
+      pages = await Promise.all((fbData.data || []).map(async (page) => {
+        let instagramId = null;
+        let instagramHandle = null;
+        let instagramUrl = null;
 
-    const pages = await Promise.all((fbData.data || []).map(async (page) => {
-      let instagramId = null;
-      let instagramHandle = null;
-      let instagramUrl = null;
-
-      try {
-        const igRes = await fetch(`https://graph.facebook.com/v26.0/${page.id}?fields=instagram_business_account{id,username,name}&access_token=${page.access_token || accessToken}`);
-        const igData = await igRes.json();
-        if (igData && igData.instagram_business_account) {
-          const ig = igData.instagram_business_account;
-          instagramId = ig.id;
-          instagramHandle = ig.username ? `@${ig.username}` : (ig.name ? `@${ig.name}` : null);
-          instagramUrl = ig.username ? `https://instagram.com/${ig.username}` : null;
+        try {
+          const igRes = await fetch(`https://graph.facebook.com/v26.0/${page.id}?fields=instagram_business_account{id,username,name}&access_token=${page.access_token || accessToken}`);
+          const igData = await igRes.json();
+          if (igData && igData.instagram_business_account) {
+            const ig = igData.instagram_business_account;
+            instagramId = ig.id;
+            instagramHandle = ig.username ? `@${ig.username}` : (ig.name ? `@${ig.name}` : null);
+            instagramUrl = ig.username ? `https://instagram.com/${ig.username}` : null;
+          }
+        } catch (igErr) {
+          console.warn(`Instagram discovery warning for page ${page.id}:`, igErr.message);
         }
-      } catch (igErr) {
-        console.warn(`Instagram discovery warning for page ${page.id}:`, igErr.message);
-      }
 
-      return {
-        pageId: page.id,
-        pageName: page.name,
-        facebookUrl: page.link || `https://facebook.com/${page.id}`,
-        pageAccessToken: page.access_token,
-        instagramId,
-        instagramHandle,
-        instagramUrl
-      };
-    }));
+        return {
+          pageId: page.id,
+          pageName: page.name,
+          facebookUrl: page.link || `https://facebook.com/${page.id}`,
+          pageAccessToken: page.access_token || accessToken,
+          instagramId,
+          instagramHandle,
+          instagramUrl
+        };
+      }));
+    } else {
+      // Fallback: Check if token is a direct Page Access Token or System User Token
+      try {
+        const meRes = await fetch(`https://graph.facebook.com/v26.0/me?fields=id,name,link&access_token=${accessToken}`);
+        const meData = await meRes.json();
+        if (meData && meData.id && !meData.error) {
+          let instagramId = null;
+          let instagramHandle = null;
+          let instagramUrl = null;
+          try {
+            const igRes = await fetch(`https://graph.facebook.com/v26.0/${meData.id}?fields=instagram_business_account{id,username,name}&access_token=${accessToken}`);
+            const igData = await igRes.json();
+            if (igData && igData.instagram_business_account) {
+              const ig = igData.instagram_business_account;
+              instagramId = ig.id;
+              instagramHandle = ig.username ? `@${ig.username}` : (ig.name ? `@${ig.name}` : null);
+              instagramUrl = ig.username ? `https://instagram.com/${ig.username}` : null;
+            }
+          } catch (igErr) {}
+          pages.push({
+            pageId: meData.id,
+            pageName: meData.name || 'Connected Meta Page',
+            facebookUrl: meData.link || `https://facebook.com/${meData.id}`,
+            pageAccessToken: accessToken,
+            instagramId,
+            instagramHandle,
+            instagramUrl
+          });
+        } else if (fbData.error) {
+          return res.status(400).json({ error: fbData.error.message || 'Meta Graph API Error' });
+        }
+      } catch (directErr) {
+        if (fbData.error) {
+          return res.status(400).json({ error: fbData.error.message || 'Meta Graph API Error' });
+        }
+      }
+    }
 
     // 2. Discover WhatsApp Business Accounts (WABAs)
     let whatsappNumbers = [];

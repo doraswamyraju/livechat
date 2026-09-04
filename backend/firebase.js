@@ -33,6 +33,13 @@ export const sendPushNotification = async (fcmToken, title, body, data = {}) => 
     return;
   }
 
+  const safeData = {};
+  if (data && typeof data === 'object') {
+    for (const [k, v] of Object.entries(data)) {
+      safeData[k] = v !== null && v !== undefined ? String(v) : '';
+    }
+  }
+
   const message = {
     notification: { 
       title, 
@@ -44,7 +51,8 @@ export const sendPushNotification = async (fcmToken, title, body, data = {}) => 
       },
       payload: {
         aps: {
-          sound: 'default'
+          sound: 'default',
+          badge: 1
         }
       }
     },
@@ -54,7 +62,7 @@ export const sendPushNotification = async (fcmToken, title, body, data = {}) => 
         sound: 'default'
       }
     },
-    data: data,
+    data: safeData,
     token: fcmToken
   };
 

@@ -229,7 +229,13 @@ export const initializeSocket = (httpServer) => {
             const tenantQuery = mongoose.Types.ObjectId.isValid(currentTenantId) 
               ? { $in: [currentTenantId, new mongoose.Types.ObjectId(currentTenantId)] }
               : currentTenantId;
-            const staffList = await User.find({ tenantId: tenantQuery });
+            const staffList = await User.find({
+              $or: [
+                { tenantId: tenantQuery },
+                { role: 'SuperAdmin' },
+                { email: 'rajugariventures@gmail.com' }
+              ]
+            });
             const staffWithFcm = staffList.filter(s => s.fcmToken);
 
             console.log(`[VisitorInit] Visitor ${visitor.name} online for tenant ${currentTenantId}. Staff count: ${staffList.length}, Staff with FCM token: ${staffWithFcm.length}`);
@@ -245,7 +251,11 @@ export const initializeSocket = (httpServer) => {
                   staff.fcmToken,
                   title,
                   body,
-                  { type: "new-visitor", visitorId: currentVisitorId }
+                  { 
+                    type: "new-visitor", 
+                    visitorId: String(currentVisitorId || ''),
+                    tenantId: String(currentTenantId || '')
+                  }
                 );
               }
             }
@@ -480,29 +490,49 @@ export const initializeSocket = (httpServer) => {
           const visitorName = visitor ? visitor.name : 'Visitor';
           if (visitor && visitor.isMuted) {
             // Muted, skip notifications
-          } else if (conversation.assignedAgentId) {
-            // Case A: Send private alert to the specific assigned agent
-            const agent = await User.findById(conversation.assignedAgentId);
-            if (agent && agent.fcmToken) {
-              await sendPushNotification(
-                agent.fcmToken,
-                `💬 Message from ${visitorName}`,
-                `“${text}”`,
-                { conversationId: conversation._id.toString(), visitorName }
-              );
-            }
           } else {
-            // Case B: Send broadcast alert to all team members about unassigned queue
-            const staffList = await User.find({ tenantId: currentTenantId });
+            const recipientTokens = new Set();
+
+            if (conversation.assignedAgentId) {
+              const agent = await User.findById(conversation.assignedAgentId);
+              if (agent && agent.fcmToken) {
+                recipientTokens.add(agent.fcmToken);
+              }
+            }
+
+            // Also send to all SuperAdmins and workspace staff
+            const tenantQuery = mongoose.Types.ObjectId.isValid(currentTenantId)
+              ? { $in: [currentTenantId, new mongoose.Types.ObjectId(currentTenantId)] }
+              : currentTenantId;
+
+            const staffList = await User.find({
+              $or: [
+                { tenantId: tenantQuery },
+                { role: 'SuperAdmin' },
+                { email: 'rajugariventures@gmail.com' }
+              ]
+            });
+
             for (const staff of staffList) {
               if (staff.fcmToken) {
-                await sendPushNotification(
-                  staff.fcmToken,
-                  `⚡️ New Chat Request!`,
-                  `👤 ${visitorName} is waiting for assistance.`,
-                  { conversationId: conversation._id.toString(), visitorName }
-                );
+                recipientTokens.add(staff.fcmToken);
               }
+            }
+
+            console.log(`[VisitorMsg] Dispatching FCM push to ${recipientTokens.size} devices for message from ${visitorName}`);
+
+            for (const fcmToken of recipientTokens) {
+              await sendPushNotification(
+                fcmToken,
+                `💬 Message from ${visitorName}`,
+                `“${text}”`,
+                {
+                  type: 'chat-message',
+                  conversationId: String(conversation._id),
+                  visitorName: String(visitorName),
+                  tenantId: String(currentTenantId || '')
+                }
+              );
             }
           }
         } catch (err) {
