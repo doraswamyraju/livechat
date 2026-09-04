@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 
 import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, UpsellPitch, Integration, Payment, AuditLog } from './models.js';
-import { initializeSocket, dashboardNamespace, visitorNamespace } from './socket.js';
+import { initializeSocket, emitToDashboard, emitToVisitor } from './socket.js';
 import { 
   initializeWhatsAppClient, 
   disconnectWhatsAppClient, 
@@ -796,30 +796,13 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
       }
     } else {
       // Default: webchat (VR Here, etc.)
-      if (visitorNamespace) {
-        const vId = rawVisitorId.includes(':') ? rawVisitorId.split(':')[1] : rawVisitorId;
-        visitorNamespace.to(`visitor_${vId}`).emit('msg-received', message);
-        visitorNamespace.to(`visitor_${rawVisitorId}`).emit('msg-received', message);
-      }
+      emitToVisitor(rawVisitorId, 'msg-received', message);
     }
 
-    if (dashboardNamespace) {
-      const tenantStr = conv.tenantId ? conv.tenantId.toString() : '';
-      if (tenantStr) {
-        dashboardNamespace.to(`tenant_${tenantStr}`).emit('agent-msg-received', {
-          conversationId: conv._id,
-          message
-        });
-      }
-      dashboardNamespace.to('superadmin_global').emit('agent-msg-received', {
-        conversationId: conv._id,
-        message
-      });
-      dashboardNamespace.emit('agent-msg-received', {
-        conversationId: conv._id,
-        message
-      });
-    }
+    emitToDashboard(conv.tenantId, 'agent-msg-received', {
+      conversationId: conv._id,
+      message: message.toObject ? message.toObject() : message
+    });
 
     res.status(200).json({ message, conversation: conv });
   } catch (err) {

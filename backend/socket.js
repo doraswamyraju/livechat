@@ -9,18 +9,45 @@ import { sendMetaMessage } from './meta-api-service.js';
 
 export let dashboardNamespace;
 export let visitorNamespace;
+export const activeVisitorSockets = new Map(); // visitorId -> socketId
+const disconnectTimers = new Map(); // visitorId -> Timeout ID
+
+export const getVisitorNamespace = () => visitorNamespace;
+export const getDashboardNamespace = () => dashboardNamespace;
+
+/**
+ * Helper to emit event directly to a visitor's room and active socket
+ */
+export const emitToVisitor = (visitorId, event, data) => {
+  if (!visitorNamespace || !visitorId) return;
+  const rawId = typeof visitorId === 'object' && visitorId !== null
+    ? (visitorId._id || String(visitorId))
+    : String(visitorId);
+  const cleanId = rawId.includes(':') ? rawId.split(':')[1] : rawId;
+
+  const payload = data && typeof data.toObject === 'function' ? data.toObject() : data;
+
+  visitorNamespace.to(`visitor_${cleanId}`).emit(event, payload);
+  visitorNamespace.to(`visitor_${rawId}`).emit(event, payload);
+
+  const socketId = activeVisitorSockets.get(cleanId) || activeVisitorSockets.get(rawId);
+  if (socketId) {
+    visitorNamespace.to(socketId).emit(event, payload);
+  }
+};
 
 /**
  * Broadcast helper to emit an event to a tenant's room AND superadmin global room
  */
 export const emitToDashboard = (tenantId, event, data) => {
   if (dashboardNamespace) {
+    const payload = data && typeof data.toObject === 'function' ? data.toObject() : data;
     if (tenantId) {
       const strTenantId = tenantId.toString();
-      dashboardNamespace.to(`tenant_${strTenantId}`).emit(event, data);
+      dashboardNamespace.to(`tenant_${strTenantId}`).emit(event, payload);
     }
-    dashboardNamespace.to('superadmin_global').emit(event, data);
-    dashboardNamespace.emit(event, data);
+    dashboardNamespace.to('superadmin_global').emit(event, payload);
+    dashboardNamespace.emit(event, payload);
   }
 };
 
@@ -97,10 +124,6 @@ export const initializeSocket = (httpServer) => {
 
   visitorNamespace = io.of('/visitor');
   dashboardNamespace = io.of('/dashboard');
-
-  // Track active visitor socket connections to handle multi-tabbing or abrupt disconnect grace periods
-  const activeVisitorSockets = new Map(); // visitorId -> socketId
-  const disconnectTimers = new Map(); // visitorId -> Timeout ID
 
   // ============================================
   // VISITOR NAMESPACE (Widget Communication)
@@ -475,14 +498,14 @@ export const initializeSocket = (httpServer) => {
           .populate('tenantId', 'name domain')
           .populate('assignedAgentId', 'name email avatarUrl status');
 
-        // 4. Emit to visitor room
-        visitorNamespace.to(`visitor_${currentVisitorId}`).emit('msg-received', message);
+        // 4. Emit to visitor room & direct socket
+        emitToVisitor(currentVisitorId, 'msg-received', message);
 
         // 5. Emit to Dashboard agents and SuperAdmin
         emitToDashboard(currentTenantId, 'visitor-msg', {
-          conversation: populatedConv || conversation,
-          message,
-          visitor
+          conversation: populatedConv ? populatedConv.toObject() : (conversation.toObject ? conversation.toObject() : conversation),
+          message: message.toObject ? message.toObject() : message,
+          visitor: visitor ? (visitor.toObject ? visitor.toObject() : visitor) : null
         });
 
         // 6. Dispatch Real-Time Push Notifications via FCM (skip if visitor is muted)
@@ -727,7 +750,7 @@ export const initializeSocket = (httpServer) => {
           } else {
             // Default: webchat (VR Here, Rajugari Ventures, etc.)
             const vId = visitorId || rawVisitorId;
-            visitorNamespace.to(`visitor_${vId}`).emit('msg-received', message);
+            emitToVisitor(vId, 'msg-received', message);
           }
         }
 

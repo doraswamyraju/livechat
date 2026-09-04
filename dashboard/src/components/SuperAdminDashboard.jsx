@@ -217,12 +217,29 @@ export default function SuperAdminDashboard({
         });
       });
 
+      socket.on('visitor-connected', (visitor) => {
+        if (!visitor) return;
+        setActiveVisitors(prev => {
+          const index = prev.findIndex(v => v._id === visitor._id);
+          if (index > -1) {
+            const updated = [...prev];
+            updated[index] = visitor;
+            return updated;
+          }
+          return [visitor, ...prev];
+        });
+        playNotificationSound();
+        showToast(`🟢 New Visitor Online: ${visitor.name || 'Visitor'} (${visitor.city || 'India'}, ${visitor.country || 'IN'})`);
+      });
+
       socket.on('conversation-created', (newConv) => {
         if (!newConv) return;
         setConversations(prev => {
           if (prev.some(c => c._id === newConv._id)) return prev;
           return [newConv, ...prev];
         });
+        playNotificationSound();
+        showToast(`⚡ New Conversation Started: ${newConv.visitorId?.name || 'Visitor'}`);
       });
 
       socket.on('conversation-updated', (updatedConv) => {
