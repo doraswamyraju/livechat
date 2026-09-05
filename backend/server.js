@@ -2709,6 +2709,10 @@ app.get('/api/superadmin/meta-ads/campaigns', authenticateToken, requireSuperAdm
 
           const liveCampaigns = await Promise.all(metaData.data.map(async (c) => {
             let ins = {};
+            let liveCreative = null;
+            let liveAdSet = null;
+
+            // 1. Fetch live insights
             try {
               const insRes = await fetch(`https://graph.facebook.com/v26.0/${c.id}/insights?fields=spend,impressions,reach,clicks,ctr,cpc&date_preset=maximum&access_token=${token}`);
               const insData = await insRes.json();
@@ -2717,6 +2721,60 @@ app.get('/api/superadmin/meta-ads/campaigns', authenticateToken, requireSuperAdm
               }
             } catch (insErr) {
               console.warn(`[MetaAdsAPI] Insights warning for campaign ${c.id}:`, insErr.message);
+            }
+
+            // 2. Fetch live ads and creatives (real image, headline, copy, and CTA)
+            try {
+              const adsRes = await fetch(`https://graph.facebook.com/v26.0/${c.id}/ads?fields=id,name,status,creative{id,name,title,body,image_url,thumbnail_url,object_story_spec}&limit=1&access_token=${token}`);
+              const adsData = await adsRes.json();
+              if (adsData.data && adsData.data.length > 0) {
+                const cr = adsData.data[0].creative;
+                if (cr) {
+                  const linkData = cr.object_story_spec?.link_data;
+                  const photoData = cr.object_story_spec?.photo_data;
+                  const videoData = cr.object_story_spec?.video_data;
+
+                  const realImage = cr.image_url || cr.thumbnail_url || linkData?.picture || photoData?.url || videoData?.image_url;
+                  const realHeadline = cr.title || linkData?.name || linkData?.title || cr.name || c.name;
+                  const realText = cr.body || linkData?.message || photoData?.caption || 'Connect with customers and drive live chat inquiries directly with LetsTrack.';
+                  const realCta = linkData?.call_to_action?.type ? linkData.call_to_action.type.replace(/_/g, ' ') : 'Send Message';
+
+                  liveCreative = {
+                    headline: realHeadline,
+                    primaryText: realText,
+                    callToAction: realCta,
+                    destination: c.objective === 'MESSAGES' ? 'Instagram Direct' : 'WhatsApp / Instagram',
+                    mediaType: videoData ? 'VIDEO' : 'IMAGE_POST',
+                    previewImage: realImage || 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=80'
+                  };
+                }
+              }
+            } catch (adErr) {
+              console.warn(`[MetaAdsAPI] Ads creative fetch warning for ${c.id}:`, adErr.message);
+            }
+
+            // 3. Fetch live ad sets (targeting, demographics, placements)
+            try {
+              const adsetRes = await fetch(`https://graph.facebook.com/v26.0/${c.id}/adsets?fields=id,name,targeting&limit=1&access_token=${token}`);
+              const adsetData = await adsetRes.json();
+              if (adsetData.data && adsetData.data.length > 0) {
+                const as = adsetData.data[0];
+                const tgt = as.targeting || {};
+                const locs = [];
+                if (tgt.geo_locations?.countries) locs.push(...tgt.geo_locations.countries);
+                if (tgt.geo_locations?.cities) locs.push(...tgt.geo_locations.cities.map(ct => ct.name));
+                if (tgt.geo_locations?.regions) locs.push(...tgt.geo_locations.regions.map(r => r.name));
+
+                liveAdSet = {
+                  name: as.name || `${c.name} - Ad Set`,
+                  locations: locs.length > 0 ? locs : ['India (Pan-India & Metros)'],
+                  ageRange: (tgt.age_min || 18) + ' - ' + (tgt.age_max || 65) + ' years',
+                  interests: tgt.flexible_spec?.[0]?.interests?.map(i => i.name) || tgt.interests?.map(i => i.name) || ['Business Owners', 'E-Commerce', 'Online Shopping'],
+                  placements: tgt.publisher_platforms ? tgt.publisher_platforms.map(p => p.toUpperCase()) : ['Instagram Reels', 'Instagram Feed', 'Facebook Feed']
+                };
+              }
+            } catch (adsetErr) {
+              console.warn(`[MetaAdsAPI] AdSet fetch warning for ${c.id}:`, adsetErr.message);
             }
 
             const budgetNum = c.daily_budget ? Math.round(Number(c.daily_budget) / 100) : 500;
@@ -2742,14 +2800,14 @@ app.get('/api/superadmin/meta-ads/campaigns', authenticateToken, requireSuperAdm
               spend: `₹${spendNum.toLocaleString()}`,
               conversions: Math.max(1, Math.round(clicksNum * 0.15)),
               targetUrl: 'https://letstrack.manacity.in/#pricing',
-              adSet: {
+              adSet: liveAdSet || {
                 name: `${c.name} - Ad Set`,
                 locations: ['India (Tier 1 Metros: Bengaluru, Mumbai, Delhi-NCR, Hyderabad)'],
                 ageRange: '21 - 54',
                 interests: ['SaaS', 'E-Commerce', 'Startups', 'Lead Generation'],
                 placements: ['Instagram Reels', 'Instagram Feed', 'Facebook Feed']
               },
-              adCreative: {
+              adCreative: liveCreative || {
                 headline: `⚡ Live Ad: ${c.name}`,
                 primaryText: 'Connect and chat with high-intent leads instantly via LetsTrack Omnichannel live chat suite.',
                 callToAction: 'Send Message',
