@@ -88,6 +88,14 @@ export default function SuperAdminDashboard({
   const [editingCampaign, setEditingCampaign] = useState(null);
   const [editBudgetValue, setEditBudgetValue] = useState('');
 
+  // Connect Custom / Live Meta Ad Account Modal
+  const [showConnectAdAccountModal, setShowConnectAdAccountModal] = useState(false);
+  const [customAdAccountId, setCustomAdAccountId] = useState('');
+  const [customAdAccountToken, setCustomAdAccountToken] = useState('');
+  const [customAdAccountName, setCustomAdAccountName] = useState('');
+  const [customAdCurrency, setCustomAdCurrency] = useState('INR');
+  const [isConnectingAdAcc, setIsConnectingAdAcc] = useState(false);
+
   // Creative Preview Modal
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedPreviewCreative, setSelectedPreviewCreative] = useState(null);
@@ -391,6 +399,9 @@ export default function SuperAdminDashboard({
         const data = await res.json();
         if (data.accounts && data.accounts.length > 0) {
           setAdAccounts(data.accounts);
+          if (!selectedAdAccountId || selectedAdAccountId === 'act_1394810294820') {
+            setSelectedAdAccountId(data.accounts[0].id);
+          }
         }
       }
     } catch (err) {
@@ -398,10 +409,11 @@ export default function SuperAdminDashboard({
     }
   };
 
-  const fetchAdCampaigns = async () => {
+  const fetchAdCampaigns = async (accId) => {
     if (!token) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/superadmin/meta-ads/campaigns`, {
+      const targetAccountId = accId || selectedAdAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/meta-ads/campaigns?accountId=${encodeURIComponent(targetAccountId)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -409,6 +421,50 @@ export default function SuperAdminDashboard({
       }
     } catch (err) {
       console.error('Error fetching ad campaigns:', err);
+    }
+  };
+
+  // Connect Custom / Live Meta Ad Account
+  const handleConnectAdAccount = async (e) => {
+    e.preventDefault();
+    if (!customAdAccountId || !customAdAccountId.trim()) {
+      showToast('Please enter a valid Meta Ad Account ID (e.g. act_1234567890)', 'error');
+      return;
+    }
+    try {
+      setIsConnectingAdAcc(true);
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/meta-ads/connect-account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          adAccountId: customAdAccountId.trim(),
+          accessToken: customAdAccountToken.trim() || undefined,
+          adAccountName: customAdAccountName.trim() || undefined,
+          currency: customAdCurrency
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to connect Meta ad account');
+
+      showToast(`🎉 ${data.message || 'Meta Ad Account connected successfully!'}`);
+      setShowConnectAdAccountModal(false);
+      setCustomAdAccountId('');
+      setCustomAdAccountToken('');
+      setCustomAdAccountName('');
+      
+      // Refresh ad accounts and switch to it
+      await fetchAdAccounts();
+      if (data.account?.id) {
+        setSelectedAdAccountId(data.account.id);
+        fetchAdCampaigns(data.account.id);
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsConnectingAdAcc(false);
     }
   };
 
@@ -1991,8 +2047,11 @@ export default function SuperAdminDashboard({
                     <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Connected Ad Account</span>
                     <select
                       value={selectedAdAccountId}
-                      onChange={(e) => setSelectedAdAccountId(e.target.value)}
-                      style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12.5px', fontWeight: 700, color: '#0f172a', background: '#f8fafc', cursor: 'pointer' }}
+                      onChange={(e) => {
+                        setSelectedAdAccountId(e.target.value);
+                        fetchAdCampaigns(e.target.value);
+                      }}
+                      style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12.5px', fontWeight: 700, color: '#0f172a', background: '#f8fafc', cursor: 'pointer', maxWidth: '320px' }}
                       title="Select Meta Ad Account to manage campaigns and read marketing insights"
                     >
                       {adAccounts.map(acc => (
@@ -2002,6 +2061,15 @@ export default function SuperAdminDashboard({
                       ))}
                     </select>
                   </div>
+
+                  {/* Connect / Add Custom Live Ad Account Button */}
+                  <button
+                    onClick={() => setShowConnectAdAccountModal(true)}
+                    style={{ background: '#f8fafc', border: '1px solid #94a3b8', padding: '9px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '14px' }}
+                    title="Connect live Meta Ad Account ID (act_...) or System User Token"
+                  >
+                    ⚙️ Connect Live Ad Account
+                  </button>
 
                   {/* Sync Button */}
                   <button
@@ -2039,57 +2107,74 @@ export default function SuperAdminDashboard({
                 </div>
               </div>
 
-              {/* 2. Key Performance Metrics Overview (ads_read) */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-                <div style={{ background: '#ffffff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }} title="Total advertising budget spent fetched via Meta Insights API">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Total Ad Spend</span>
-                    <span style={{ fontSize: '16px' }}>💳</span>
-                  </div>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '6px' }}>₹14,850</div>
-                  <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '4px' }}>● Paced within ₹100k Spend Cap</div>
-                </div>
+              {/* 2. Key Performance Metrics Overview (ads_read) - Dynamic Calculations */}
+              {(() => {
+                const totalSpendNum = adCampaigns.reduce((sum, c) => {
+                  const raw = typeof c.spend === 'string' ? parseFloat(c.spend.replace(/[₹,]/g, '')) || 0 : (c.spend || 0);
+                  return sum + raw;
+                }, 0);
+                const totalImpressionsNum = adCampaigns.reduce((sum, c) => sum + (Number(c.impressions) || 0), 0);
+                const totalClicksNum = adCampaigns.reduce((sum, c) => sum + (Number(c.clicks) || 0), 0);
+                const totalConversionsNum = adCampaigns.reduce((sum, c) => sum + (Number(c.conversions) || 0), 0);
+                const overallCtr = totalImpressionsNum > 0 ? ((totalClicksNum / totalImpressionsNum) * 100).toFixed(2) + '%' : '0.00%';
+                const overallCpc = totalClicksNum > 0 ? '₹' + (totalSpendNum / totalClicksNum).toFixed(2) : '₹0.00';
+                const overallCpa = totalConversionsNum > 0 ? '₹' + (totalSpendNum / totalConversionsNum).toFixed(2) : '₹0.00';
+                const activeCount = adCampaigns.filter(c => c.status === 'ACTIVE').length;
+                const pausedCount = adCampaigns.filter(c => c.status === 'PAUSED').length;
 
-                <div style={{ background: '#ffffff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }} title="Total ad impressions across Instagram Feed, Reels, and Facebook">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Total Impressions</span>
-                    <span style={{ fontSize: '16px' }}>👁️</span>
-                  </div>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '6px' }}>148,250</div>
-                  <div style={{ fontSize: '11px', color: '#2563eb', fontWeight: 600, marginTop: '4px' }}>121,400 Unique Reach</div>
-                </div>
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+                    <div style={{ background: '#ffffff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }} title="Total advertising budget spent fetched via Meta Insights API">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Total Ad Spend</span>
+                        <span style={{ fontSize: '16px' }}>💳</span>
+                      </div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '6px' }}>₹{totalSpendNum.toLocaleString()}</div>
+                      <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '4px' }}>● Paced within spend cap</div>
+                    </div>
 
-                <div style={{ background: '#ffffff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }} title="Total ad link clicks and average Click-Through-Rate (CTR)">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Clicks & CTR</span>
-                    <span style={{ fontSize: '16px' }}>🖱️</span>
-                  </div>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '6px' }}>4,210</div>
-                  <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, marginTop: '4px' }}>5.89% Avg CTR • ₹1.48 CPC</div>
-                </div>
+                    <div style={{ background: '#ffffff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }} title="Total ad impressions across Instagram Feed, Reels, and Facebook">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Total Impressions</span>
+                        <span style={{ fontSize: '16px' }}>👁️</span>
+                      </div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '6px' }}>{totalImpressionsNum.toLocaleString()}</div>
+                      <div style={{ fontSize: '11px', color: '#2563eb', fontWeight: 600, marginTop: '4px' }}>Across Meta Placements</div>
+                    </div>
 
-                <div style={{ background: '#ffffff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }} title="Omnichannel chat leads attributed directly to Meta ad campaigns">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Attributed Leads</span>
-                    <span style={{ fontSize: '16px' }}>🎯</span>
-                  </div>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#15803d', marginTop: '6px' }}>184 Chats</div>
-                  <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 700, marginTop: '4px' }}>₹80.70 Cost / Lead (CPA)</div>
-                </div>
+                    <div style={{ background: '#ffffff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }} title="Total ad link clicks and average Click-Through-Rate (CTR)">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Clicks & CTR</span>
+                        <span style={{ fontSize: '16px' }}>🖱️</span>
+                      </div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '6px' }}>{totalClicksNum.toLocaleString()}</div>
+                      <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, marginTop: '4px' }}>{overallCtr} Avg CTR • {overallCpc} CPC</div>
+                    </div>
 
-                <div style={{ background: '#ffffff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }} title="Current active vs paused campaign status on Meta Marketing API">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Active Campaigns</span>
-                    <span style={{ fontSize: '16px' }}>⚡</span>
+                    <div style={{ background: '#ffffff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }} title="Omnichannel chat leads attributed directly to Meta ad campaigns">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Attributed Leads</span>
+                        <span style={{ fontSize: '16px' }}>🎯</span>
+                      </div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#15803d', marginTop: '6px' }}>{totalConversionsNum} Chats</div>
+                      <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 700, marginTop: '4px' }}>{overallCpa} Cost / Lead (CPA)</div>
+                    </div>
+
+                    <div style={{ background: '#ffffff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }} title="Current active vs paused campaign status on Meta Marketing API">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Active Campaigns</span>
+                        <span style={{ fontSize: '16px' }}>⚡</span>
+                      </div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '6px' }}>
+                        {activeCount} Active
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '4px' }}>
+                        {pausedCount} Paused • {adCampaigns.length} Total
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '6px' }}>
-                    {adCampaigns.filter(c => c.status === 'ACTIVE').length} Active
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '4px' }}>
-                    {adCampaigns.filter(c => c.status === 'PAUSED').length} Paused • {adCampaigns.length} Total
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* 3. Sub-Navigation Tabs */}
               <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
@@ -3546,6 +3631,112 @@ export default function SuperAdminDashboard({
                   ✅ Record & Activate Plan
                 </button>
                 <button type="button" onClick={() => setManualPaymentModal(false)} style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: Connect / Switch Live Meta Ad Account */}
+      {showConnectAdAccountModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: '#ffffff', borderRadius: '16px', padding: '24px', width: '500px', maxWidth: '95vw', display: 'flex', flexDirection: 'column', gap: '16px', color: '#0f172a', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>⚙️</span>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800 }}>Connect Live Meta Ad Account</h3>
+              </div>
+              <button onClick={() => setShowConnectAdAccountModal(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#64748b' }}>✕</button>
+            </div>
+
+            <p style={{ margin: 0, fontSize: '12.5px', color: '#64748b', lineHeight: 1.5 }}>
+              Connect your production Meta Ad Account ID (e.g. <code>act_1234567890</code>) to query live marketing campaigns, ad sets, impressions, clicks, and chat leads via Meta Marketing API v26.0.
+            </p>
+
+            {/* Discovered accounts quick picker if available */}
+            {adAccounts.filter(a => a.id !== 'act_1394810294820' && a.id !== 'act_984128471920').length > 0 && (
+              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Discovered Ad Accounts from OAuth Token:</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+                  {adAccounts.filter(a => a.id !== 'act_1394810294820' && a.id !== 'act_984128471920').map(acc => (
+                    <div
+                      key={acc.id}
+                      onClick={() => {
+                        setSelectedAdAccountId(acc.id);
+                        fetchAdCampaigns(acc.id);
+                        setShowConnectAdAccountModal(false);
+                        showToast(`Switched to live ad account: ${acc.name} (${acc.id})`);
+                      }}
+                      style={{ padding: '8px 12px', background: selectedAdAccountId === acc.id ? '#eff6ff' : '#ffffff', border: selectedAdAccountId === acc.id ? '1.5px solid #2563eb' : '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0f172a' }}>{acc.name}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {acc.id} • {acc.currency} • {acc.accountStatus}</div>
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#2563eb' }}>{selectedAdAccountId === acc.id ? '✓ Selected' : 'Select'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleConnectAdAccount} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#334155' }}>
+                  Meta Ad Account ID <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. act_123456789012345 or 123456789012345"
+                  value={customAdAccountId}
+                  onChange={(e) => setCustomAdAccountId(e.target.value)}
+                  required
+                  style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                />
+                <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>Found in Meta Ads Manager URL: <code>adsmanager.facebook.com/adsmanager/manage/campaigns?act=XXXXX</code></span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#334155' }}>
+                  Ad Account Display Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. LetsTrack Production Ads"
+                  value={customAdAccountName}
+                  onChange={(e) => setCustomAdAccountName(e.target.value)}
+                  style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#334155' }}>
+                  System User Token / Marketing Token (Optional - uses OAuth token by default)
+                </label>
+                <input
+                  type="password"
+                  placeholder="EAA..."
+                  value={customAdAccountToken}
+                  onChange={(e) => setCustomAdAccountToken(e.target.value)}
+                  style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button
+                  type="submit"
+                  disabled={isConnectingAdAcc}
+                  style={{ flex: 1, background: 'linear-gradient(135deg, #1d4ed8, #1e40af)', color: '#ffffff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
+                >
+                  {isConnectingAdAcc ? 'Connecting...' : '🚀 Save & Load Live Ad Account'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConnectAdAccountModal(false)}
+                  style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+                >
                   Cancel
                 </button>
               </div>
