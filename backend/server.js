@@ -2668,7 +2668,17 @@ app.get('/api/superadmin/meta-ads/campaigns', authenticateToken, requireSuperAdm
     const integration = await Integration.findOne({ tenantId: req.user.tenantId }) || await Integration.findOne({ 'metaAds.enabled': true }) || await Integration.findOne({ 'meta.enabled': true });
     const token = integration?.metaAds?.accessToken || integration?.meta?.pageAccessToken;
 
-    if (token && accountId.startsWith('act_') && accountId !== 'act_1394810294820' && accountId !== 'act_984128471920') {
+    // Live Meta Ad Account handling
+    if (accountId.startsWith('act_') && accountId !== 'act_1394810294820' && accountId !== 'act_984128471920') {
+      if (!token) {
+        return res.status(200).json({
+          success: false,
+          isLiveAccount: true,
+          error: 'No Meta Access Token configured for this ad account. Please click "Connect Live Ad Account" to save a token with ads_read permission.',
+          campaigns: []
+        });
+      }
+
       try {
         console.log(`[MetaAdsAPI] Fetching live campaigns for ${accountId} with token prefix: ${token.substring(0, 10)}...`);
         const metaRes = await fetch(`https://graph.facebook.com/v26.0/${accountId}/campaigns?fields=id,name,status,objective,daily_budget,buying_type,created_time&limit=50&access_token=${token}`);
@@ -2676,78 +2686,112 @@ app.get('/api/superadmin/meta-ads/campaigns', authenticateToken, requireSuperAdm
 
         if (metaData.error) {
           console.error('[MetaAdsAPI] Meta Graph API Error fetching campaigns:', metaData.error);
+          return res.status(200).json({
+            success: false,
+            isLiveAccount: true,
+            error: metaData.error.message || 'Meta Marketing API Error',
+            errorCode: metaData.error.code,
+            errorSubcode: metaData.error.error_subcode,
+            campaigns: []
+          });
         }
 
         if (metaData.data && Array.isArray(metaData.data)) {
           console.log(`[MetaAdsAPI] Found ${metaData.data.length} live campaigns from Meta for ${accountId}`);
           
-          if (metaData.data.length > 0) {
-            const liveCampaigns = await Promise.all(metaData.data.map(async (c) => {
-              let ins = {};
-              try {
-                const insRes = await fetch(`https://graph.facebook.com/v26.0/${c.id}/insights?fields=spend,impressions,reach,clicks,ctr,cpc&date_preset=maximum&access_token=${token}`);
-                const insData = await insRes.json();
-                if (insData.data && insData.data.length > 0) {
-                  ins = insData.data[0];
-                }
-              } catch (insErr) {
-                console.warn(`[MetaAdsAPI] Insights warning for campaign ${c.id}:`, insErr.message);
-              }
-
-              const budgetNum = c.daily_budget ? Math.round(Number(c.daily_budget) / 100) : 500;
-              const impressionsNum = Number(ins.impressions || (c.status === 'ACTIVE' ? 1962 : 450));
-              const clicksNum = Number(ins.clicks || (c.status === 'ACTIVE' ? 84 : 18));
-              const spendNum = Number(ins.spend || (c.status === 'ACTIVE' ? 620 : 150));
-              const reachNum = Number(ins.reach || Math.round(impressionsNum * 0.85));
-
-              return {
-                id: c.id,
-                accountId: accountId,
-                name: c.name,
-                status: c.status === 'ACTIVE' ? 'ACTIVE' : 'PAUSED',
-                objective: c.objective || 'LEAD_GENERATION',
-                buyingType: c.buying_type || 'AUCTION',
-                dailyBudget: c.daily_budget ? `₹${budgetNum} / day` : 'Budget set at Ad Set',
-                rawDailyBudget: budgetNum,
-                impressions: impressionsNum,
-                reach: reachNum,
-                clicks: clicksNum,
-                ctr: ins.ctr ? `${Number(ins.ctr).toFixed(2)}%` : `${((clicksNum / impressionsNum) * 100).toFixed(2)}%`,
-                cpc: ins.cpc ? `₹${Number(ins.cpc).toFixed(2)}` : `₹${(spendNum / (clicksNum || 1)).toFixed(2)}`,
-                spend: `₹${spendNum.toLocaleString()}`,
-                conversions: Math.max(1, Math.round(clicksNum * 0.15)),
-                targetUrl: 'https://letstrack.manacity.in/#pricing',
-                adSet: {
-                  name: `${c.name} - Ad Set`,
-                  locations: ['India (Tier 1 Metros: Bengaluru, Mumbai, Delhi-NCR, Hyderabad)'],
-                  ageRange: '21 - 54',
-                  interests: ['SaaS', 'E-Commerce', 'Startups', 'Lead Generation'],
-                  placements: ['Instagram Reels', 'Instagram Feed', 'Facebook Feed']
-                },
-                adCreative: {
-                  headline: `⚡ Live Ad: ${c.name}`,
-                  primaryText: 'Connect and chat with high-intent leads instantly via LetsTrack Omnichannel live chat suite.',
-                  callToAction: 'Send Message',
-                  destination: 'WhatsApp / Instagram',
-                  mediaType: 'IMAGE_POST',
-                  previewImage: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=80'
-                },
-                createdAt: c.created_time || new Date().toISOString()
-              };
-            }));
-
-            return res.status(200).json(liveCampaigns);
+          if (metaData.data.length === 0) {
+            return res.status(200).json({
+              success: true,
+              isLiveAccount: true,
+              campaigns: []
+            });
           }
+
+          const liveCampaigns = await Promise.all(metaData.data.map(async (c) => {
+            let ins = {};
+            try {
+              const insRes = await fetch(`https://graph.facebook.com/v26.0/${c.id}/insights?fields=spend,impressions,reach,clicks,ctr,cpc&date_preset=maximum&access_token=${token}`);
+              const insData = await insRes.json();
+              if (insData.data && insData.data.length > 0) {
+                ins = insData.data[0];
+              }
+            } catch (insErr) {
+              console.warn(`[MetaAdsAPI] Insights warning for campaign ${c.id}:`, insErr.message);
+            }
+
+            const budgetNum = c.daily_budget ? Math.round(Number(c.daily_budget) / 100) : 500;
+            const impressionsNum = Number(ins.impressions || (c.status === 'ACTIVE' ? 1962 : 450));
+            const clicksNum = Number(ins.clicks || (c.status === 'ACTIVE' ? 84 : 18));
+            const spendNum = Number(ins.spend || (c.status === 'ACTIVE' ? 620 : 150));
+            const reachNum = Number(ins.reach || Math.round(impressionsNum * 0.85));
+
+            return {
+              id: c.id,
+              accountId: accountId,
+              name: c.name,
+              status: c.status === 'ACTIVE' ? 'ACTIVE' : 'PAUSED',
+              objective: c.objective || 'LEAD_GENERATION',
+              buyingType: c.buying_type || 'AUCTION',
+              dailyBudget: c.daily_budget ? `₹${budgetNum} / day` : 'Budget set at Ad Set',
+              rawDailyBudget: budgetNum,
+              impressions: impressionsNum,
+              reach: reachNum,
+              clicks: clicksNum,
+              ctr: ins.ctr ? `${Number(ins.ctr).toFixed(2)}%` : `${((clicksNum / impressionsNum) * 100).toFixed(2)}%`,
+              cpc: ins.cpc ? `₹${Number(ins.cpc).toFixed(2)}` : `₹${(spendNum / (clicksNum || 1)).toFixed(2)}`,
+              spend: `₹${spendNum.toLocaleString()}`,
+              conversions: Math.max(1, Math.round(clicksNum * 0.15)),
+              targetUrl: 'https://letstrack.manacity.in/#pricing',
+              adSet: {
+                name: `${c.name} - Ad Set`,
+                locations: ['India (Tier 1 Metros: Bengaluru, Mumbai, Delhi-NCR, Hyderabad)'],
+                ageRange: '21 - 54',
+                interests: ['SaaS', 'E-Commerce', 'Startups', 'Lead Generation'],
+                placements: ['Instagram Reels', 'Instagram Feed', 'Facebook Feed']
+              },
+              adCreative: {
+                headline: `⚡ Live Ad: ${c.name}`,
+                primaryText: 'Connect and chat with high-intent leads instantly via LetsTrack Omnichannel live chat suite.',
+                callToAction: 'Send Message',
+                destination: 'WhatsApp / Instagram',
+                mediaType: 'IMAGE_POST',
+                previewImage: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=80'
+              },
+              createdAt: c.created_time || new Date().toISOString()
+            };
+          }));
+
+          return res.status(200).json({
+            success: true,
+            isLiveAccount: true,
+            campaigns: liveCampaigns
+          });
         }
       } catch (graphErr) {
         console.warn('[MetaAdsAPI] Campaigns live fetch warning:', graphErr.message);
+        return res.status(200).json({
+          success: false,
+          isLiveAccount: true,
+          error: graphErr.message || 'Network error fetching from Meta Graph API',
+          campaigns: []
+        });
       }
     }
   } catch (err) {
     console.warn('[MetaAdsAPI] Error checking integration for campaigns:', err.message);
+    return res.status(200).json({
+      success: false,
+      error: err.message,
+      campaigns: []
+    });
   }
 
-  res.status(200).json(memoryReviewAdCampaigns);
+  // Fallback ONLY for Demo / Review Account
+  res.status(200).json({
+    success: true,
+    isLiveAccount: false,
+    campaigns: memoryReviewAdCampaigns
+  });
 });
 
 // 3. Create Ad Campaign (Live Meta Marketing API + Local Store for ads_management)

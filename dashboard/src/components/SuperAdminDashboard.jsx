@@ -95,6 +95,7 @@ export default function SuperAdminDashboard({
   const [customAdAccountName, setCustomAdAccountName] = useState('');
   const [customAdCurrency, setCustomAdCurrency] = useState('INR');
   const [isConnectingAdAcc, setIsConnectingAdAcc] = useState(false);
+  const [adsApiError, setAdsApiError] = useState(null);
 
   // Creative Preview Modal
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -417,10 +418,18 @@ export default function SuperAdminDashboard({
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        setAdCampaigns(await res.json());
+        const data = await res.json();
+        if (data.error) {
+          setAdsApiError(data.error);
+          setAdCampaigns([]);
+        } else {
+          setAdsApiError(null);
+          setAdCampaigns(Array.isArray(data) ? data : (data.campaigns || []));
+        }
       }
     } catch (err) {
       console.error('Error fetching ad campaigns:', err);
+      setAdsApiError(err.message);
     }
   };
 
@@ -2176,6 +2185,27 @@ export default function SuperAdminDashboard({
                 );
               })()}
 
+              {/* Error Alert Banner if Meta API fails */}
+              {adsApiError && (
+                <div style={{ background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '12px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', boxShadow: '0 2px 6px rgba(239, 68, 68, 0.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '24px' }}>⚠️</span>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#991b1b' }}>Meta Marketing API Notice: Authorization Required</div>
+                      <div style={{ fontSize: '12.5px', color: '#b91c1c', marginTop: '2px', lineHeight: 1.4 }}>
+                        {adsApiError}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowConnectAdAccountModal(true)}
+                    style={{ background: '#dc2626', color: '#ffffff', border: 'none', padding: '9px 16px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 4px rgba(220,38,38,0.2)' }}
+                  >
+                    🔑 Reconnect / Refresh Meta Token
+                  </button>
+                </div>
+              )}
+
               {/* 3. Sub-Navigation Tabs */}
               <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                 <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', padding: '0 16px' }}>
@@ -2271,6 +2301,41 @@ export default function SuperAdminDashboard({
                         </tr>
                       </thead>
                       <tbody>
+                        {adCampaigns.length === 0 && (
+                          <tr>
+                            <td colSpan="9" style={{ textAlign: 'center', padding: '48px 20px', color: '#64748b' }}>
+                              <div style={{ fontSize: '36px', marginBottom: '10px' }}>{adsApiError ? '🔒' : '📭'}</div>
+                              <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                                {adsApiError ? 'Meta Token Expired or Missing Permissions' : 'No ad campaigns found in this Meta Ad Account'}
+                              </div>
+                              <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '4px', maxWidth: '500px', margin: '4px auto 0 auto' }}>
+                                {adsApiError
+                                  ? 'Your short-lived Meta user token has expired. Please connect a valid System User Token or generate a fresh User Access Token with ads_read permission.'
+                                  : 'Launch an end-to-end Meta ad campaign to start driving Click-to-WhatsApp and Instagram DM chats.'}
+                              </div>
+                              <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                                {adsApiError ? (
+                                  <button
+                                    onClick={() => setShowConnectAdAccountModal(true)}
+                                    style={{ background: '#dc2626', color: '#ffffff', border: 'none', padding: '9px 18px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 800, cursor: 'pointer' }}
+                                  >
+                                    🔑 Update Meta Access Token
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setCreateCampaignStep(1);
+                                      setShowNewCampaignModal(true);
+                                    }}
+                                    style={{ background: '#1d4ed8', color: '#ffffff', border: 'none', padding: '9px 18px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 800, cursor: 'pointer' }}
+                                  >
+                                    ➕ Create New Campaign
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                         {adCampaigns.map(camp => (
                           <tr key={camp.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ padding: '14px' }}>
