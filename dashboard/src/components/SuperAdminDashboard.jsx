@@ -2118,18 +2118,19 @@ export default function SuperAdminDashboard({
 
               {/* 2. Key Performance Metrics Overview (ads_read) - Dynamic Calculations */}
               {(() => {
-                const totalSpendNum = adCampaigns.reduce((sum, c) => {
+                const campsList = Array.isArray(adCampaigns) ? adCampaigns : [];
+                const totalSpendNum = campsList.reduce((sum, c) => {
                   const raw = typeof c.spend === 'string' ? parseFloat(c.spend.replace(/[₹,]/g, '')) || 0 : (c.spend || 0);
                   return sum + raw;
                 }, 0);
-                const totalImpressionsNum = adCampaigns.reduce((sum, c) => sum + (Number(c.impressions) || 0), 0);
-                const totalClicksNum = adCampaigns.reduce((sum, c) => sum + (Number(c.clicks) || 0), 0);
-                const totalConversionsNum = adCampaigns.reduce((sum, c) => sum + (Number(c.conversions) || 0), 0);
+                const totalImpressionsNum = campsList.reduce((sum, c) => sum + (Number(c.impressions) || 0), 0);
+                const totalClicksNum = campsList.reduce((sum, c) => sum + (Number(c.clicks) || 0), 0);
+                const totalConversionsNum = campsList.reduce((sum, c) => sum + (Number(c.conversions) || 0), 0);
                 const overallCtr = totalImpressionsNum > 0 ? ((totalClicksNum / totalImpressionsNum) * 100).toFixed(2) + '%' : '0.00%';
                 const overallCpc = totalClicksNum > 0 ? '₹' + (totalSpendNum / totalClicksNum).toFixed(2) : '₹0.00';
                 const overallCpa = totalConversionsNum > 0 ? '₹' + (totalSpendNum / totalConversionsNum).toFixed(2) : '₹0.00';
-                const activeCount = adCampaigns.filter(c => c.status === 'ACTIVE').length;
-                const pausedCount = adCampaigns.filter(c => c.status === 'PAUSED').length;
+                const activeCount = campsList.filter(c => c.status === 'ACTIVE').length;
+                const pausedCount = campsList.filter(c => c.status === 'PAUSED').length;
 
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
@@ -2178,7 +2179,7 @@ export default function SuperAdminDashboard({
                         {activeCount} Active
                       </div>
                       <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '4px' }}>
-                        {pausedCount} Paused • {adCampaigns.length} Total
+                        {pausedCount} Paused • {campsList.length} Total
                       </div>
                     </div>
                   </div>
@@ -2222,7 +2223,7 @@ export default function SuperAdminDashboard({
                       cursor: 'pointer'
                     }}
                   >
-                    📊 Campaigns ({adCampaigns.length})
+                    📊 Campaigns ({(Array.isArray(adCampaigns) ? adCampaigns : []).length})
                   </button>
 
                   <button
@@ -2336,7 +2337,7 @@ export default function SuperAdminDashboard({
                             </td>
                           </tr>
                         )}
-                        {adCampaigns.map(camp => (
+                        {(Array.isArray(adCampaigns) ? adCampaigns : []).map(camp => (
                           <tr key={camp.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ padding: '14px' }}>
                               <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13.5px' }}>{camp.name}</div>
@@ -2449,7 +2450,13 @@ export default function SuperAdminDashboard({
                 {/* SUBTAB 2: AD SETS & AUDIENCES */}
                 {adsSubTab === 'adsets' && (
                   <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
-                    {adCampaigns.map(camp => (
+                    {(Array.isArray(adCampaigns) ? adCampaigns : []).length === 0 && (
+                      <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                        <div style={{ fontSize: '30px' }}>🎯</div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, marginTop: '8px' }}>No Ad Sets to display</div>
+                      </div>
+                    )}
+                    {(Array.isArray(adCampaigns) ? adCampaigns : []).map(camp => (
                       <div key={camp.id} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div>
@@ -2501,7 +2508,13 @@ export default function SuperAdminDashboard({
                 {/* SUBTAB 3: AD CREATIVES & SPONSORED PREVIEWS */}
                 {adsSubTab === 'creatives' && (
                   <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-                    {adCampaigns.map(camp => {
+                    {(Array.isArray(adCampaigns) ? adCampaigns : []).length === 0 && (
+                      <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                        <div style={{ fontSize: '30px' }}>🎨</div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, marginTop: '8px' }}>No Ad Creatives to display</div>
+                      </div>
+                    )}
+                    {(Array.isArray(adCampaigns) ? adCampaigns : []).map(camp => {
                       const creative = camp.adCreative || {
                         headline: '⚡ Turn Website & IG Visitors Into Paying Customers 24/7',
                         primaryText: 'LetsTrack gives your sales team real-time visitor journey tracking, 1-click WhatsApp checkout, and seamless Instagram DM multi-agent routing.',
