@@ -77,6 +77,8 @@ export default function SuperAdminDashboard({
   const [newCampaignAgeRange, setNewCampaignAgeRange] = useState('21 - 54');
   const [newCampaignInterests, setNewCampaignInterests] = useState('SaaS, E-Commerce, Shopify, Startup Founders');
   const [newCampaignPlacements, setNewCampaignPlacements] = useState(['Instagram Reels', 'Instagram Feed', 'Facebook Feed']);
+  const [newCampaignFormat, setNewCampaignFormat] = useState('SINGLE_IMAGE'); // 'SINGLE_IMAGE' | 'CAROUSEL' | 'VIDEO'
+  const [newCampaignImage, setNewCampaignImage] = useState('https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=80');
   const [newCampaignHeadline, setNewCampaignHeadline] = useState('⚡ Turn Website & IG Visitors Into Customers 24/7');
   const [newCampaignPrimaryText, setNewCampaignPrimaryText] = useState('Start chatting with your high-intent visitors in real time with LetsTrack live visitor tracking & omnichannel inbox.');
   const [newCampaignCta, setNewCampaignCta] = useState('Send Instagram Message');
@@ -3047,6 +3049,8 @@ export default function SuperAdminDashboard({
                     headline: newCampaignHeadline,
                     primaryText: newCampaignPrimaryText,
                     callToAction: newCampaignCta,
+                    previewImage: newCampaignImage,
+                    mediaType: newCampaignFormat,
                     accountId: selectedAdAccountId
                   })
                 });
@@ -3204,9 +3208,77 @@ export default function SuperAdminDashboard({
                 </>
               )}
 
-              {/* STEP 3: CREATIVE & COPY */}
+              {/* STEP 3: CREATIVE STUDIO & COPY */}
               {createCampaignStep === 3 && (
-                <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  
+                  {/* Ad Format Selector */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#0f172a' }}>Ad Format</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      {[
+                        { id: 'SINGLE_IMAGE', label: '🖼️ Single Image' },
+                        { id: 'VIDEO', label: '🎬 Video / Reel' },
+                        { id: 'CAROUSEL', label: '📑 Carousel' }
+                      ].map(fmt => (
+                        <button
+                          key={fmt.id}
+                          type="button"
+                          onClick={() => setNewCampaignFormat(fmt.id)}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: '6px',
+                            border: newCampaignFormat === fmt.id ? '2px solid #1d4ed8' : '1px solid #cbd5e1',
+                            background: newCampaignFormat === fmt.id ? '#eff6ff' : '#ffffff',
+                            color: newCampaignFormat === fmt.id ? '#1d4ed8' : '#334155',
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {fmt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Creative Media Selector */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#0f172a' }}>Select Ad Creative Media</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      {[
+                        { title: 'Live Chat Hero', url: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=80' },
+                        { title: 'Growth Analytics', url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&auto=format&fit=crop&q=80' },
+                        { title: 'Customer Support', url: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=800&auto=format&fit=crop&q=80' }
+                      ].map((med, i) => (
+                        <div
+                          key={i}
+                          onClick={() => setNewCampaignImage(med.url)}
+                          style={{
+                            border: newCampaignImage === med.url ? '2px solid #1d4ed8' : '1px solid #cbd5e1',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                            cursor: 'pointer',
+                            position: 'relative'
+                          }}
+                        >
+                          <img src={med.url} alt={med.title} style={{ width: '100%', height: '60px', objectFit: 'cover' }} />
+                          <div style={{ padding: '3px 6px', fontSize: '10px', fontWeight: 700, background: '#ffffff', textAlign: 'center', color: '#0f172a' }}>
+                            {med.title}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <input
+                      type="url"
+                      value={newCampaignImage}
+                      onChange={(e) => setNewCampaignImage(e.target.value)}
+                      placeholder="Or enter custom image / CDN URL"
+                      style={{ padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', marginTop: '2px' }}
+                    />
+                  </div>
+
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#0f172a' }}>Ad Headline *</label>
                     <input
@@ -3224,7 +3296,7 @@ export default function SuperAdminDashboard({
                     <textarea
                       value={newCampaignPrimaryText}
                       onChange={(e) => setNewCampaignPrimaryText(e.target.value)}
-                      rows={3}
+                      rows={2}
                       placeholder="Start chatting with your high-intent visitors in real time..."
                       required
                       style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', resize: 'vertical' }}
@@ -3244,7 +3316,25 @@ export default function SuperAdminDashboard({
                       <option value="Learn More">Learn More (Landing Page)</option>
                     </select>
                   </div>
-                </>
+
+                  {/* Live Mini Preview Box */}
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <img src={newCampaignImage} alt="Ad Preview" style={{ width: '64px', height: '64px', borderRadius: '6px', objectFit: 'cover' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700 }}>LIVE AD PREVIEW • @letstrack_live</div>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {newCampaignHeadline}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {newCampaignPrimaryText}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#1d4ed8', fontWeight: 700, marginTop: '2px' }}>
+                        CTA: {newCampaignCta} ➔
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
               )}
 
               {/* Footer Buttons */}
