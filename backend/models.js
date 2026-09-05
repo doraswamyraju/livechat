@@ -162,6 +162,14 @@ const IntegrationSchema = new mongoose.Schema({
     facebookUrl: { type: String, default: '' },
     pageAccessToken: { type: String, default: '' },
     verifyToken: { type: String, default: '' }
+  },
+  metaAds: {
+    enabled: { type: Boolean, default: false },
+    adAccountId: { type: String, default: 'act_1394810294820' },
+    adAccountName: { type: String, default: 'LetsTrack Enterprise Global' },
+    currency: { type: String, default: 'INR' },
+    timezone: { type: String, default: 'Asia/Kolkata' },
+    accessToken: { type: String, default: '' }
   }
 });
 
