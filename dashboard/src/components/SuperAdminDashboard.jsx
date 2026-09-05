@@ -56,6 +56,16 @@ export default function SuperAdminDashboard({
   const [showAssetModal, setShowAssetModal] = useState(false);
   const [metaToken, setMetaToken] = useState('');
 
+  // WhatsApp Cloud API Onboarding Flow Modal
+  const [showWaOnboardingModal, setShowWaOnboardingModal] = useState(false);
+  const [waOnboardingStep, setWaOnboardingStep] = useState(1);
+  const [waWabaId, setWaWabaId] = useState('5703446903066867');
+  const [waPhoneId, setWaPhoneId] = useState('111738020188242');
+  const [waDisplayNumber, setWaDisplayNumber] = useState('+91 99000 11223');
+  const [waDisplayName, setWaDisplayName] = useState('ManaCity Support');
+  const [waPin, setWaPin] = useState('123456');
+  const [waCategory, setWaCategory] = useState('CUSTOMER_SERVICE');
+
   // Ad Campaign Creation & Management Modals
   const [showNewCampaignModal, setShowNewCampaignModal] = useState(false);
   const [createCampaignStep, setCreateCampaignStep] = useState(1);

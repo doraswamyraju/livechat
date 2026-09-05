@@ -179,6 +179,15 @@ export async function handleMetaWebhook(req, res) {
             const source = isInstagram ? 'instagram' : 'facebook';
             const visitorId = `${source}:${senderId}`;
 
+            // Extract Meta Ad Referral & Click-to-Chat Attribution
+            const referral = messagingItem.referral || messagingItem.postback?.referral || messagingItem.message?.referral;
+            let adAttributionTitle = null;
+            let adId = null;
+            if (referral) {
+              adId = referral.ad_id || referral.source_id || referral.source;
+              adAttributionTitle = referral.ads_context_data?.ad_title || (adId ? `Meta Ad (${adId})` : 'Meta Sponsored Ad');
+              console.log(`[MetaWebhook] Attributed Click-to-Chat lead from Meta Ad: ${adAttributionTitle} (Ad ID: ${adId})`);
+            }
 
             const objTenantId = mongoose.Types.ObjectId.isValid(tenantId) ? new mongoose.Types.ObjectId(tenantId) : tenantId;
 
@@ -197,11 +206,13 @@ export async function handleMetaWebhook(req, res) {
                 tenantId: objTenantId,
                 name,
                 source,
+                utmCampaign: adAttributionTitle || 'Direct Meta DM',
                 isOnline: false
               });
             } else {
               visitor.tenantId = objTenantId;
               visitor.name = name;
+              if (adAttributionTitle) visitor.utmCampaign = adAttributionTitle;
               visitor.isOnline = false;
             }
             await visitor.save();
