@@ -395,4 +395,18 @@ final class NetworkClient: ObservableObject {
         }
         return (try? decoder.decode([UserProfile].self, from: data)) ?? []
     }
+    
+    func getSuperAdminTenants() async throws -> [TenantWorkspaceDto] {
+        let url = URL(string: "\(baseURL)/api/superadmin/tenants")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            return []
+        }
+        
+        return (try? decoder.decode([TenantWorkspaceDto].self, from: data)) ?? []
+    }
 }

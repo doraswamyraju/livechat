@@ -48,7 +48,7 @@ struct ChatView: View {
     }
     
     var isAdmin: Bool {
-        networkClient.currentUser?.role == "Admin"
+        networkClient.currentUser?.isAdmin == true
     }
     
     var body: some View {
@@ -361,6 +361,40 @@ struct ChatView: View {
                         Text(visitorUrl)
                             .font(.system(size: 12, design: .monospaced))
                             .foregroundColor(theme.primaryColor)
+                    }
+                    
+                    // Quick Action: Save to Device Contacts
+                    if !visitorPhone.isEmpty || !visitorEmail.isEmpty {
+                        Button(action: {
+                            ContactHelper.shared.saveContact(
+                                fullName: visitorName,
+                                phone: visitorPhone.isEmpty ? nil : visitorPhone,
+                                email: visitorEmail.isEmpty ? nil : visitorEmail,
+                                company: nil as String?,
+                                note: "Captured from LetsTrack \(channel) chat"
+                            ) { success, msg in
+                                DispatchQueue.main.async {
+                                    if success {
+                                        withAnimation { leadCreatedToast = true }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                            withAnimation { leadCreatedToast = false }
+                                        }
+                                    }
+                                }
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "person.crop.circle.badge.plus")
+                                Text("Save Visitor to iPhone Contacts")
+                            }
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.primaryColor)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 10)
+                            .background(theme.primaryColor.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        .padding(.top, 2)
                     }
                 }
                 .padding(14)

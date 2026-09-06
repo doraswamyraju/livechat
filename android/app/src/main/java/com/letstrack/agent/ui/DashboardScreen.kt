@@ -43,7 +43,8 @@ fun DashboardScreen(
     onNavigateToChat: (String, String, String, String?, String?, String?, String?, String?, String?, String?) -> Unit,
     onSignOut: () -> Unit
 ) {
-    val isAdmin = NetworkClient.currentUser?.role == "Admin"
+    val isAdmin = NetworkClient.currentUser?.isAdmin == true
+    val isSuperAdmin = NetworkClient.currentUser?.isSuperAdmin == true
     var selectedTab by remember { mutableStateOf(initialTab) } // 0: Metrics, 1: Radar, 2: Inbox, 3: Leads, 4: Team, 5: Settings
     val coroutineScope = rememberCoroutineScope()
     val isDark = currentTheme == "dark"
@@ -380,16 +381,33 @@ fun DashboardScreen(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = NetworkClient.currentTenant?.name ?: "LetsTrack",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (isSuperAdmin) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Surface(
+                                        color = Color(0xFFA855F7).copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "SUPER",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = Color(0xFFA855F7),
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
                             Text(
-                                text = NetworkClient.currentTenant?.name ?: "LetsTrack",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = if (isAdmin) "SuperAdmin Console" else "Agent Workstation",
+                                text = if (isSuperAdmin) "SuperAdmin Console" else if (isAdmin) "Admin Console" else "Agent Workstation",
                                 fontSize = 11.sp,
-                                color = Color(0xFFDC2626),
+                                color = if (isSuperAdmin) Color(0xFFA855F7) else Color(0xFFDC2626),
                                 fontWeight = FontWeight.SemiBold
                             )
                         }

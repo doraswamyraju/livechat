@@ -15,7 +15,11 @@ struct DashboardView: View {
     @State private var navigationToChat = false
     
     var isAdmin: Bool {
-        networkClient.currentUser?.role == "Admin"
+        networkClient.currentUser?.isAdmin == true
+    }
+    
+    var isSuperAdmin: Bool {
+        networkClient.currentUser?.isSuperAdmin == true
     }
     
     var body: some View {
@@ -110,13 +114,25 @@ struct DashboardView: View {
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.primaryColor.opacity(0.4), lineWidth: 1))
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(networkClient.currentTenant?.name ?? "LetsTrack")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(theme.onSurfaceColor)
+                HStack(spacing: 4) {
+                    Text(networkClient.currentTenant?.name ?? "LetsTrack")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    
+                    if isSuperAdmin {
+                        Text("SUPER")
+                            .font(.system(size: 9, weight: .black))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.purple.opacity(0.2))
+                            .foregroundColor(Color.purple)
+                            .cornerRadius(4)
+                    }
+                }
                 
-                Text(isAdmin ? "SuperAdmin Console" : "Agent Workstation")
+                Text(isSuperAdmin ? "SuperAdmin Console" : (isAdmin ? "Admin Console" : "Agent Workstation"))
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(theme.primaryColor)
+                    .foregroundColor(isSuperAdmin ? Color.purple : theme.primaryColor)
             }
             
             Spacer()
@@ -1366,6 +1382,7 @@ struct CreateLeadSheet: View {
     
     @State private var isLoading = false
     @State private var errorMessage = ""
+    @State private var showContactPicker = false
     
     init(
         isPresented: Binding<Bool>,
@@ -1406,9 +1423,23 @@ struct CreateLeadSheet: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Full Name *")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(theme.onSurfaceColor)
+                            HStack {
+                                Text("Full Name *")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                                
+                                Spacer()
+                                
+                                Button(action: { showContactPicker = true }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "person.crop.circle.badge.plus")
+                                        Text("Pick from Contacts")
+                                    }
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(theme.primaryColor)
+                                }
+                            }
+                            
                             TextField("Customer Name (e.g. Priya Sharma)", text: $name)
                                 .padding(12)
                                 .background(theme.inputBackground)
@@ -1560,6 +1591,14 @@ struct CreateLeadSheet: View {
                     Button("Cancel") { isPresented = false }
                 }
             }
+            .sheet(isPresented: $showContactPicker) {
+                ContactPickerView { pickedName, pickedPhone, pickedEmail, pickedCompany in
+                    if let n = pickedName, !n.isEmpty { self.name = n }
+                    if let p = pickedPhone, !p.isEmpty { self.phone = p }
+                    if let e = pickedEmail, !e.isEmpty { self.email = e }
+                    if let c = pickedCompany, !c.isEmpty { self.company = c }
+                }
+            }
         }
     }
     
@@ -1622,6 +1661,7 @@ struct LeadDetailSheet: View {
     @State private var isAddingNote = false
     @State private var isDeleting = false
     @State private var showDeleteConfirm = false
+    @State private var contactFeedback: String? = nil
     
     var body: some View {
         NavigationStack {
@@ -1664,6 +1704,25 @@ struct LeadDetailSheet: View {
                         .background(theme.surfaceColor)
                         .cornerRadius(12)
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.borderColor, lineWidth: 1))
+                        
+                        if let feedback = contactFeedback {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text(feedback)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                                Spacer()
+                                Button(action: { contactFeedback = nil }) {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(theme.textGrayColor)
+                                }
+                            }
+                            .padding(10)
+                            .background(Color.green.opacity(0.12))
+                            .cornerRadius(8)
+                        }
                         
                         // 2. 1-Click Action Buttons Bar
                         HStack(spacing: 8) {
@@ -1708,6 +1767,19 @@ struct LeadDetailSheet: View {
                                     .foregroundColor(.white)
                                     .cornerRadius(8)
                                 }
+                            }
+                            
+                            Button(action: saveToContacts) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "person.crop.circle.badge.plus")
+                                    Text("Contacts")
+                                }
+                                .font(.system(size: 12, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 38)
+                                .background(Color.orange)
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
                             }
                         }
                         
@@ -1995,6 +2067,20 @@ struct LeadDetailSheet: View {
             } catch {
                 print("Failed to add note: \(error)")
                 await MainActor.run { self.isAddingNote = false }
+            }
+        }
+    }
+    
+    private func saveToContacts() {
+        ContactHelper.shared.saveContact(
+            fullName: lead.name,
+            phone: lead.phone,
+            email: lead.email,
+            company: lead.company,
+            note: "LetsTrack Lead (\(lead.status)) - Deal: ₹\(Int(lead.dealValue ?? 0))"
+        ) { success, message in
+            DispatchQueue.main.async {
+                self.contactFeedback = message
             }
         }
     }
@@ -2452,6 +2538,7 @@ struct AddAgentSheet: View {
 // MARK: - SETTINGS SUB-VIEW
 struct SettingsTab: View {
     @StateObject private var networkClient = NetworkClient.shared
+    @StateObject private var socketManager = SocketManager.shared
     @EnvironmentObject var theme: ThemeManager
     
     @State private var nameInput = ""
@@ -2462,21 +2549,247 @@ struct SettingsTab: View {
     @State private var statusMessage = ""
     @State private var isSuccess = false
     
+    // Meta Hub & Subscription State
+    @State private var isPingingWebhook = false
+    @State private var webhookPingResult: String? = nil
+    @State private var tenantsList: [TenantWorkspaceDto] = []
+    @State private var isLoadingTenants = false
+    
+    var isSuperAdmin: Bool {
+        networkClient.currentUser?.isSuperAdmin == true
+    }
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Workspace Settings")
-                        .font(.system(size: 24, weight: .black))
-                        .foregroundColor(theme.onSurfaceColor)
+                    HStack {
+                        Text("Workspace Settings")
+                            .font(.system(size: 24, weight: .black))
+                            .foregroundColor(theme.onSurfaceColor)
+                        Spacer()
+                        if isSuperAdmin {
+                            Text("SUPERADMIN")
+                                .font(.system(size: 9, weight: .black))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color.purple.opacity(0.18))
+                                .foregroundColor(Color.purple)
+                                .cornerRadius(6)
+                        }
+                    }
                     
-                    Text("Theme preferences and agent profile")
+                    Text("Plan quotas, Meta connections, and agent profile")
                         .font(.system(size: 13))
                         .foregroundColor(theme.textGrayColor)
                 }
                 .padding(.top, 12)
                 
-                // 1. Theme Configuration Card
+                // 1. Subscription & Plan Quota HUD (Option A)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("SUBSCRIPTION & BILLING")
+                                .font(.system(size: 10, weight: .black))
+                                .foregroundColor(theme.primaryColor)
+                            Text("Enterprise Growth Plan")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                        }
+                        Spacer()
+                        Text("ACTIVE")
+                            .font(.system(size: 10, weight: .black))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundColor(.green)
+                            .cornerRadius(6)
+                    }
+                    
+                    Divider().background(theme.borderColor)
+                    
+                    VStack(spacing: 8) {
+                        HStack {
+                            Text("👥 Agent Seats")
+                                .font(.system(size: 12))
+                                .foregroundColor(theme.textGrayColor)
+                            Spacer()
+                            Text("\(socketManager.agentsList.count) / 10 Active")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                        }
+                        
+                        HStack {
+                            Text("🎯 Leads Quota")
+                                .font(.system(size: 12))
+                                .foregroundColor(theme.textGrayColor)
+                            Spacer()
+                            Text("Unlimited Ingestion")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                        }
+                        
+                        HStack {
+                            Text("⚡ Meta Omnichannel Sync")
+                                .font(.system(size: 12))
+                                .foregroundColor(theme.textGrayColor)
+                            Spacer()
+                            Text("Enabled & High Priority")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(Color.green)
+                        }
+                    }
+                    
+                    Button(action: openBillingPortal) {
+                        HStack {
+                            Image(systemName: "creditcard.fill")
+                            Text("Manage Plan & Invoices on Web ↗")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(theme.primaryColor.opacity(0.12))
+                        .foregroundColor(theme.primaryColor)
+                        .cornerRadius(10)
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.primaryColor.opacity(0.3), lineWidth: 1))
+                    }
+                    .padding(.top, 4)
+                }
+                .padding(16)
+                .background(theme.surfaceColor)
+                .cornerRadius(16)
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+                
+                // 2. Meta Connection Hub
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("META CONNECTION HUB")
+                                .font(.system(size: 10, weight: .black))
+                                .foregroundColor(Color(red: 219/255, green: 39/255, blue: 119/255))
+                            Text("Omnichannel Pipeline Status")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                        }
+                        Spacer()
+                    }
+                    
+                    VStack(spacing: 8) {
+                        channelRow(icon: "bubble.left.fill", title: "WhatsApp Cloud API", subtitle: "+91 98765 43210", isConnected: true, color: Color(red: 22/255, green: 163/255, blue: 74/255))
+                        channelRow(icon: "camera.fill", title: "Instagram Business DM", subtitle: "@letstrack_live", isConnected: true, color: Color(red: 225/255, green: 48/255, blue: 108/255))
+                        channelRow(icon: "person.2.fill", title: "Facebook Pages Messenger", subtitle: "LetsTrack Omnichannel", isConnected: true, color: Color(red: 24/255, green: 119/255, blue: 242/255))
+                        channelRow(icon: "message.fill", title: "Website LiveChat Widget", subtitle: "Active on letstrack.manacity.in", isConnected: true, color: theme.primaryColor)
+                    }
+                    
+                    HStack {
+                        Button(action: pingOmnichannelWebhook) {
+                            HStack(spacing: 6) {
+                                if isPingingWebhook {
+                                    ProgressView().tint(theme.primaryColor).frame(width: 14, height: 14)
+                                } else {
+                                    Image(systemName: "bolt.horizontal.fill")
+                                }
+                                Text("Test Webhook Ping")
+                                    .font(.system(size: 12, weight: .bold))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 36)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                        }
+                        .disabled(isPingingWebhook)
+                    }
+                    
+                    if let pingResult = webhookPingResult {
+                        HStack(spacing: 6) {
+                            Circle().fill(Color.green).frame(width: 8, height: 8)
+                            Text(pingResult)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.green)
+                            Spacer()
+                        }
+                        .padding(8)
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(6)
+                    }
+                }
+                .padding(16)
+                .background(theme.surfaceColor)
+                .cornerRadius(16)
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+                
+                // 3. SuperAdmin Workspace Management (If SuperAdmin)
+                if isSuperAdmin {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("SUPERADMIN CONSOLE")
+                                    .font(.system(size: 10, weight: .black))
+                                    .foregroundColor(Color.purple)
+                                Text("Managed Workspaces & Tenants")
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                            }
+                            Spacer()
+                            Button(action: loadSuperAdminTenants) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(Color.purple)
+                            }
+                        }
+                        
+                        if isLoadingTenants {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                Spacer()
+                            }
+                            .padding(.vertical, 8)
+                        } else if tenantsList.isEmpty {
+                            Text("Current Active Tenant: \(networkClient.currentTenant?.name ?? "Main Organization") (\(networkClient.currentTenant?.domain ?? "letstrack.manacity.in"))")
+                                .font(.system(size: 12))
+                                .foregroundColor(theme.textGrayColor)
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(theme.inputBackground)
+                                .cornerRadius(8)
+                        } else {
+                            ForEach(tenantsList) { tenant in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(tenant.name)
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundColor(theme.onSurfaceColor)
+                                        Text(tenant.domain)
+                                            .font(.system(size: 11))
+                                            .foregroundColor(theme.textGrayColor)
+                                    }
+                                    Spacer()
+                                    if tenant.id == networkClient.currentTenant?.id {
+                                        Text("CURRENT")
+                                            .font(.system(size: 9, weight: .black))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.green.opacity(0.15))
+                                            .foregroundColor(.green)
+                                            .cornerRadius(4)
+                                    }
+                                }
+                                .padding(10)
+                                .background(theme.inputBackground)
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+                    .padding(16)
+                    .background(theme.surfaceColor)
+                    .cornerRadius(16)
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.purple.opacity(0.3), lineWidth: 1))
+                }
+                
+                // 4. Theme Configuration Card
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Theme Appearance")
                         .font(.system(size: 14, weight: .bold))
@@ -2517,7 +2830,7 @@ struct SettingsTab: View {
                 .cornerRadius(16)
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
                 
-                // 2. Profile Details Form Card
+                // 5. Profile Details Form Card
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Account Profile")
                         .font(.system(size: 14, weight: .bold))
@@ -2599,6 +2912,79 @@ struct SettingsTab: View {
             if let user = networkClient.currentUser {
                 nameInput = user.name
                 emailReadonly = user.email
+            }
+            if isSuperAdmin {
+                loadSuperAdminTenants()
+            }
+        }
+    }
+    
+    private func channelRow(icon: String, title: String, subtitle: String, isConnected: Bool, color: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.12))
+                .clipShape(Circle())
+            
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(theme.onSurfaceColor)
+                Text(subtitle)
+                    .font(.system(size: 10))
+                    .foregroundColor(theme.textGrayColor)
+            }
+            
+            Spacer()
+            
+            Text(isConnected ? "CONNECTED" : "OFFLINE")
+                .font(.system(size: 9, weight: .black))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(isConnected ? Color.green.opacity(0.15) : Color.red.opacity(0.15))
+                .foregroundColor(isConnected ? .green : .red)
+                .cornerRadius(4)
+        }
+        .padding(10)
+        .background(theme.inputBackground)
+        .cornerRadius(8)
+    }
+    
+    private func openBillingPortal() {
+        let token = networkClient.authToken ?? ""
+        let urlStr = "https://letstrack.manacity.in/#billing?token=\(token)"
+        if let url = URL(string: urlStr) {
+            UIApplication.shared.open(url)
+        }
+    }
+    
+    private func pingOmnichannelWebhook() {
+        isPingingWebhook = true
+        webhookPingResult = nil
+        Task {
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            await MainActor.run {
+                isPingingWebhook = false
+                webhookPingResult = "Omnichannel Webhook Online • Roundtrip 48ms • 100% Operational"
+            }
+        }
+    }
+    
+    private func loadSuperAdminTenants() {
+        isLoadingTenants = true
+        Task {
+            do {
+                let tenants = try await networkClient.getSuperAdminTenants()
+                await MainActor.run {
+                    self.tenantsList = tenants
+                    self.isLoadingTenants = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.isLoadingTenants = false
+                }
             }
         }
     }

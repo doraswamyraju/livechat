@@ -1,4 +1,7 @@
 import Foundation
+import SwiftUI
+import Contacts
+import ContactsUI
 
 // ============================================
 // DTO DEFINITIONS
@@ -52,6 +55,51 @@ struct UserProfile: Codable, Identifiable, Hashable {
         self.role = role
         self.status = status
     }
+    
+    var isSuperAdmin: Bool {
+        let r = role.lowercased().replacingOccurrences(of: " ", with: "")
+        return r == "superadmin"
+    }
+    
+    var isAdmin: Bool {
+        let r = role.lowercased().replacingOccurrences(of: " ", with: "")
+        return r == "admin" || r == "superadmin"
+    }
+}
+
+struct TenantWorkspaceDto: Codable, Identifiable, Hashable {
+    var id: String { _id }
+    let _id: String
+    let name: String
+    let domain: String
+    let apiKey: String?
+    let plan: String?
+    let createdAt: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case _id, name, domain, apiKey, plan, createdAt
+    }
+}
+
+struct SubscriptionUsageDto: Codable, Equatable {
+    var planName: String = "Enterprise"
+    var renewalDate: String? = nil
+    var activeSeats: Int = 1
+    var maxSeats: Int = 5
+    var leadsThisMonth: Int = 0
+    var maxLeads: Int = 5000
+    var whatsappApiEnabled: Bool = true
+    var metaAdsSyncEnabled: Bool = true
+}
+
+struct MetaChannelStatusDto: Codable, Equatable {
+    var whatsappConnected: Bool = true
+    var whatsappPhone: String? = "+91 98765 43210"
+    var instagramConnected: Bool = true
+    var instagramHandle: String? = "@letstrack_live"
+    var facebookConnected: Bool = true
+    var facebookPageName: String? = "LetsTrack Omnichannel"
+    var liveChatActive: Bool = true
 }
 
 struct TenantDetails: Codable, Hashable {
@@ -396,4 +444,116 @@ struct RegisterAgentRequest: Codable {
 struct RegisterAgentResponse: Codable {
     let message: String
     let agent: UserProfile
+}
+
+// ============================================
+// NATIVE DEVICE CONTACTS HELPER & PICKER
+// ============================================
+import Contacts
+import ContactsUI
+
+final class ContactHelper {
+    static let shared = ContactHelper()
+    private let contactStore = CNContactStore()
+    
+    func saveContact(
+        fullName: String,
+        phone: String?,
+        email: String?,
+        company: String?,
+        note: String? = "Captured via LetsTrack Omnichannel CRM",
+        completion: ((Bool, String) -> Void)? = nil
+    ) {
+        let status = CNContactStore.authorizationStatus(for: .contacts)
+        if status == .notDetermined {
+            contactStore.requestAccess(for: .contacts) { granted, _ in
+                if granted {
+                    self.performSave(fullName: fullName, phone: phone, email: email, company: company, note: note, completion: completion)
+                } else {
+                    completion?(false, "Contacts permission was not granted.")
+                }
+            }
+        } else if status == .authorized {
+            performSave(fullName: fullName, phone: phone, email: email, company: company, note: note, completion: completion)
+        } else {
+            completion?(false, "Please allow Contacts permission in iOS Settings.")
+        }
+    }
+    
+    private func performSave(
+        fullName: String,
+        phone: String?,
+        email: String?,
+        company: String?,
+        note: String?,
+        completion: ((Bool, String) -> Void)?
+    ) {
+        let contact = CNMutableContact()
+        let parts = fullName.trimmingCharacters(in: .whitespaces).components(separatedBy: " ")
+        if let first = parts.first { contact.givenName = first }
+        if parts.count > 1 { contact.familyName = parts.dropFirst().joined(separator: " ") }
+        if let comp = company, !comp.isEmpty { contact.organizationName = comp }
+        if let p = phone, !p.isEmpty {
+            contact.phoneNumbers = [CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: p))]
+        }
+        if let e = email, !e.isEmpty {
+            contact.emailAddresses = [CNLabeledValue(label: CNLabelWork, value: e as NSString)]
+        }
+        if let n = note, !n.isEmpty {
+            contact.note = n
+        }
+        
+        let saveRequest = CNSaveRequest()
+        saveRequest.add(contact, toContainerWithIdentifier: nil)
+        do {
+            try contactStore.execute(saveRequest)
+            completion?(true, "Saved \(fullName) to iPhone Contacts!")
+        } catch {
+            completion?(false, "Error saving to Contacts: \(error.localizedDescription)")
+        }
+    }
+}
+
+struct ContactPickerView: UIViewControllerRepresentable {
+    @Environment(\.presentationMode) var presentationMode
+    let onContactSelected: (_ name: String?, _ phone: String?, _ email: String?, _ company: String?) -> Void
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    func makeUIViewController(context: Context) -> CNContactPickerViewController {
+        let picker = CNContactPickerViewController()
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) {}
+    
+    class Coordinator: NSObject, CNContactPickerDelegate {
+        var parent: ContactPickerView
+        
+        init(_ parent: ContactPickerView) {
+            self.parent = parent
+        }
+        
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+            let fullName = "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces)
+            let phone = contact.phoneNumbers.first?.value.stringValue
+            let email = contact.emailAddresses.first?.value as String?
+            let company = contact.organizationName.isEmpty ? nil : contact.organizationName
+            
+            parent.onContactSelected(
+                fullName.isEmpty ? nil : fullName,
+                phone,
+                email,
+                company
+            )
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+        
+        func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+    }
 }

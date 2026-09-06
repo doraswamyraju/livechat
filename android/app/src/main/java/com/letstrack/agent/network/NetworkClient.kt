@@ -23,7 +23,13 @@ data class UserProfile(
     val email: String,
     val role: String,
     val status: String
-)
+) {
+    val isSuperAdmin: Boolean
+        get() = role.trim().lowercase().replace(" ", "") == "superadmin"
+
+    val isAdmin: Boolean
+        get() = isSuperAdmin || role.trim().lowercase().replace(" ", "") == "admin"
+}
 
 data class TenantDetails(
     val id: String,
