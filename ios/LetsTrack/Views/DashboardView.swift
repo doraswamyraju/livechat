@@ -789,6 +789,9 @@ struct LeadsTab: View {
             }
             .padding(.bottom, 24)
         }
+        .refreshable {
+            loadLeadsData()
+        }
         .onAppear(perform: loadLeadsData)
         .sheet(isPresented: $showCreateLeadSheet) {
             CreateLeadSheet(isPresented: $showCreateLeadSheet, onLeadCreated: { newLead in
@@ -935,15 +938,22 @@ struct LeadsTab: View {
         Task {
             do {
                 let fetchedLeads = try await NetworkClient.shared.getLeads()
-                let fetchedStats = try await NetworkClient.shared.getLeadStats()
                 await MainActor.run {
                     self.leadsList = fetchedLeads
-                    self.leadStats = fetchedStats
                     self.isLoading = false
                 }
             } catch {
-                print("Failed to load leads: \(error)")
+                print("Failed to load leads list: \(error)")
                 await MainActor.run { self.isLoading = false }
+            }
+            
+            do {
+                let fetchedStats = try await NetworkClient.shared.getLeadStats()
+                await MainActor.run {
+                    self.leadStats = fetchedStats
+                }
+            } catch {
+                print("Failed to load lead stats: \(error)")
             }
         }
     }

@@ -296,14 +296,44 @@ struct CreateLeadRequest: Codable {
     let visitorId: String?
 }
 
-struct LeadStatsDto: Codable {
-    let totalLeads: Int
-    let newLeads: Int
-    let wonLeads: Int
-    let lostLeads: Int
-    let totalPipelineValue: Double
-    let wonValue: Double
-    let conversionRate: Double
+struct LeadStatsDto: Codable, Equatable {
+    var totalLeads: Int = 0
+    var newLeads: Int = 0
+    var wonLeads: Int = 0
+    var lostLeads: Int = 0
+    var totalPipelineValue: Double = 0.0
+    var wonValue: Double = 0.0
+    var conversionRate: Double = 0.0
+    
+    enum CodingKeys: String, CodingKey {
+        case totalLeads, newLeads, wonLeads, lostLeads, totalPipelineValue, totalDealValue, wonValue, wonDealValue, conversionRate, stages
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        totalLeads = (try? container.decodeIfPresent(Int.self, forKey: .totalLeads)) ?? 0
+        
+        let stages = try? container.decodeIfPresent([String: Int].self, forKey: .stages)
+        newLeads = (try? container.decodeIfPresent(Int.self, forKey: .newLeads)) ?? (stages?["New"] ?? 0)
+        wonLeads = (try? container.decodeIfPresent(Int.self, forKey: .wonLeads)) ?? (stages?["Won"] ?? 0)
+        lostLeads = (try? container.decodeIfPresent(Int.self, forKey: .lostLeads)) ?? (stages?["Lost"] ?? 0)
+        
+        let pipeVal = try? container.decodeIfPresent(Double.self, forKey: .totalPipelineValue)
+        let dealVal = try? container.decodeIfPresent(Double.self, forKey: .totalDealValue)
+        totalPipelineValue = pipeVal ?? dealVal ?? 0.0
+        
+        let wonVal = try? container.decodeIfPresent(Double.self, forKey: .wonValue)
+        let wonDealVal = try? container.decodeIfPresent(Double.self, forKey: .wonDealValue)
+        wonValue = wonVal ?? wonDealVal ?? 0.0
+        
+        if let crDouble = try? container.decodeIfPresent(Double.self, forKey: .conversionRate) {
+            conversionRate = crDouble
+        } else if let crStr = try? container.decodeIfPresent(String.self, forKey: .conversionRate) {
+            conversionRate = Double(crStr) ?? 0.0
+        } else {
+            conversionRate = 0.0
+        }
+    }
 }
 
 struct FcmTokenRequest: Codable {

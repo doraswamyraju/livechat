@@ -1170,8 +1170,13 @@ app.get('/api/leads/stats', authenticateToken, async (req, res) => {
       stages,
       sources,
       totalDealValue,
+      totalPipelineValue: totalDealValue,
       wonDealValue,
-      conversionRate
+      wonValue: wonDealValue,
+      newLeads: stages.New || 0,
+      wonLeads: stages.Won || 0,
+      lostLeads: stages.Lost || 0,
+      conversionRate: Number(conversionRate) || 0
     });
   } catch (err) {
     console.error('Error fetching lead stats:', err);
