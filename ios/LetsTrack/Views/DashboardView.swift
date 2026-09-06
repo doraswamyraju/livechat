@@ -1353,17 +1353,47 @@ struct CreateLeadSheet: View {
     let onLeadCreated: (LeadDto) -> Void
     @EnvironmentObject var theme: ThemeManager
     
-    @State var name = ""
-    @State var email = ""
-    @State var phone = ""
-    @State var company = ""
-    @State var source = "manual"
-    @State var status = "New"
-    @State var dealValue = ""
-    @State var note = ""
+    @State var name: String
+    @State var email: String
+    @State var phone: String
+    @State var company: String
+    @State var source: String
+    @State var status: String
+    @State var dealValue: String
+    @State var note: String
+    @State var conversationId: String?
+    @State var visitorId: String?
     
     @State private var isLoading = false
     @State private var errorMessage = ""
+    
+    init(
+        isPresented: Binding<Bool>,
+        onLeadCreated: @escaping (LeadDto) -> Void,
+        name: String = "",
+        email: String = "",
+        phone: String = "",
+        company: String = "",
+        source: String = "manual",
+        status: String = "New",
+        dealValue: String = "",
+        note: String = "",
+        conversationId: String? = nil,
+        visitorId: String? = nil
+    ) {
+        self._isPresented = isPresented
+        self.onLeadCreated = onLeadCreated
+        self._name = State(initialValue: name)
+        self._email = State(initialValue: email)
+        self._phone = State(initialValue: phone)
+        self._company = State(initialValue: company)
+        self._source = State(initialValue: source)
+        self._status = State(initialValue: status)
+        self._dealValue = State(initialValue: dealValue)
+        self._note = State(initialValue: note)
+        self._conversationId = State(initialValue: conversationId)
+        self._visitorId = State(initialValue: visitorId)
+    }
     
     let sources = ["manual", "meta-ads", "whatsapp", "instagram", "facebook", "chat"]
     let statuses = ["New", "Contacted", "Qualified", "Proposal", "Won", "Lost"]
@@ -1555,8 +1585,8 @@ struct CreateLeadSheet: View {
             notes: note.isEmpty ? nil : [note],
             tags: ["Mobile App Ingestion"],
             assignedAgentId: nil,
-            conversationId: nil,
-            visitorId: nil
+            conversationId: conversationId,
+            visitorId: visitorId
         )
         
         Task {
