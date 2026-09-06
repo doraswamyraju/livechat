@@ -334,6 +334,17 @@ struct LeadStatsDto: Codable, Equatable {
             conversionRate = 0.0
         }
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(totalLeads, forKey: .totalLeads)
+        try container.encode(newLeads, forKey: .newLeads)
+        try container.encode(wonLeads, forKey: .wonLeads)
+        try container.encode(lostLeads, forKey: .lostLeads)
+        try container.encode(totalPipelineValue, forKey: .totalPipelineValue)
+        try container.encode(wonValue, forKey: .wonValue)
+        try container.encode(conversionRate, forKey: .conversionRate)
+    }
 }
 
 struct FcmTokenRequest: Codable {
