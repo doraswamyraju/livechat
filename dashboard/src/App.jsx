@@ -3209,28 +3209,6 @@ function App() {
                       </button>
                     )}
                   </div>
-
-                      style={{
-                        padding: '6px 2px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: channelFilter === 'instagram' ? 'rgba(225, 48, 108, 0.15)' : 'transparent',
-                        color: channelFilter === 'instagram' ? '#F472B6' : 'var(--text-secondary)',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '3px',
-                        transition: 'all 0.2s'
-                      }}
-                      title="Instagram DM"
-                    >
-                      {renderChannelIcon('instagram', 13)}
-                      <span>Insta</span>
-                    </button>
-                  </div>
                   
                   {/* Filter Sub-Tabs with Counts */}
                   {(() => {
