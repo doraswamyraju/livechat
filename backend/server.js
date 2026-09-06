@@ -1098,7 +1098,14 @@ app.get('/api/leads', authenticateToken, async (req, res) => {
       .skip(skip)
       .limit(Number(limit));
 
-    res.status(200).json({ leads, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
+    const formattedLeads = leads.map(l => {
+      const obj = l.toObject();
+      obj.phone = obj.phoneNumber || '';
+      obj.assignedAgentName = obj.assignedAgentId?.name || null;
+      return obj;
+    });
+
+    res.status(200).json({ leads: formattedLeads, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
   } catch (err) {
     console.error('Error fetching leads:', err);
     res.status(500).json({ error: 'Failed to fetch leads' });

@@ -1,10 +1,10 @@
 import Foundation
 import Combine
 
-class NetworkClient: ObservableObject {
+final class NetworkClient: ObservableObject {
     static let shared = NetworkClient()
     
-    private let baseURL = "https://livechat.vrhere.in"
+    private let baseURL = "https://letstrack.manacity.in"
     
     @Published var currentUser: UserProfile?
     @Published var currentTenant: TenantDetails?

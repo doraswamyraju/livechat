@@ -179,6 +179,13 @@ struct LeadNoteDto: Codable, Identifiable, Equatable {
     let createdAt: String?
 }
 
+struct LeadAgentDto: Codable, Equatable {
+    let _id: String?
+    let name: String?
+    let email: String?
+    let avatarUrl: String?
+}
+
 struct LeadDto: Codable, Identifiable, Equatable {
     var id: String { _id }
     let _id: String
@@ -186,8 +193,8 @@ struct LeadDto: Codable, Identifiable, Equatable {
     var email: String?
     var phone: String?
     var company: String?
-    var source: String // "livechat", "whatsapp", "instagram", "facebook", "meta_ads", "manual", "website"
-    var status: String // "New", "Contacted", "Qualified", "Proposal", "Won", "Lost"
+    var source: String
+    var status: String
     var dealValue: Double?
     var currency: String?
     var score: Int?
@@ -201,7 +208,74 @@ struct LeadDto: Codable, Identifiable, Equatable {
     var updatedAt: String?
     
     enum CodingKeys: String, CodingKey {
-        case _id, name, email, phone, company, source, status, dealValue, currency, score, notes, tags, assignedAgentId, assignedAgentName, conversationId, visitorId, createdAt, updatedAt
+        case _id, name, email, phone, phoneNumber, company, source, status, dealValue, currency, score, notes, tags, assignedAgentId, assignedAgentName, conversationId, visitorId, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        _id = try container.decode(String.self, forKey: ._id)
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? "Lead"
+        email = try? container.decodeIfPresent(String.self, forKey: .email)
+        
+        let rawPhone = try? container.decodeIfPresent(String.self, forKey: .phone)
+        let rawPhoneNumber = try? container.decodeIfPresent(String.self, forKey: .phoneNumber)
+        phone = rawPhone ?? rawPhoneNumber
+        
+        company = try? container.decodeIfPresent(String.self, forKey: .company)
+        source = (try? container.decodeIfPresent(String.self, forKey: .source)) ?? "manual"
+        status = (try? container.decodeIfPresent(String.self, forKey: .status)) ?? "New"
+        
+        if let dv = try? container.decodeIfPresent(Double.self, forKey: .dealValue) {
+            dealValue = dv
+        } else if let dvInt = try? container.decodeIfPresent(Int.self, forKey: .dealValue) {
+            dealValue = Double(dvInt)
+        } else {
+            dealValue = nil
+        }
+        
+        currency = (try? container.decodeIfPresent(String.self, forKey: .currency)) ?? "INR"
+        score = try? container.decodeIfPresent(Int.self, forKey: .score)
+        notes = try? container.decodeIfPresent([LeadNoteDto].self, forKey: .notes)
+        tags = try? container.decodeIfPresent([String].self, forKey: .tags)
+        
+        // Flexibly decode assignedAgentId (can be populated object or raw String)
+        if let agentObj = try? container.decodeIfPresent(LeadAgentDto.self, forKey: .assignedAgentId) {
+            assignedAgentId = agentObj._id
+            assignedAgentName = agentObj.name
+        } else if let agentIdStr = try? container.decodeIfPresent(String.self, forKey: .assignedAgentId) {
+            assignedAgentId = agentIdStr
+            assignedAgentName = try? container.decodeIfPresent(String.self, forKey: .assignedAgentName)
+        } else {
+            assignedAgentId = nil
+            assignedAgentName = try? container.decodeIfPresent(String.self, forKey: .assignedAgentName)
+        }
+        
+        conversationId = try? container.decodeIfPresent(String.self, forKey: .conversationId)
+        visitorId = try? container.decodeIfPresent(String.self, forKey: .visitorId)
+        createdAt = try? container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try? container.decodeIfPresent(String.self, forKey: .updatedAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(_id, forKey: ._id)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encodeIfPresent(phone, forKey: .phone)
+        try container.encodeIfPresent(company, forKey: .company)
+        try container.encode(source, forKey: .source)
+        try container.encode(status, forKey: .status)
+        try container.encodeIfPresent(dealValue, forKey: .dealValue)
+        try container.encodeIfPresent(currency, forKey: .currency)
+        try container.encodeIfPresent(score, forKey: .score)
+        try container.encodeIfPresent(notes, forKey: .notes)
+        try container.encodeIfPresent(tags, forKey: .tags)
+        try container.encodeIfPresent(assignedAgentId, forKey: .assignedAgentId)
+        try container.encodeIfPresent(assignedAgentName, forKey: .assignedAgentName)
+        try container.encodeIfPresent(conversationId, forKey: .conversationId)
+        try container.encodeIfPresent(visitorId, forKey: .visitorId)
+        try container.encodeIfPresent(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
     }
 }
 

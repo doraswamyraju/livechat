@@ -145,21 +145,25 @@ data class LeadDto(
     val name: String,
     val email: String? = null,
     val phone: String? = null,
+    val phoneNumber: String? = null,
     val company: String? = null,
     val source: String = "manual",
     val status: String = "New",
     val dealValue: Double? = null,
-    val currency: String? = "USD",
+    val currency: String? = "INR",
     val score: Int? = null,
     val notes: List<LeadNoteDto>? = null,
     val tags: List<String>? = null,
-    val assignedAgentId: String? = null,
+    val assignedAgentId: Any? = null,
     val assignedAgentName: String? = null,
     val conversationId: String? = null,
     val visitorId: String? = null,
     val createdAt: String? = null,
     val updatedAt: String? = null
-)
+) {
+    val displayPhone: String?
+        get() = phone ?: phoneNumber
+}
 
 data class LeadsResponse(
     val leads: List<LeadDto>,
@@ -290,7 +294,7 @@ interface LetsTrackApi {
 // UNIFIED NETWORK CLIENT MANAGER
 // ============================================
 object NetworkClient {
-    private const val BASE_URL = "https://livechat.vrhere.in"
+    private const val BASE_URL = "https://letstrack.manacity.in"
 
     private var authToken: String? = null
     var currentUser: UserProfile? = null

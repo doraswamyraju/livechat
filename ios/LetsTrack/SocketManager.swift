@@ -40,7 +40,7 @@ class SocketManager: ObservableObject {
         }
         
         if manager == nil {
-            let url = URL(string: "https://livechat.vrhere.in")!
+            let url = URL(string: "https://letstrack.manacity.in")!
             manager = SocketIO.SocketManager(
                 socketURL: url,
                 config: [.log(false), .forceNew(true), .reconnects(true)]
