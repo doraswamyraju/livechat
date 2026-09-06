@@ -363,4 +363,36 @@ final class NetworkClient: ObservableObject {
         
         return try decoder.decode(LeadDto.self, from: data)
     }
+    
+    func deleteLead(leadId: String) async throws {
+        let url = URL(string: "\(baseURL)/api/leads/\(leadId)")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "DELETE"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (_, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to delete lead."])
+        }
+    }
+    
+    func getAgents() async throws -> [UserProfile] {
+        let url = URL(string: "\(baseURL)/api/agents")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            return []
+        }
+        
+        struct AgentsResp: Codable {
+            let agents: [UserProfile]?
+        }
+        if let resp = try? decoder.decode(AgentsResp.self, from: data), let ag = resp.agents {
+            return ag
+        }
+        return (try? decoder.decode([UserProfile].self, from: data)) ?? []
+    }
 }

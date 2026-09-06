@@ -179,6 +179,16 @@ struct LeadNoteDto: Codable, Identifiable, Equatable {
     let createdAt: String?
 }
 
+struct LeadMetaDataDto: Codable, Equatable {
+    let campaignName: String?
+    let campaignId: String?
+    let adName: String?
+    let adId: String?
+    let formId: String?
+    let pageId: String?
+    let formAnswers: [String: String]?
+}
+
 struct LeadAgentDto: Codable, Equatable {
     let _id: String?
     let name: String?
@@ -202,13 +212,14 @@ struct LeadDto: Codable, Identifiable, Equatable {
     var tags: [String]?
     var assignedAgentId: String?
     var assignedAgentName: String?
+    var metaData: LeadMetaDataDto?
     var conversationId: String?
     var visitorId: String?
     var createdAt: String?
     var updatedAt: String?
     
     enum CodingKeys: String, CodingKey {
-        case _id, name, email, phone, phoneNumber, company, source, status, dealValue, currency, score, notes, tags, assignedAgentId, assignedAgentName, conversationId, visitorId, createdAt, updatedAt
+        case _id, name, email, phone, phoneNumber, company, source, status, dealValue, currency, score, notes, tags, assignedAgentId, assignedAgentName, metaData, conversationId, visitorId, createdAt, updatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -250,6 +261,7 @@ struct LeadDto: Codable, Identifiable, Equatable {
             assignedAgentName = try? container.decodeIfPresent(String.self, forKey: .assignedAgentName)
         }
         
+        metaData = try? container.decodeIfPresent(LeadMetaDataDto.self, forKey: .metaData)
         conversationId = try? container.decodeIfPresent(String.self, forKey: .conversationId)
         visitorId = try? container.decodeIfPresent(String.self, forKey: .visitorId)
         createdAt = try? container.decodeIfPresent(String.self, forKey: .createdAt)
@@ -272,6 +284,7 @@ struct LeadDto: Codable, Identifiable, Equatable {
         try container.encodeIfPresent(tags, forKey: .tags)
         try container.encodeIfPresent(assignedAgentId, forKey: .assignedAgentId)
         try container.encodeIfPresent(assignedAgentName, forKey: .assignedAgentName)
+        try container.encodeIfPresent(metaData, forKey: .metaData)
         try container.encodeIfPresent(conversationId, forKey: .conversationId)
         try container.encodeIfPresent(visitorId, forKey: .visitorId)
         try container.encodeIfPresent(createdAt, forKey: .createdAt)

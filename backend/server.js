@@ -1282,7 +1282,7 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
 });
 
 // 12h. Update Lead
-app.patch('/api/leads/:id', authenticateToken, async (req, res) => {
+const handleUpdateLead = async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -1339,7 +1339,10 @@ app.patch('/api/leads/:id', authenticateToken, async (req, res) => {
     console.error('Error updating lead:', err);
     res.status(500).json({ error: err.message || 'Failed to update lead' });
   }
-});
+};
+
+app.patch('/api/leads/:id', authenticateToken, handleUpdateLead);
+app.put('/api/leads/:id', authenticateToken, handleUpdateLead);
 
 // 12i. Add Note to Lead
 app.post('/api/leads/:id/notes', authenticateToken, async (req, res) => {
