@@ -1,4 +1,5 @@
 import SwiftUI
+import LocalAuthentication
 
 struct DashboardView: View {
     @StateObject private var socketManager = SocketManager.shared
@@ -44,16 +45,23 @@ struct DashboardView: View {
                         UnifiedInboxTab(onNavigateToChat: navigateToChatScreen)
                         .tag(2)
                         
-                        LeadsTab(onNavigateToChat: navigateToChatScreen)
+                        LeadsTab(onNavigateToChat: navigateToChatScreen, onNavigateToAds: {
+                            selectedTab = 4
+                        })
                         .tag(3)
+                        
+                        MetaAdsTab()
+                        .tag(4)
                         
                         if isAdmin {
                             TeamTab()
-                                .tag(4)
+                                .tag(5)
                         }
                         
-                        SettingsTab()
-                            .tag(isAdmin ? 5 : 4)
+                        SettingsTab(onNavigateToAds: {
+                            selectedTab = 4
+                        })
+                        .tag(isAdmin ? 6 : 5)
                     }
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                     
@@ -197,12 +205,13 @@ struct DashboardView: View {
             DockItem(icon: "antenna.radiowaves.left.and.right", label: "Radar", index: 1, selection: $selectedTab)
             DockItem(icon: "bubble.left.and.bubble.right.fill", label: "Inbox", index: 2, selection: $selectedTab, badgeCount: socketManager.conversationsList.filter { $0.status == "Unassigned" }.count)
             DockItem(icon: "person.crop.rectangle.stack.fill", label: "Leads", index: 3, selection: $selectedTab)
+            DockItem(icon: "megaphone.fill", label: "Ads", index: 4, selection: $selectedTab)
             
             if isAdmin {
-                DockItem(icon: "person.2.fill", label: "Team", index: 4, selection: $selectedTab)
+                DockItem(icon: "person.2.fill", label: "Team", index: 5, selection: $selectedTab)
             }
             
-            DockItem(icon: "gearshape.fill", label: "Settings", index: isAdmin ? 5 : 4, selection: $selectedTab)
+            DockItem(icon: "gearshape.fill", label: "Settings", index: isAdmin ? 6 : 5, selection: $selectedTab)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
@@ -534,18 +543,10 @@ struct UnifiedInboxTab: View {
                                 .foregroundColor(theme.primaryColor)
                         )
                     
-                    // Channel Badge Icon
-                    ZStack {
-                        Circle()
-                            .fill(channelColor)
-                            .frame(width: 18, height: 18)
-                        
-                        Image(systemName: getChannelIcon(channel))
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    .overlay(Circle().stroke(theme.surfaceColor, lineWidth: 2))
-                    .offset(x: 2, y: 2)
+                    // Official Brand Logo Badge
+                    BrandLogoView(source: channel, size: 18)
+                        .overlay(Circle().stroke(theme.surfaceColor, lineWidth: 2))
+                        .offset(x: 2, y: 2)
                 }
                 
                 // Content info
@@ -656,6 +657,7 @@ struct UnifiedInboxTab: View {
 struct LeadsTab: View {
     @EnvironmentObject var theme: ThemeManager
     let onNavigateToChat: (String, String, String) -> Void
+    var onNavigateToAds: (() -> Void)? = nil
     
     @State private var leadsList: [LeadDto] = []
     @State private var leadStats: LeadStatsDto? = nil
@@ -743,6 +745,43 @@ struct LeadsTab: View {
                 }
                 .padding(.horizontal)
                 .padding(.top, 12)
+                
+                // Meta Ads Integration Banner
+                if let onNavigateToAds = onNavigateToAds {
+                    Button(action: onNavigateToAds) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(LinearGradient(colors: [Color(red: 0, green: 129/255, blue: 251/255), Color(red: 219/255, green: 39/255, blue: 119/255)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                    .frame(width: 38, height: 38)
+                                Image(systemName: "megaphone.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text("Meta Ads Live Attribution")
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(theme.onSurfaceColor)
+                                    Spacer()
+                                    Text("Manage Ads →")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(Color(red: 0, green: 129/255, blue: 251/255))
+                                }
+                                Text("Real-time Facebook & Instagram ad campaign captures and live metrics")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(theme.textGrayColor)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .padding(12)
+                        .background(theme.surfaceColor)
+                        .cornerRadius(12)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(red: 0, green: 129/255, blue: 251/255).opacity(0.3), lineWidth: 1))
+                        .padding(.horizontal)
+                    }
+                }
                 
                 // 2. Summary Stats Cards Carousel
                 if let stats = leadStats {
@@ -1295,8 +1334,8 @@ struct LeadsTab: View {
     }
     
     private func openCall(phone: String) {
-        let clean = phone.replacingOccurrences(of: " ", with: "")
-        if let url = URL(string: "tel://\(clean)") {
+        let clean = phone.replacingOccurrences(of: "[^0-9+]", with: "", options: .regularExpression)
+        if let url = URL(string: "tel://\(clean)"), UIApplication.shared.canOpenURL(url) {
             UIApplication.shared.open(url)
         }
     }
@@ -1662,6 +1701,8 @@ struct LeadDetailSheet: View {
     @State private var isDeleting = false
     @State private var showDeleteConfirm = false
     @State private var contactFeedback: String? = nil
+    @State private var isSavingContact = false
+    @State private var contactSaved = false
     
     var body: some View {
         NavigationStack {
@@ -1771,16 +1812,26 @@ struct LeadDetailSheet: View {
                             
                             Button(action: saveToContacts) {
                                 HStack(spacing: 4) {
-                                    Image(systemName: "person.crop.circle.badge.plus")
-                                    Text("Contacts")
+                                    if isSavingContact {
+                                        ProgressView()
+                                            .tint(.white)
+                                            .scaleEffect(0.7)
+                                    } else if contactSaved {
+                                        Image(systemName: "checkmark")
+                                        Text("Saved")
+                                    } else {
+                                        Image(systemName: "person.crop.circle.badge.plus")
+                                        Text("Contacts")
+                                    }
                                 }
                                 .font(.system(size: 12, weight: .bold))
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 38)
-                                .background(Color.orange)
+                                .background(contactSaved ? Color(red: 22/255, green: 163/255, blue: 74/255) : Color.orange)
                                 .foregroundColor(.white)
                                 .cornerRadius(8)
                             }
+                            .disabled(isSavingContact)
                         }
                         
                         // 3. Status & Assigned Agent Selectors
@@ -2022,8 +2073,8 @@ struct LeadDetailSheet: View {
     }
     
     private func openCall(phone: String) {
-        let clean = phone.replacingOccurrences(of: " ", with: "")
-        if let url = URL(string: "tel://\(clean)") {
+        let clean = phone.replacingOccurrences(of: "[^0-9+]", with: "", options: .regularExpression)
+        if let url = URL(string: "tel://\(clean)"), UIApplication.shared.canOpenURL(url) {
             UIApplication.shared.open(url)
         }
     }
@@ -2072,14 +2123,21 @@ struct LeadDetailSheet: View {
     }
     
     private func saveToContacts() {
+        guard !isSavingContact else { return }
+        isSavingContact = true
+        
         ContactHelper.shared.saveContact(
             fullName: lead.name,
             phone: lead.phone,
             email: lead.email,
             company: lead.company,
-            note: "LetsTrack Lead (\(lead.status)) - Deal: ₹\(Int(lead.dealValue ?? 0))"
+            note: nil
         ) { success, message in
             DispatchQueue.main.async {
+                self.isSavingContact = false
+                if success {
+                    self.contactSaved = true
+                }
                 self.contactFeedback = message
             }
         }
@@ -2100,20 +2158,1234 @@ struct LeadDetailSheet: View {
     }
 }
 
+// MARK: - META ADS & CAMPAIGN MANAGEMENT SUB-VIEW
+struct MetaAdsTab: View {
+    @StateObject private var networkClient = NetworkClient.shared
+    @EnvironmentObject var theme: ThemeManager
+    
+    @State private var adAccounts: [AdAccountDto] = []
+    @State private var selectedAccount: AdAccountDto? = nil
+    @State private var campaigns: [AdCampaignDto] = []
+    @State private var isLoading = false
+    @State private var isSyncing = false
+    @State private var syncToastMessage: String? = nil
+    
+    // Filters & Search
+    @State private var selectedStatus = "All"
+    @State private var selectedObjective = "All"
+    @State private var searchText = ""
+    
+    // Modals
+    @State private var showCreateSheet = false
+    @State private var selectedCampaignForBudget: AdCampaignDto? = nil
+    @State private var newBudgetValue: String = ""
+    @State private var isUpdatingBudget = false
+    @State private var expandedCampaignIds: Set<String> = []
+    
+    let statuses = ["All", "ACTIVE", "PAUSED"]
+    let objectives = ["All", "LEAD_GENERATION", "MESSAGES", "CONVERSIONS"]
+    
+    var filteredCampaigns: [AdCampaignDto] {
+        campaigns.filter { camp in
+            let matchesStatus = selectedStatus == "All" || camp.status == selectedStatus
+            let matchesObj = selectedObjective == "All" || (camp.objective ?? "") == selectedObjective
+            let matchesSearch = searchText.isEmpty ||
+                camp.name.localizedCaseInsensitiveContains(searchText) ||
+                (camp.adSet?.name?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+                (camp.adCreative?.headline?.localizedCaseInsensitiveContains(searchText) ?? false)
+            return matchesStatus && matchesObj && matchesSearch
+        }
+    }
+    
+    var totalSpend: Double {
+        campaigns.reduce(0.0) { sum, camp in
+            let cleaned = (camp.spend ?? "").replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+            return sum + (Double(cleaned) ?? 0.0)
+        }
+    }
+    
+    var totalImpressions: Int {
+        campaigns.reduce(0) { $0 + ($1.impressions ?? 0) }
+    }
+    
+    var totalClicks: Int {
+        campaigns.reduce(0) { $0 + ($1.clicks ?? 0) }
+    }
+    
+    var totalConversions: Int {
+        campaigns.reduce(0) { $0 + ($1.conversions ?? 0) }
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                
+                // 1. Top Header
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text("Meta Ads Manager")
+                                .font(.system(size: 24, weight: .black))
+                                .foregroundColor(theme.onSurfaceColor)
+                            
+                            Text("v26.0 LIVE")
+                                .font(.system(size: 9, weight: .black))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color(red: 0, green: 129/255, blue: 251/255).opacity(0.15))
+                                .foregroundColor(Color(red: 0, green: 129/255, blue: 251/255))
+                                .cornerRadius(4)
+                        }
+                        
+                        Text("Live campaigns, ad sets, and instant leadgen attribution")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                    
+                    Spacer()
+                    
+                    // Sync Button
+                    Button(action: syncAds) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                            .padding(9)
+                            .background(theme.inputBackground)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(theme.borderColor, lineWidth: 1))
+                            .rotationEffect(.degrees(isSyncing ? 360 : 0))
+                            .animation(isSyncing ? Animation.linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isSyncing)
+                    }
+                    .disabled(isSyncing)
+                    
+                    // + Launch Campaign Button
+                    Button(action: { showCreateSheet = true }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 12, weight: .bold))
+                            Text("Launch Ad")
+                                .font(.system(size: 12, weight: .bold))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            LinearGradient(
+                                colors: [Color(red: 0, green: 129/255, blue: 251/255), Color(red: 219/255, green: 39/255, blue: 119/255)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                        .shadow(color: Color(red: 0, green: 129/255, blue: 251/255).opacity(0.3), radius: 6, y: 3)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 12)
+                
+                // Sync Toast Banner
+                if let msg = syncToastMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text(msg)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(Color.green.opacity(0.12))
+                    .cornerRadius(8)
+                    .padding(.horizontal)
+                }
+                
+                // 2. Active Meta Ad Account Card
+                adAccountHeaderCard
+                    .padding(.horizontal)
+                
+                // 3. KPI Performance Metrics Grid
+                kpiMetricsSection
+                    .padding(.horizontal)
+                
+                // 4. Search & Filter Toolbars
+                filterToolbar
+                    .padding(.horizontal)
+                
+                // 5. Campaign Cards List
+                if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                } else if filteredCampaigns.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "megaphone")
+                            .font(.system(size: 40))
+                            .foregroundColor(theme.textGrayColor.opacity(0.5))
+                        Text("No campaigns found")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        Text("Launch your first Meta Ad campaign to start capturing high-intent leads 24/7.")
+                            .font(.system(size: 13))
+                            .foregroundColor(theme.textGrayColor)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                        
+                        Button(action: { showCreateSheet = true }) {
+                            Text("Launch New Campaign")
+                                .font(.system(size: 13, weight: .bold))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color(red: 0, green: 129/255, blue: 251/255))
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                } else {
+                    LazyVStack(spacing: 12) {
+                        ForEach(filteredCampaigns) { camp in
+                            campaignCard(camp: camp)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+            .padding(.bottom, 30)
+        }
+        .refreshable {
+            loadData()
+        }
+        .onAppear(perform: loadData)
+        .sheet(isPresented: $showCreateSheet) {
+            CreateCampaignSheet(isPresented: $showCreateSheet, onCreated: { newCamp in
+                campaigns.insert(newCamp, at: 0)
+            })
+            .environmentObject(theme)
+        }
+        .sheet(item: $selectedCampaignForBudget) { camp in
+            budgetEditSheet(camp: camp)
+                .environmentObject(theme)
+        }
+    }
+    
+    // MARK: - SUB-VIEWS
+    private var adAccountHeaderCard: some View {
+        let acc = selectedAccount ?? adAccounts.first
+        
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "briefcase.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(red: 0, green: 129/255, blue: 251/255))
+                    
+                    Text(acc?.name ?? "LetsTrack Enterprise Ad Account")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+                
+                if adAccounts.count > 1 {
+                    Menu {
+                        ForEach(adAccounts) { a in
+                            Button(a.name) {
+                                selectedAccount = a
+                                loadCampaignsForAccount(a.id)
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("Switch")
+                            Image(systemName: "chevron.up.chevron.down")
+                        }
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Color(red: 0, green: 129/255, blue: 251/255))
+                    }
+                }
+            }
+            
+            HStack {
+                Text("ID: \(acc?.id ?? "act_1394810294820")")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(theme.textGrayColor)
+                
+                Spacer()
+                
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 6, height: 6)
+                    Text("ACTIVE (\(acc?.currency ?? "INR"))")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundColor(Color.green)
+                }
+            }
+            
+            Divider().background(theme.borderColor)
+            
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("AVAILABLE BALANCE")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(theme.textGrayColor)
+                    Text(acc?.balance ?? "₹24,500")
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundColor(Color(red: 22/255, green: 163/255, blue: 74/255))
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("TOTAL SPENT")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(theme.textGrayColor)
+                    Text(acc?.totalSpent ?? "₹14,850")
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundColor(theme.onSurfaceColor)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("SPEND CAP")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(theme.textGrayColor)
+                    Text(acc?.spendCap ?? "₹100,000")
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundColor(theme.textGrayColor)
+                }
+            }
+        }
+        .padding(14)
+        .background(theme.surfaceColor)
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    private var kpiMetricsSection: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                metaStatCard(
+                    title: "Total Ad Spend",
+                    value: "₹\(Int(totalSpend).formattedWithCommas())",
+                    subtext: "\(campaigns.count) Active Campaigns",
+                    color: Color(red: 220/255, green: 38/255, blue: 38/255),
+                    icon: "indianrupeesign.circle.fill"
+                )
+                
+                metaStatCard(
+                    title: "Reach & Impressions",
+                    value: "\(totalImpressions.formattedWithCommas())",
+                    subtext: "\(campaigns.reduce(0) { $0 + ($1.reach ?? 0) }.formattedWithCommas()) reach",
+                    color: Color(red: 0, green: 129/255, blue: 251/255),
+                    icon: "eye.fill"
+                )
+                
+                metaStatCard(
+                    title: "Total Link Clicks",
+                    value: "\(totalClicks.formattedWithCommas())",
+                    subtext: "Avg CTR: 5.48%",
+                    color: Color(red: 147/255, green: 51/255, blue: 234/255),
+                    icon: "cursorarrow.rays"
+                )
+                
+                metaStatCard(
+                    title: "Inbound Leads",
+                    value: "\(totalConversions)",
+                    subtext: "Avg CPL: ₹42 / lead",
+                    color: Color(red: 22/255, green: 163/255, blue: 74/255),
+                    icon: "person.crop.circle.badge.checkmark"
+                )
+            }
+        }
+    }
+    
+    private func metaStatCard(title: String, value: String, subtext: String, color: Color, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(theme.textGrayColor)
+                    .textCase(.uppercase)
+                Spacer()
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .foregroundColor(color)
+            }
+            
+            Text(value)
+                .font(.system(size: 20, weight: .black))
+                .foregroundColor(color)
+            
+            Text(subtext)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(theme.textGrayColor)
+                .lineLimit(1)
+        }
+        .padding(14)
+        .frame(width: 175)
+        .background(theme.surfaceColor)
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    private var filterToolbar: some View {
+        VStack(spacing: 10) {
+            // Search Bar
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(theme.textGrayColor)
+                TextField("Search campaigns, ad sets, headlines...", text: $searchText)
+                    .font(.system(size: 13))
+                    .foregroundColor(theme.onSurfaceColor)
+                if !searchText.isEmpty {
+                    Button(action: { searchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                }
+            }
+            .padding(10)
+            .background(theme.inputBackground)
+            .cornerRadius(10)
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+            
+            // Objective & Status Filter Chips
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(["All", "LEAD_GENERATION", "MESSAGES", "CONVERSIONS"], id: \.self) { obj in
+                        Button(action: { selectedObjective = obj }) {
+                            Text(formatObjective(obj))
+                                .font(.system(size: 11, weight: .bold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(selectedObjective == obj ? Color(red: 0, green: 129/255, blue: 251/255) : theme.inputBackground)
+                                .foregroundColor(selectedObjective == obj ? .white : theme.textGrayColor)
+                                .cornerRadius(8)
+                        }
+                    }
+                    
+                    Divider().frame(height: 18).background(theme.borderColor)
+                    
+                    ForEach(statuses, id: \.self) { st in
+                        Button(action: { selectedStatus = st }) {
+                            Text(st == "All" ? "All Status" : st)
+                                .font(.system(size: 11, weight: .bold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(selectedStatus == st ? theme.primaryColor : theme.inputBackground)
+                                .foregroundColor(selectedStatus == st ? .white : theme.textGrayColor)
+                                .cornerRadius(8)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func campaignCard(camp: AdCampaignDto) -> some View {
+        let isExpanded = expandedCampaignIds.contains(camp.id)
+        let isActive = camp.status == "ACTIVE"
+        
+        return VStack(alignment: .leading, spacing: 12) {
+            // Row 1: Objective Chip + Status Toggle + Menu
+            HStack {
+                objectiveBadge(camp.objective ?? "LEAD_GENERATION")
+                
+                Spacer()
+                
+                Button(action: { toggleCampaign(campaign: camp) }) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(isActive ? Color.green : Color.orange)
+                            .frame(width: 6, height: 6)
+                        Text(isActive ? "ACTIVE" : "PAUSED")
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundColor(isActive ? Color.green : Color.orange)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(isActive ? Color.green.opacity(0.12) : Color.orange.opacity(0.12))
+                    .cornerRadius(6)
+                }
+                
+                Menu {
+                    Button(action: { toggleCampaign(campaign: camp) }) {
+                        Label(isActive ? "Pause Campaign" : "Resume Campaign", systemImage: isActive ? "pause.fill" : "play.fill")
+                    }
+                    
+                    Button(action: {
+                        selectedCampaignForBudget = camp
+                        newBudgetValue = "\(Int(camp.rawDailyBudget ?? 500))"
+                    }) {
+                        Label("Adjust Daily Budget", systemImage: "indianrupeesign.circle")
+                    }
+                    
+                    Button(role: .destructive, action: { deleteCampaign(campaign: camp) }) {
+                        Label("Archive Campaign", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(theme.textGrayColor)
+                        .padding(6)
+                }
+            }
+            
+            // Row 2: Campaign Name
+            Text(camp.name)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(theme.onSurfaceColor)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            // Row 3: Daily Budget + Quick Stats
+            HStack(spacing: 12) {
+                Button(action: {
+                    selectedCampaignForBudget = camp
+                    newBudgetValue = "\(Int(camp.rawDailyBudget ?? 500))"
+                }) {
+                    HStack(spacing: 3) {
+                        Text(camp.dailyBudget ?? "₹500 / day")
+                            .font(.system(size: 12, weight: .black))
+                            .foregroundColor(Color(red: 0, green: 129/255, blue: 251/255))
+                        Image(systemName: "pencil")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color(red: 0, green: 129/255, blue: 251/255))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(red: 0, green: 129/255, blue: 251/255).opacity(0.1))
+                    .cornerRadius(6)
+                }
+                
+                Spacer()
+                
+                if let clicks = camp.clicks, clicks > 0 {
+                    Text("🎯 \(clicks) Clicks (\(camp.ctr ?? "0%"))")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(theme.textGrayColor)
+                }
+                
+                if let conv = camp.conversions, conv > 0 {
+                    Text("⚡ \(conv) Leads")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundColor(Color(red: 22/255, green: 163/255, blue: 74/255))
+                }
+            }
+            
+            // Row 4: Metrics Bar
+            HStack(spacing: 8) {
+                metricPill(label: "Impressions", value: "\(camp.impressions?.formattedWithCommas() ?? "0")")
+                metricPill(label: "Spend", value: camp.spend ?? "₹0")
+                metricPill(label: "CPC", value: camp.cpc ?? "₹0")
+            }
+            
+            // Expand/Collapse Toggle Button
+            Button(action: {
+                withAnimation(.spring()) {
+                    if isExpanded {
+                        expandedCampaignIds.remove(camp.id)
+                    } else {
+                        expandedCampaignIds.insert(camp.id)
+                    }
+                }
+            }) {
+                HStack {
+                    Text(isExpanded ? "Hide Ad Set & Creative Details" : "View Ad Set & Creative Preview")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Color(red: 0, green: 129/255, blue: 251/255))
+                    
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(Color(red: 0, green: 129/255, blue: 251/255))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(theme.inputBackground)
+                .cornerRadius(6)
+            }
+            
+            // Expanded Section: Ad Set & Creative Preview
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    Divider().background(theme.borderColor)
+                    
+                    // Ad Set Targeting
+                    if let adSet = camp.adSet {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("AD SET TARGETING")
+                                .font(.system(size: 10, weight: .black))
+                                .foregroundColor(theme.textGrayColor)
+                            
+                            if let name = adSet.name {
+                                Text("🎯 \(name)")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                            }
+                            
+                            if let locs = adSet.locations, !locs.isEmpty {
+                                HStack(alignment: .top, spacing: 4) {
+                                    Text("📍")
+                                    Text(locs.joined(separator: ", "))
+                                        .font(.system(size: 11))
+                                        .foregroundColor(theme.textGrayColor)
+                                }
+                            }
+                            
+                            if let interests = adSet.interests, !interests.isEmpty {
+                                HStack(alignment: .top, spacing: 4) {
+                                    Text("💡")
+                                    Text(interests.joined(separator: " • "))
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(Color(red: 147/255, green: 51/255, blue: 234/255))
+                                }
+                            }
+                            
+                            if let placements = adSet.placements, !placements.isEmpty {
+                                HStack(alignment: .top, spacing: 4) {
+                                    Text("📱")
+                                    Text(placements.joined(separator: " • "))
+                                        .font(.system(size: 11))
+                                        .foregroundColor(theme.textGrayColor)
+                                }
+                            }
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(theme.inputBackground)
+                        .cornerRadius(8)
+                    }
+                    
+                    // Ad Creative Preview
+                    if let creative = camp.adCreative {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("AD CREATIVE PREVIEW")
+                                .font(.system(size: 10, weight: .black))
+                                .foregroundColor(theme.textGrayColor)
+                            
+                            if let headline = creative.headline {
+                                Text(headline)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                            }
+                            
+                            if let copy = creative.primaryText {
+                                Text(copy)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(theme.textGrayColor)
+                            }
+                            
+                            if let imgUrl = creative.previewImage, let url = URL(string: imgUrl) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(height: 120)
+                                            .clipped()
+                                            .cornerRadius(8)
+                                    default:
+                                        Color.gray.opacity(0.2)
+                                            .frame(height: 120)
+                                            .cornerRadius(8)
+                                    }
+                                }
+                            }
+                            
+                            HStack {
+                                Text("Destination: \(creative.destination ?? "Instagram Direct")")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(theme.textGrayColor)
+                                
+                                Spacer()
+                                
+                                Text(creative.callToAction ?? "Send Message")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color(red: 0, green: 129/255, blue: 251/255))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(6)
+                            }
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(theme.inputBackground)
+                        .cornerRadius(8)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(theme.surfaceColor)
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    private func metricPill(label: String, value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(label.uppercased())
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(theme.textGrayColor)
+            Text(value)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(theme.onSurfaceColor)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .background(theme.inputBackground)
+        .cornerRadius(6)
+    }
+    
+    private func objectiveBadge(_ objective: String) -> some View {
+        let (title, color) = getObjectiveInfo(objective)
+        return Text(title)
+            .font(.system(size: 10, weight: .black))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.12))
+            .foregroundColor(color)
+            .cornerRadius(4)
+    }
+    
+    private func getObjectiveInfo(_ objective: String) -> (String, Color) {
+        switch objective {
+        case "LEAD_GENERATION":
+            return ("🎯 LEAD GENERATION", Color(red: 219/255, green: 39/255, blue: 119/255))
+        case "MESSAGES":
+            return ("💬 CLICK TO CHAT", Color(red: 0, green: 129/255, blue: 251/255))
+        case "CONVERSIONS":
+            return ("🔥 CONVERSIONS", Color(red: 22/255, green: 163/255, blue: 74/255))
+        default:
+            return (objective, theme.primaryColor)
+        }
+    }
+    
+    private func formatObjective(_ obj: String) -> String {
+        switch obj {
+        case "All": return "All Types"
+        case "LEAD_GENERATION": return "🎯 Lead Gen"
+        case "MESSAGES": return "💬 Messages"
+        case "CONVERSIONS": return "🔥 Conversions"
+        default: return obj
+        }
+    }
+    
+    private func budgetEditSheet(camp: AdCampaignDto) -> some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Update Daily Budget")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(theme.onSurfaceColor)
+                
+                Text("Campaign: \(camp.name)")
+                    .font(.system(size: 12))
+                    .foregroundColor(theme.textGrayColor)
+                
+                TextField("Daily Budget in INR (e.g. 750)", text: $newBudgetValue)
+                    .keyboardType(.numberPad)
+                    .padding(12)
+                    .background(theme.inputBackground)
+                    .foregroundColor(theme.onSurfaceColor)
+                    .cornerRadius(10)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+                
+                HStack(spacing: 8) {
+                    ForEach([250, 500, 1000, 2500], id: \.self) { amount in
+                        Button("₹\(amount)") {
+                            newBudgetValue = "\(amount)"
+                        }
+                        .font(.system(size: 12, weight: .bold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(newBudgetValue == "\(amount)" ? Color(red: 0, green: 129/255, blue: 251/255) : theme.inputBackground)
+                        .foregroundColor(newBudgetValue == "\(amount)" ? .white : theme.onSurfaceColor)
+                        .cornerRadius(8)
+                    }
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    if let val = Double(newBudgetValue) {
+                        saveBudget(campaign: camp, newBudget: val)
+                    }
+                }) {
+                    HStack {
+                        if isUpdatingBudget {
+                            ProgressView().tint(.white)
+                        } else {
+                            Text("Save Daily Budget")
+                                .font(.system(size: 14, weight: .bold))
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Color(red: 0, green: 129/255, blue: 251/255))
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+                .disabled(isUpdatingBudget)
+            }
+            .padding(20)
+            .background(theme.backgroundColor.ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { selectedCampaignForBudget = nil }
+                }
+            }
+        }
+        .presentationDetents([.fraction(0.45)])
+    }
+    
+    // MARK: - API ACTIONS
+    private func loadData() {
+        isLoading = true
+        Task {
+            do {
+                let fetchedAccounts = try await networkClient.getAdAccounts()
+                let fetchedCampaigns = try await networkClient.getAdCampaigns()
+                await MainActor.run {
+                    self.adAccounts = fetchedAccounts
+                    if self.selectedAccount == nil {
+                        self.selectedAccount = fetchedAccounts.first
+                    }
+                    self.campaigns = fetchedCampaigns
+                    self.isLoading = false
+                }
+            } catch {
+                print("Failed to load Meta Ads data: \(error)")
+                await MainActor.run { self.isLoading = false }
+            }
+        }
+    }
+    
+    private func loadCampaignsForAccount(_ accountId: String) {
+        isLoading = true
+        Task {
+            do {
+                let fetched = try await networkClient.getAdCampaigns(accountId: accountId)
+                await MainActor.run {
+                    self.campaigns = fetched
+                    self.isLoading = false
+                }
+            } catch {
+                print("Failed to load account campaigns: \(error)")
+                await MainActor.run { self.isLoading = false }
+            }
+        }
+    }
+    
+    private func toggleCampaign(campaign: AdCampaignDto) {
+        Task {
+            do {
+                let updated = try await networkClient.toggleAdCampaignStatus(campaignId: campaign.id)
+                await MainActor.run {
+                    if let idx = campaigns.firstIndex(where: { $0.id == campaign.id }) {
+                        campaigns[idx] = updated
+                    }
+                }
+            } catch {
+                print("Failed to toggle campaign status: \(error)")
+            }
+        }
+    }
+    
+    private func saveBudget(campaign: AdCampaignDto, newBudget: Double) {
+        isUpdatingBudget = true
+        Task {
+            do {
+                let updated = try await networkClient.updateAdCampaignBudget(campaignId: campaign.id, dailyBudget: newBudget)
+                await MainActor.run {
+                    if let idx = campaigns.firstIndex(where: { $0.id == campaign.id }) {
+                        campaigns[idx] = updated
+                    }
+                    self.isUpdatingBudget = false
+                    self.selectedCampaignForBudget = nil
+                }
+            } catch {
+                print("Failed to update daily budget: \(error)")
+                await MainActor.run { self.isUpdatingBudget = false }
+            }
+        }
+    }
+    
+    private func deleteCampaign(campaign: AdCampaignDto) {
+        Task {
+            do {
+                try await networkClient.deleteAdCampaign(campaignId: campaign.id)
+                await MainActor.run {
+                    campaigns.removeAll(where: { $0.id == campaign.id })
+                }
+            } catch {
+                print("Failed to delete campaign: \(error)")
+            }
+        }
+    }
+    
+    private func syncAds() {
+        isSyncing = true
+        Task {
+            do {
+                let msg = try await networkClient.syncMetaAds()
+                let fetched = try await networkClient.getAdCampaigns()
+                await MainActor.run {
+                    self.campaigns = fetched
+                    self.isSyncing = false
+                    withAnimation {
+                        self.syncToastMessage = msg
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        withAnimation { self.syncToastMessage = nil }
+                    }
+                }
+            } catch {
+                await MainActor.run { self.isSyncing = false }
+            }
+        }
+    }
+}
+
+// MARK: - CREATE META CAMPAIGN MODAL SHEET
+struct CreateCampaignSheet: View {
+    @Binding var isPresented: Bool
+    let onCreated: (AdCampaignDto) -> Void
+    
+    @EnvironmentObject var theme: ThemeManager
+    
+    @State private var name: String = ""
+    @State private var objective: String = "LEAD_GENERATION"
+    @State private var dailyBudget: String = "500"
+    @State private var targetLocations: String = "India (Tier 1 & 2 Metro Cities)"
+    @State private var targetInterests: String = "E-Commerce, Shopify, SaaS, Startup Founders"
+    @State private var ageRange: String = "21 - 54"
+    @State private var headline: String = "⚡ Turn Website & IG Visitors Into Paying Customers 24/7"
+    @State private var primaryText: String = "LetsTrack gives your sales team real-time visitor journey tracking, 1-click WhatsApp checkout, and seamless Instagram DM multi-agent routing."
+    @State private var callToAction: String = "Send Instagram Message"
+    @State private var destination: String = "Instagram Direct / WhatsApp"
+    @State private var targetUrl: String = "https://letstrack.manacity.in/#pricing"
+    @State private var previewImage: String = "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=80"
+    
+    @State private var isLoading = false
+    @State private var errorMessage = ""
+    
+    let objectives = [
+        ("LEAD_GENERATION", "🎯 Lead Generation", "Instant Meta Forms"),
+        ("MESSAGES", "💬 Messages", "Click to WhatsApp / IG Direct"),
+        ("CONVERSIONS", "🔥 Conversions", "Website Checkout / Signup")
+    ]
+    
+    let ctaOptions = [
+        "Send Instagram Message",
+        "Send WhatsApp Message",
+        "Learn More",
+        "Get Quote",
+        "Sign Up"
+    ]
+    
+    let imagePresets = [
+        ("SaaS Live Chat", "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=80"),
+        ("E-Commerce Growth", "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&auto=format&fit=crop&q=80"),
+        ("Customer Support", "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=800&auto=format&fit=crop&q=80"),
+        ("Mobile Telemetry", "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&auto=format&fit=crop&q=80")
+    ]
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                theme.backgroundColor.ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .font(.system(size: 12))
+                                .foregroundColor(.red)
+                                .padding(10)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(8)
+                        }
+                        
+                        // 1. Campaign Name & Objective
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Campaign Name *")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                            TextField("e.g. Diwali Live Chat Trial Promo 2026", text: $name)
+                                .padding(12)
+                                .background(theme.inputBackground)
+                                .foregroundColor(theme.onSurfaceColor)
+                                .cornerRadius(10)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Campaign Objective")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                            
+                            VStack(spacing: 8) {
+                                ForEach(objectives, id: \.0) { item in
+                                    Button(action: {
+                                        objective = item.0
+                                        if item.0 == "MESSAGES" {
+                                            callToAction = "Send Instagram Message"
+                                            destination = "Instagram Direct / WhatsApp"
+                                        }
+                                    }) {
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(item.1)
+                                                    .font(.system(size: 13, weight: .bold))
+                                                    .foregroundColor(objective == item.0 ? Color(red: 0, green: 129/255, blue: 251/255) : theme.onSurfaceColor)
+                                                Text(item.2)
+                                                    .font(.system(size: 11))
+                                                    .foregroundColor(theme.textGrayColor)
+                                            }
+                                            Spacer()
+                                            if objective == item.0 {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .foregroundColor(Color(red: 0, green: 129/255, blue: 251/255))
+                                            }
+                                        }
+                                        .padding(12)
+                                        .background(objective == item.0 ? Color(red: 0, green: 129/255, blue: 251/255).opacity(0.1) : theme.inputBackground)
+                                        .cornerRadius(10)
+                                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(objective == item.0 ? Color(red: 0, green: 129/255, blue: 251/255) : theme.borderColor, lineWidth: 1))
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 2. Daily Budget
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Daily Budget (INR)")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                            
+                            TextField("500", text: $dailyBudget)
+                                .keyboardType(.numberPad)
+                                .padding(12)
+                                .background(theme.inputBackground)
+                                .foregroundColor(theme.onSurfaceColor)
+                                .cornerRadius(10)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+                            
+                            HStack(spacing: 8) {
+                                ForEach(["250", "500", "1000", "2500"], id: \.self) { preset in
+                                    Button("₹\(preset)/day") { dailyBudget = preset }
+                                        .font(.system(size: 11, weight: .bold))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(dailyBudget == preset ? Color(red: 0, green: 129/255, blue: 251/255) : theme.inputBackground)
+                                        .foregroundColor(dailyBudget == preset ? .white : theme.onSurfaceColor)
+                                        .cornerRadius(6)
+                                }
+                            }
+                        }
+                        
+                        // 3. Targeting & Demographics
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Target Locations")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                            TextField("e.g. India (Tier 1 Metros)", text: $targetLocations)
+                                .padding(12)
+                                .background(theme.inputBackground)
+                                .foregroundColor(theme.onSurfaceColor)
+                                .cornerRadius(10)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Audience Interests & Keywords")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                            TextField("e.g. Shopify, SaaS, Startups, Digital Marketing", text: $targetInterests)
+                                .padding(12)
+                                .background(theme.inputBackground)
+                                .foregroundColor(theme.onSurfaceColor)
+                                .cornerRadius(10)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+                        }
+                        
+                        // 4. Creative Copy & Visuals
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Ad Headline")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                            TextField("Headline copy", text: $headline)
+                                .padding(12)
+                                .background(theme.inputBackground)
+                                .foregroundColor(theme.onSurfaceColor)
+                                .cornerRadius(10)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Primary Text / Ad Copy")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                            TextField("Ad description copy...", text: $primaryText)
+                                .padding(12)
+                                .background(theme.inputBackground)
+                                .foregroundColor(theme.onSurfaceColor)
+                                .cornerRadius(10)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Call To Action Button")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                            Picker("CTA", selection: $callToAction) {
+                                ForEach(ctaOptions, id: \.self) { cta in
+                                    Text(cta).tag(cta)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(theme.inputBackground)
+                            .cornerRadius(10)
+                        }
+                        
+                        // Image Presets
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Creative Preview Template")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                            
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(imagePresets, id: \.1) { preset in
+                                        Button(action: { previewImage = preset.1 }) {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                if let url = URL(string: preset.1) {
+                                                    AsyncImage(url: url) { ph in
+                                                        if let img = ph.image {
+                                                            img.resizable().aspectRatio(contentMode: .fill).frame(width: 90, height: 60).clipped().cornerRadius(6)
+                                                        } else {
+                                                            Color.gray.opacity(0.3).frame(width: 90, height: 60).cornerRadius(6)
+                                                        }
+                                                    }
+                                                }
+                                                Text(preset.0)
+                                                    .font(.system(size: 10, weight: .bold))
+                                                    .foregroundColor(previewImage == preset.1 ? Color(red: 0, green: 129/255, blue: 251/255) : theme.onSurfaceColor)
+                                                    .lineLimit(1)
+                                            }
+                                            .padding(6)
+                                            .background(previewImage == preset.1 ? Color(red: 0, green: 129/255, blue: 251/255).opacity(0.1) : theme.inputBackground)
+                                            .cornerRadius(8)
+                                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(previewImage == preset.1 ? Color(red: 0, green: 129/255, blue: 251/255) : theme.borderColor, lineWidth: 1))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Submit Button
+                        Button(action: publishCampaign) {
+                            HStack {
+                                if isLoading {
+                                    ProgressView().tint(.white)
+                                } else {
+                                    Image(systemName: "paperplane.fill")
+                                    Text("🚀 Launch Campaign on Meta")
+                                        .font(.system(size: 14, weight: .bold))
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(red: 0, green: 129/255, blue: 251/255), Color(red: 219/255, green: 39/255, blue: 119/255)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                            .shadow(color: Color(red: 0, green: 129/255, blue: 251/255).opacity(0.3), radius: 6, y: 3)
+                        }
+                        .disabled(isLoading)
+                        .padding(.top, 10)
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationTitle("Launch Meta Ad")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { isPresented = false }
+                }
+            }
+        }
+    }
+    
+    private func publishCampaign() {
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
+            errorMessage = "Campaign name is required."
+            return
+        }
+        
+        isLoading = true
+        errorMessage = ""
+        
+        let locationsArr = targetLocations.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let interestsArr = targetInterests.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        
+        let req = CreateCampaignRequest(
+            accountId: nil,
+            name: name.trimmingCharacters(in: .whitespaces),
+            objective: objective,
+            dailyBudget: Double(dailyBudget) ?? 500,
+            targetUrl: targetUrl,
+            adSetName: "\(name.trimmingCharacters(in: .whitespaces)) - Ad Set 1",
+            locations: locationsArr.isEmpty ? ["India (Tier 1 Metros)"] : locationsArr,
+            ageRange: ageRange,
+            interests: interestsArr.isEmpty ? ["SaaS", "E-Commerce", "Startups"] : interestsArr,
+            placements: ["Instagram Reels", "Instagram Feed", "Facebook Feed", "Messenger Inbox"],
+            headline: headline,
+            primaryText: primaryText,
+            callToAction: callToAction,
+            destination: destination,
+            previewImage: previewImage
+        )
+        
+        Task {
+            do {
+                let created = try await NetworkClient.shared.createAdCampaign(request: req)
+                await MainActor.run {
+                    self.isLoading = false
+                    self.onCreated(created)
+                    self.isPresented = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.isLoading = false
+                    self.errorMessage = "Failed to launch campaign: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+}
+
 // MARK: - TRAFFIC SUB-VIEW (Radar)
 struct TrafficTab: View {
     @StateObject private var socketManager = SocketManager.shared
     @EnvironmentObject var theme: ThemeManager
     
     let onNavigateToChat: (String, String, String) -> Void
-    
-    var onlineVisitors: [VisitorDto] {
-        socketManager.visitorsList.filter { $0.isOnline }
-    }
-    
-    var offlineVisitors: [VisitorDto] {
-        socketManager.visitorsList.filter { !$0.isOnline }
-    }
+    @State private var topUrls: [TopUrlAnalyticsDto] = []
+    @State private var isLoadingTopUrls = false
     
     var body: some View {
         ScrollView {
@@ -2129,6 +3401,14 @@ struct TrafficTab: View {
                 }
                 .padding(.top, 12)
                 
+                // Top 5 High-Converting URLs Card
+                topUrlsAnalyticsCard
+                
+                Text("CURRENT BROWSING SESSIONS (\(socketManager.visitorsList.count))")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(theme.textGrayColor)
+                    .padding(.top, 4)
+                
                 if socketManager.visitorsList.isEmpty {
                     Text("No visitors active.")
                         .foregroundColor(theme.textGrayColor)
@@ -2136,72 +3416,195 @@ struct TrafficTab: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 60)
                 } else {
-                    if !onlineVisitors.isEmpty {
-                        Text("Active Online (\(onlineVisitors.count))")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(theme.statusOnlineColor)
-                        
-                        ForEach(onlineVisitors) { visitor in
-                            visitorCard(visitor: visitor)
-                        }
-                    }
-                    
-                    if !offlineVisitors.isEmpty {
-                        Text("Recent Sessions (\(offlineVisitors.count))")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(theme.textGrayColor)
-                            .padding(.top, 8)
-                        
-                        ForEach(offlineVisitors) { visitor in
-                            visitorCard(visitor: visitor)
-                        }
+                    ForEach(socketManager.visitorsList) { visitor in
+                        visitorCard(visitor: visitor)
                     }
                 }
             }
             .padding(.horizontal)
             .padding(.bottom, 24)
         }
+        .refreshable {
+            loadTopUrls()
+        }
+        .onAppear {
+            loadTopUrls()
+        }
+    }
+    
+    private var topUrlsAnalyticsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("📍 TOP 5 HIGH-CONVERTING URLS")
+                    .font(.system(size: 11, weight: .black))
+                    .foregroundColor(theme.primaryColor)
+                Spacer()
+                if isLoadingTopUrls {
+                    ProgressView().scaleEffect(0.6)
+                }
+            }
+            
+            if topUrls.isEmpty && !isLoadingTopUrls {
+                Text("No URL performance metrics recorded yet.")
+                    .font(.system(size: 12))
+                    .foregroundColor(theme.textGrayColor)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(topUrls) { urlItem in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(urlItem.path)
+                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                    .foregroundColor(theme.onSurfaceColor)
+                                    .lineLimit(1)
+                                
+                                HStack(spacing: 8) {
+                                    Text("⏱️ Dwell: \(urlItem.dwellDisplay)")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(theme.textGrayColor)
+                                    Text("👥 \(urlItem.visits) visits")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(theme.textGrayColor)
+                                }
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("\(urlItem.conversionRate)% Conv")
+                                    .font(.system(size: 11, weight: .black))
+                                    .foregroundColor(Color.green)
+                                Text("Exit: \(urlItem.exitRate)%")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(theme.textGrayColor)
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.green.opacity(0.1))
+                            .cornerRadius(6)
+                        }
+                        .padding(10)
+                        .background(theme.inputBackground)
+                        .cornerRadius(8)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(theme.surfaceColor)
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    private func loadTopUrls() {
+        isLoadingTopUrls = true
+        Task {
+            if let list = try? await NetworkClient.shared.getTopUrls() {
+                await MainActor.run {
+                    self.topUrls = list
+                    self.isLoadingTopUrls = false
+                }
+            } else {
+                await MainActor.run { self.isLoadingTopUrls = false }
+            }
+        }
     }
     
     private func visitorCard(visitor: VisitorDto) -> some View {
-        Button(action: {
-            openVisitorChat(visitor: visitor)
-        }) {
-            HStack(spacing: 12) {
-                Circle()
-                    .fill(visitor.isOnline ? theme.statusOnlineColor : theme.statusOfflineColor)
-                    .frame(width: 10, height: 10)
-                
-                VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(visitor.isOnline ? theme.statusOnlineColor : Color.gray)
+                        .frame(width: 8, height: 8)
+                    
                     Text(visitor.name)
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(theme.onSurfaceColor)
-                    
-                    Text("📍 \(visitor.city), \(visitor.country)")
-                        .font(.system(size: 11))
-                        .foregroundColor(theme.textGrayColor)
-                    
-                    Text("Url: \(visitor.currentUrl ?? "/")")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(theme.primaryColor)
-                        .lineLimit(1)
                 }
                 
                 Spacer()
                 
-                Image(systemName: "paperplane.fill")
-                    .foregroundColor(theme.primaryColor)
-                    .font(.system(size: 15))
-                    .padding(8)
+                Text(formatTimestamp(visitor.lastSeen))
+                    .font(.system(size: 11))
+                    .foregroundColor(theme.textGrayColor)
             }
-            .padding(14)
-            .background(theme.surfaceColor)
-            .cornerRadius(14)
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(theme.borderColor, lineWidth: 1)
-            )
+            
+            HStack(spacing: 12) {
+                let loc = [visitor.city, visitor.country].filter { !$0.isEmpty }.joined(separator: ", ")
+                if !loc.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.primaryColor)
+                        Text(loc)
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                }
+                
+                if !visitor.deviceType.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: visitor.deviceType.lowercased().contains("mobile") ? "iphone" : "laptopcomputer")
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.primaryColor)
+                        Text(visitor.deviceType)
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                }
+            }
+            
+            if let url = visitor.currentUrl, !url.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "link")
+                        .font(.system(size: 10))
+                        .foregroundColor(theme.primaryColor)
+                    Text(url)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(theme.primaryColor)
+                        .lineLimit(1)
+                }
+                .padding(6)
+                .background(theme.primaryColor.opacity(0.08))
+                .cornerRadius(6)
+            }
+            
+            HStack {
+                Spacer()
+                Button(action: {
+                    openVisitorChat(visitor: visitor)
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bubble.left.fill")
+                        Text("Start Chat")
+                    }
+                    .font(.system(size: 11, weight: .bold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(theme.primaryColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(6)
+                }
+            }
         }
+        .padding(14)
+        .background(theme.surfaceColor)
+        .cornerRadius(14)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(theme.borderColor, lineWidth: 1)
+        )
+    }
+    
+    private func formatTimestamp(_ timestamp: String?) -> String {
+        guard let timestamp = timestamp, !timestamp.isEmpty else { return "Just now" }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: timestamp) {
+            let rel = RelativeDateTimeFormatter()
+            rel.unitsStyle = .abbreviated
+            return rel.localizedString(for: date, relativeTo: Date())
+        }
+        return timestamp
     }
     
     private func openVisitorChat(visitor: VisitorDto) {
@@ -2535,25 +3938,69 @@ struct AddAgentSheet: View {
     }
 }
 
-// MARK: - SETTINGS SUB-VIEW
+// MARK: - COMPREHENSIVE DYNAMIC SETTINGS HUB
 struct SettingsTab: View {
+    var onNavigateToAds: (() -> Void)? = nil
+    
     @StateObject private var networkClient = NetworkClient.shared
     @StateObject private var socketManager = SocketManager.shared
     @EnvironmentObject var theme: ThemeManager
     
+    // Profile State
     @State private var nameInput = ""
     @State private var passwordInput = ""
     @State private var emailReadonly = ""
+    @State private var isSavingProfile = false
+    @State private var profileStatusMessage = ""
+    @State private var profileSuccess = false
     
-    @State private var isLoading = false
-    @State private var statusMessage = ""
-    @State private var isSuccess = false
+    // Live Chat Widget Customizer State
+    @State private var widgetSettings = WidgetSettingsDto()
+    @State private var widgetHeading = "Chat with Support"
+    @State private var widgetWelcome = "Hi there! How can we help you today?"
+    @State private var widgetPosition = "bottom-right"
+    @State private var widgetPreChat = false
+    @State private var isSavingWidget = false
+    @State private var widgetSavedToast = false
+    
+    // Quick Replies Manager State
+    @State private var quickReplies: [QuickReplyDto] = []
+    @State private var showAddQuickReply = false
+    @State private var newShortcut = ""
+    @State private var newReplyText = ""
+    @State private var isAddingReply = false
+    
+    // Upsell Pitches Manager State
+    @State private var pitchesList: [UpsellPitchDto] = []
+    @State private var showAddPitch = false
+    @State private var newPitchTitle = ""
+    @State private var newPitchBadge = "⚡ Deal"
+    @State private var newPitchSubpath = ""
+    @State private var newPitchText = ""
+    @State private var isAddingPitch = false
+    
+    // Notifications & Sound Preferences
+    @State private var pushNotificationsEnabled = true
+    @State private var newLeadSoundEnabled = true
+    @State private var quietHoursEnabled = false
+    
+    // Security & Biometrics
+    @State private var biometricLockEnabled = false
+    @State private var biometricAvailable = false
+    @State private var biometricType = "Face ID"
+    
+    // Storage & Cache
+    @State private var calculatedCacheSize = "18.4 MB"
+    @State private var cacheClearedToast = false
     
     // Meta Hub & Subscription State
     @State private var isPingingWebhook = false
     @State private var webhookPingResult: String? = nil
     @State private var tenantsList: [TenantWorkspaceDto] = []
     @State private var isLoadingTenants = false
+    
+    // Logout Alert
+    @State private var showLogoutConfirm = false
     
     var isSuperAdmin: Bool {
         networkClient.currentUser?.isSuperAdmin == true
@@ -2562,9 +4009,10 @@ struct SettingsTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                // Main Header
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
-                        Text("Workspace Settings")
+                        Text("Settings & Control Hub")
                             .font(.system(size: 24, weight: .black))
                             .foregroundColor(theme.onSurfaceColor)
                         Spacer()
@@ -2579,344 +4027,1124 @@ struct SettingsTab: View {
                         }
                     }
                     
-                    Text("Plan quotas, Meta connections, and agent profile")
+                    Text("Profile, live chat widget, branding, quick replies & notifications")
                         .font(.system(size: 13))
                         .foregroundColor(theme.textGrayColor)
                 }
                 .padding(.top, 12)
                 
-                // 1. Subscription & Plan Quota HUD (Option A)
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("SUBSCRIPTION & BILLING")
-                                .font(.system(size: 10, weight: .black))
-                                .foregroundColor(theme.primaryColor)
-                            Text("Enterprise Growth Plan")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(theme.onSurfaceColor)
-                        }
-                        Spacer()
-                        Text("ACTIVE")
-                            .font(.system(size: 10, weight: .black))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.green.opacity(0.15))
-                            .foregroundColor(.green)
-                            .cornerRadius(6)
-                    }
-                    
-                    Divider().background(theme.borderColor)
-                    
-                    VStack(spacing: 8) {
-                        HStack {
-                            Text("👥 Agent Seats")
-                                .font(.system(size: 12))
-                                .foregroundColor(theme.textGrayColor)
-                            Spacer()
-                            Text("\(socketManager.agentsList.count) / 10 Active")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(theme.onSurfaceColor)
-                        }
-                        
-                        HStack {
-                            Text("🎯 Leads Quota")
-                                .font(.system(size: 12))
-                                .foregroundColor(theme.textGrayColor)
-                            Spacer()
-                            Text("Unlimited Ingestion")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(theme.onSurfaceColor)
-                        }
-                        
-                        HStack {
-                            Text("⚡ Meta Omnichannel Sync")
-                                .font(.system(size: 12))
-                                .foregroundColor(theme.textGrayColor)
-                            Spacer()
-                            Text("Enabled & High Priority")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(Color.green)
-                        }
-                    }
-                    
-                    Button(action: openBillingPortal) {
-                        HStack {
-                            Image(systemName: "creditcard.fill")
-                            Text("Manage Plan & Invoices on Web ↗")
-                                .font(.system(size: 13, weight: .bold))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 40)
-                        .background(theme.primaryColor.opacity(0.12))
-                        .foregroundColor(theme.primaryColor)
-                        .cornerRadius(10)
-                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.primaryColor.opacity(0.3), lineWidth: 1))
-                    }
-                    .padding(.top, 4)
-                }
-                .padding(16)
-                .background(theme.surfaceColor)
-                .cornerRadius(16)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+                // 1. Account Profile Card
+                accountProfileCard
                 
-                // 2. Meta Connection Hub
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("META CONNECTION HUB")
-                                .font(.system(size: 10, weight: .black))
-                                .foregroundColor(Color(red: 219/255, green: 39/255, blue: 119/255))
-                            Text("Omnichannel Pipeline Status")
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(theme.onSurfaceColor)
-                        }
-                        Spacer()
-                    }
-                    
-                    VStack(spacing: 8) {
-                        channelRow(icon: "bubble.left.fill", title: "WhatsApp Cloud API", subtitle: "+91 98765 43210", isConnected: true, color: Color(red: 22/255, green: 163/255, blue: 74/255))
-                        channelRow(icon: "camera.fill", title: "Instagram Business DM", subtitle: "@letstrack_live", isConnected: true, color: Color(red: 225/255, green: 48/255, blue: 108/255))
-                        channelRow(icon: "person.2.fill", title: "Facebook Pages Messenger", subtitle: "LetsTrack Omnichannel", isConnected: true, color: Color(red: 24/255, green: 119/255, blue: 242/255))
-                        channelRow(icon: "message.fill", title: "Website LiveChat Widget", subtitle: "Active on letstrack.manacity.in", isConnected: true, color: theme.primaryColor)
-                    }
-                    
-                    HStack {
-                        Button(action: pingOmnichannelWebhook) {
-                            HStack(spacing: 6) {
-                                if isPingingWebhook {
-                                    ProgressView().tint(theme.primaryColor).frame(width: 14, height: 14)
-                                } else {
-                                    Image(systemName: "bolt.horizontal.fill")
-                                }
-                                Text("Test Webhook Ping")
-                                    .font(.system(size: 12, weight: .bold))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 36)
-                            .background(theme.inputBackground)
-                            .foregroundColor(theme.onSurfaceColor)
-                            .cornerRadius(8)
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
-                        }
-                        .disabled(isPingingWebhook)
-                    }
-                    
-                    if let pingResult = webhookPingResult {
-                        HStack(spacing: 6) {
-                            Circle().fill(Color.green).frame(width: 8, height: 8)
-                            Text(pingResult)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.green)
-                            Spacer()
-                        }
-                        .padding(8)
-                        .background(Color.green.opacity(0.1))
-                        .cornerRadius(6)
-                    }
-                }
-                .padding(16)
-                .background(theme.surfaceColor)
-                .cornerRadius(16)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+                // 2. Appearance & Accent Color Theme Card
+                appearanceThemeCard
                 
-                // 3. SuperAdmin Workspace Management (If SuperAdmin)
+                // 3. Live Chat Widget Customizer Card
+                liveChatWidgetCard
+                
+                // 4. Quick Replies & Canned Responses Manager
+                quickRepliesManagerCard
+                
+                // 4b. Upsell Pitch Templates Manager
+                pitchesManagerCard
+                
+                // 5. Notifications & Alerts Card
+                notificationsAlertsCard
+                
+                // 6. Omnichannel & Meta Ads Manager Card
+                metaOmnichannelCard
+                
+                // 7. Security & Biometrics Card
+                securityBiometricsCard
+                
+                // 8. Storage, Data & Cache Card
+                storageDataCard
+                
+                // 9. Subscription & Plan Quota HUD
+                subscriptionPlanCard
+                
+                // 10. SuperAdmin Workspace Management (If SuperAdmin)
                 if isSuperAdmin {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("SUPERADMIN CONSOLE")
-                                    .font(.system(size: 10, weight: .black))
-                                    .foregroundColor(Color.purple)
-                                Text("Managed Workspaces & Tenants")
-                                    .font(.system(size: 15, weight: .bold))
-                                    .foregroundColor(theme.onSurfaceColor)
-                            }
-                            Spacer()
-                            Button(action: loadSuperAdminTenants) {
-                                Image(systemName: "arrow.clockwise")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(Color.purple)
-                            }
-                        }
-                        
-                        if isLoadingTenants {
-                            HStack {
-                                Spacer()
-                                ProgressView()
-                                Spacer()
-                            }
-                            .padding(.vertical, 8)
-                        } else if tenantsList.isEmpty {
-                            Text("Current Active Tenant: \(networkClient.currentTenant?.name ?? "Main Organization") (\(networkClient.currentTenant?.domain ?? "letstrack.manacity.in"))")
-                                .font(.system(size: 12))
-                                .foregroundColor(theme.textGrayColor)
-                                .padding(10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(theme.inputBackground)
-                                .cornerRadius(8)
-                        } else {
-                            ForEach(tenantsList) { tenant in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(tenant.name)
-                                            .font(.system(size: 13, weight: .bold))
-                                            .foregroundColor(theme.onSurfaceColor)
-                                        Text(tenant.domain)
-                                            .font(.system(size: 11))
-                                            .foregroundColor(theme.textGrayColor)
-                                    }
-                                    Spacer()
-                                    if tenant.id == networkClient.currentTenant?.id {
-                                        Text("CURRENT")
-                                            .font(.system(size: 9, weight: .black))
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color.green.opacity(0.15))
-                                            .foregroundColor(.green)
-                                            .cornerRadius(4)
-                                    }
-                                }
-                                .padding(10)
-                                .background(theme.inputBackground)
-                                .cornerRadius(8)
-                            }
-                        }
-                    }
-                    .padding(16)
-                    .background(theme.surfaceColor)
-                    .cornerRadius(16)
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.purple.opacity(0.3), lineWidth: 1))
+                    superAdminConsoleCard
                 }
                 
-                // 4. Theme Configuration Card
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Theme Appearance")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(theme.onSurfaceColor)
-                    
-                    HStack(spacing: 12) {
-                        Button(action: { theme.themeMode = "light" }) {
-                            HStack {
-                                Image(systemName: "sun.max.fill")
-                                Text("Light Mode")
-                            }
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(theme.themeMode == "light" ? .white : theme.onSurfaceColor)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 42)
-                            .background(theme.themeMode == "light" ? theme.primaryColor : theme.inputBackground)
-                            .cornerRadius(10)
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
-                        }
-                        
-                        Button(action: { theme.themeMode = "dark" }) {
-                            HStack {
-                                Image(systemName: "moon.fill")
-                                Text("Dark Mode")
-                            }
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(theme.themeMode == "dark" ? .white : theme.onSurfaceColor)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 42)
-                            .background(theme.themeMode == "dark" ? theme.primaryColor : theme.inputBackground)
-                            .cornerRadius(10)
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
-                        }
-                    }
-                }
-                .padding(16)
-                .background(theme.surfaceColor)
-                .cornerRadius(16)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
-                
-                // 5. Profile Details Form Card
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Account Profile")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(theme.onSurfaceColor)
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Email")
-                            .font(.system(size: 12))
-                            .foregroundColor(theme.textGrayColor)
-                        
-                        Text(emailReadonly)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(theme.inputBackground)
-                            .foregroundColor(theme.textGrayColor)
-                            .cornerRadius(8)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Display Name")
-                            .font(.system(size: 12))
-                            .foregroundColor(theme.onSurfaceColor)
-                        
-                        TextField("", text: $nameInput)
-                            .padding()
-                            .background(theme.inputBackground)
-                            .foregroundColor(theme.onSurfaceColor)
-                            .cornerRadius(8)
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
-                            .disabled(isLoading)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Change Password")
-                            .font(.system(size: 12))
-                            .foregroundColor(theme.onSurfaceColor)
-                        
-                        SecureField("Leave blank to keep current", text: $passwordInput)
-                            .padding()
-                            .background(theme.inputBackground)
-                            .foregroundColor(theme.onSurfaceColor)
-                            .cornerRadius(8)
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
-                            .disabled(isLoading)
-                    }
-                    
-                    if !statusMessage.isEmpty {
-                        Text(statusMessage)
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(isSuccess ? Color.green : theme.secondaryColor)
-                    }
-                    
-                    Button(action: saveConfigurations) {
-                        HStack {
-                            if isLoading {
-                                ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            } else {
-                                Text("Save Changes")
-                                    .fontWeight(.bold)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 46)
-                        .background(theme.primaryColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                    }
-                    .disabled(isLoading)
-                }
-                .padding(16)
-                .background(theme.surfaceColor)
-                .cornerRadius(16)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+                // 11. About & Sign Out Button
+                aboutAndLogoutCard
             }
             .padding(.horizontal)
             .padding(.bottom, 24)
         }
+        .sheet(isPresented: $showAddQuickReply) {
+            addQuickReplySheet
+        }
+        .sheet(isPresented: $showAddPitch) {
+            addPitchSheet
+        }
+        .alert(isPresented: $showLogoutConfirm) {
+            Alert(
+                title: Text("Sign Out"),
+                message: Text("Are you sure you want to sign out of LetsTrack?"),
+                primaryButton: .destructive(Text("Sign Out")) {
+                    networkClient.clearAuth()
+                },
+                secondaryButton: .cancel()
+            )
+        }
         .onAppear {
-            if let user = networkClient.currentUser {
-                nameInput = user.name
-                emailReadonly = user.email
+            loadInitialSettings()
+        }
+    }
+    
+    // MARK: - 1. Account Profile Card
+    private var accountProfileCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [theme.primaryColor.opacity(0.3), theme.primaryColor],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 52, height: 52)
+                    .overlay(
+                        Text(String(nameInput.prefix(1)).uppercased())
+                            .font(.system(size: 22, weight: .black))
+                            .foregroundColor(.white)
+                    )
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(nameInput.isEmpty ? "Agent Profile" : nameInput)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    
+                    Text(emailReadonly)
+                        .font(.system(size: 12))
+                        .foregroundColor(theme.textGrayColor)
+                    
+                    HStack(spacing: 6) {
+                        Text(networkClient.currentUser?.role ?? "Agent")
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(theme.primaryColor.opacity(0.15))
+                            .foregroundColor(theme.primaryColor)
+                            .cornerRadius(4)
+                        
+                        Text("Active Session")
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundColor(.green)
+                            .cornerRadius(4)
+                    }
+                }
             }
-            if isSuperAdmin {
-                loadSuperAdminTenants()
+            
+            Divider().background(theme.borderColor)
+            
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Display Name")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(theme.textGrayColor)
+                    
+                    TextField("", text: $nameInput)
+                        .padding(10)
+                        .background(theme.inputBackground)
+                        .foregroundColor(theme.onSurfaceColor)
+                        .cornerRadius(8)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Change Password")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(theme.textGrayColor)
+                    
+                    SecureField("Leave blank to keep unchanged", text: $passwordInput)
+                        .padding(10)
+                        .background(theme.inputBackground)
+                        .foregroundColor(theme.onSurfaceColor)
+                        .cornerRadius(8)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                }
+                
+                if !profileStatusMessage.isEmpty {
+                    Text(profileStatusMessage)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(profileSuccess ? Color.green : Color.red)
+                }
+                
+                Button(action: saveProfileDetails) {
+                    HStack {
+                        if isSavingProfile {
+                            ProgressView().tint(.white)
+                        } else {
+                            Text("Update Profile")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .background(theme.primaryColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                }
+                .disabled(isSavingProfile)
             }
         }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    // MARK: - 2. Appearance & Accent Themes
+    private var appearanceThemeCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Appearance & Brand Styling")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(theme.onSurfaceColor)
+            
+            // Light vs Dark Mode
+            HStack(spacing: 12) {
+                Button(action: {
+                    theme.triggerHaptic(style: .medium)
+                    theme.themeMode = "light"
+                }) {
+                    HStack {
+                        Image(systemName: "sun.max.fill")
+                        Text("Light Mode")
+                    }
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(theme.themeMode == "light" ? .white : theme.onSurfaceColor)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 42)
+                    .background(theme.themeMode == "light" ? theme.primaryColor : theme.inputBackground)
+                    .cornerRadius(10)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+                }
+                
+                Button(action: {
+                    theme.triggerHaptic(style: .medium)
+                    theme.themeMode = "dark"
+                }) {
+                    HStack {
+                        Image(systemName: "moon.fill")
+                        Text("Dark Mode")
+                    }
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(theme.themeMode == "dark" ? .white : theme.onSurfaceColor)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 42)
+                    .background(theme.themeMode == "dark" ? theme.primaryColor : theme.inputBackground)
+                    .cornerRadius(10)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+                }
+            }
+            
+            // 6 Brand Accent Color Palettes
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Brand Accent Color")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(theme.textGrayColor)
+                
+                HStack(spacing: 10) {
+                    accentColorCircle(name: "red", label: "Crimson", color: Color(red: 220/255, green: 38/255, blue: 38/255))
+                    accentColorCircle(name: "blue", label: "Royal", color: Color(red: 37/255, green: 99/255, blue: 235/255))
+                    accentColorCircle(name: "emerald", label: "Emerald", color: Color(red: 16/255, green: 185/255, blue: 129/255))
+                    accentColorCircle(name: "purple", label: "Violet", color: Color(red: 124/255, green: 58/255, blue: 237/255))
+                    accentColorCircle(name: "amber", label: "Amber", color: Color(red: 245/255, green: 158/255, blue: 11/255))
+                    accentColorCircle(name: "pink", label: "Rose", color: Color(red: 236/255, green: 72/255, blue: 153/255))
+                }
+            }
+            
+            Divider().background(theme.borderColor)
+            
+            // Haptics & Sound
+            Toggle(isOn: $theme.hapticsEnabled) {
+                HStack(spacing: 6) {
+                    Image(systemName: "iphone.radiowaves.left.and.right")
+                        .foregroundColor(theme.primaryColor)
+                    Text("Haptic Feedback on Actions")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(theme.onSurfaceColor)
+                }
+            }
+            .tint(theme.primaryColor)
+            
+            Toggle(isOn: $theme.soundsEnabled) {
+                HStack(spacing: 6) {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .foregroundColor(theme.primaryColor)
+                    Text("In-App Audio Chimes")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(theme.onSurfaceColor)
+                }
+            }
+            .tint(theme.primaryColor)
+        }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    private func accentColorCircle(name: String, label: String, color: Color) -> some View {
+        Button(action: {
+            theme.accentColorKey = name
+            theme.triggerHaptic(style: .rigid)
+        }) {
+            VStack(spacing: 4) {
+                ZStack {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 36, height: 36)
+                    
+                    if theme.accentColorKey.lowercased() == name {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+                
+                Text(label)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(theme.onSurfaceColor)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
+    // MARK: - 3. Live Chat Widget Customizer Card
+    private var liveChatWidgetCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("LIVE CHAT WIDGET")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundColor(theme.primaryColor)
+                    Text("Website Chat Customizer")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                }
+                Spacer()
+            }
+            
+            // Live Preview Card
+            VStack(alignment: .leading, spacing: 8) {
+                Text("LIVE CUSTOMER PREVIEW")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(theme.textGrayColor)
+                
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(theme.primaryColor)
+                        .frame(width: 36, height: 36)
+                        .overlay(Image(systemName: "bubble.left.fill").font(.system(size: 16)).foregroundColor(.white))
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(widgetHeading.isEmpty ? "Chat with Us" : widgetHeading)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        Text(widgetWelcome.isEmpty ? "How can we assist you?" : widgetWelcome)
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.textGrayColor)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                }
+                .padding(12)
+                .background(theme.inputBackground)
+                .cornerRadius(10)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+            }
+            
+            // Config Fields
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Header Heading Text")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(theme.textGrayColor)
+                    TextField("", text: $widgetHeading)
+                        .padding(10)
+                        .background(theme.inputBackground)
+                        .foregroundColor(theme.onSurfaceColor)
+                        .cornerRadius(8)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Welcome Greeting Message")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(theme.textGrayColor)
+                    TextField("", text: $widgetWelcome)
+                        .padding(10)
+                        .background(theme.inputBackground)
+                        .foregroundColor(theme.onSurfaceColor)
+                        .cornerRadius(8)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                }
+                
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Widget Position")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(theme.textGrayColor)
+                        
+                        Picker("Position", selection: $widgetPosition) {
+                            Text("Bottom Right").tag("bottom-right")
+                            Text("Bottom Left").tag("bottom-left")
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                    }
+                }
+                
+                if widgetSavedToast {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                        Text("Widget settings synced to website!")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.green)
+                    }
+                }
+                
+                Button(action: saveWidgetCustomizations) {
+                    HStack {
+                        if isSavingWidget {
+                            ProgressView().tint(.white)
+                        } else {
+                            Text("Save & Publish Widget")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .background(theme.primaryColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                }
+                .disabled(isSavingWidget)
+            }
+        }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    // MARK: - 4. Quick Replies Manager Card
+    private var quickRepliesManagerCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("CANNED RESPONSES")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundColor(theme.primaryColor)
+                    Text("Quick Reply Templates")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                }
+                Spacer()
+                Button(action: { showAddQuickReply = true }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("Add")
+                    }
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(theme.primaryColor)
+                    .cornerRadius(6)
+                }
+            }
+            
+            if quickReplies.isEmpty {
+                Text("No quick replies configured. Add shortcuts like /welcome or /pricing to reply in 1 tap.")
+                    .font(.system(size: 12))
+                    .foregroundColor(theme.textGrayColor)
+                    .padding(.vertical, 6)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(quickReplies) { qr in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(qr.shortcut)
+                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                    .foregroundColor(theme.primaryColor)
+                                Text(qr.text)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(theme.onSurfaceColor)
+                                    .lineLimit(2)
+                            }
+                            Spacer()
+                            Button(action: {
+                                deleteQuickReplyItem(id: qr.id)
+                            }) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.red)
+                                    .padding(6)
+                            }
+                        }
+                        .padding(10)
+                        .background(theme.inputBackground)
+                        .cornerRadius(8)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    // MARK: - 4b. Upsell Pitches Manager Card
+    private var pitchesManagerCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("DEALS & OFFERS")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundColor(Color(red: 245/255, green: 158/255, blue: 11/255))
+                    Text("Upsell Pitch Templates")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                }
+                Spacer()
+                Button(action: { showAddPitch = true }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("Add Pitch")
+                    }
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color(red: 245/255, green: 158/255, blue: 11/255))
+                    .cornerRadius(6)
+                }
+            }
+            
+            if pitchesList.isEmpty {
+                Text("No upsell pitches configured yet. Add promotional pitches with custom badges.")
+                    .font(.system(size: 12))
+                    .foregroundColor(theme.textGrayColor)
+                    .padding(.vertical, 6)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(pitchesList) { p in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 6) {
+                                    Text(p.title)
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(theme.onSurfaceColor)
+                                    Text(p.badgeText)
+                                        .font(.system(size: 9, weight: .black))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color(red: 245/255, green: 158/255, blue: 11/255).opacity(0.18))
+                                        .foregroundColor(Color(red: 245/255, green: 158/255, blue: 11/255))
+                                        .cornerRadius(4)
+                                }
+                                
+                                Text(p.pitchText)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(theme.textGrayColor)
+                                    .lineLimit(2)
+                            }
+                            Spacer()
+                            Button(action: {
+                                deletePitchItem(id: p.id)
+                            }) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.red)
+                                    .padding(6)
+                            }
+                        }
+                        .padding(10)
+                        .background(theme.inputBackground)
+                        .cornerRadius(8)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    private var addPitchSheet: some View {
+        ZStack {
+            theme.backgroundColor.ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text("New Upsell Pitch Template")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(theme.onSurfaceColor)
+                    .padding(.top, 24)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Pitch Title")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.textGrayColor)
+                        TextField("e.g. 20% Growth Plan Discount", text: $newPitchTitle)
+                            .padding(10)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Badge Text")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.textGrayColor)
+                        TextField("e.g. ⚡ 20% OFF", text: $newPitchBadge)
+                            .padding(10)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Target Subpath (Optional)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.textGrayColor)
+                        TextField("/pricing", text: $newPitchSubpath)
+                            .padding(10)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Pitch Message")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.textGrayColor)
+                        TextEditor(text: $newPitchText)
+                            .frame(height: 90)
+                            .padding(6)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                    }
+                }
+                .padding(.horizontal)
+                
+                Spacer()
+                
+                HStack(spacing: 12) {
+                    Button(action: { showAddPitch = false }) {
+                        Text("Cancel")
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                    }
+                    
+                    Button(action: saveNewPitch) {
+                        HStack {
+                            if isAddingPitch {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("Save Pitch")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Color(red: 245/255, green: 158/255, blue: 11/255))
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                    .disabled(isAddingPitch || newPitchTitle.isEmpty || newPitchText.isEmpty)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 24)
+            }
+        }
+    }
+    
+    private var addQuickReplySheet: some View {
+        ZStack {
+            theme.backgroundColor.ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text("New Quick Reply")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(theme.onSurfaceColor)
+                    .padding(.top, 24)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Shortcut (e.g. /pricing)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.textGrayColor)
+                        TextField("/shortcut", text: $newShortcut)
+                            .padding(10)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Canned Message Text")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.textGrayColor)
+                        TextEditor(text: $newReplyText)
+                            .frame(height: 90)
+                            .padding(6)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                    }
+                }
+                .padding(.horizontal)
+                
+                Spacer()
+                
+                HStack(spacing: 12) {
+                    Button("Cancel") { showAddQuickReply = false }
+                        .foregroundColor(theme.textGrayColor)
+                        .frame(maxWidth: .infinity)
+                    
+                    Button(action: saveNewQuickReply) {
+                        HStack {
+                            if isAddingReply {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("Save Reply")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(theme.primaryColor)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                    .disabled(isAddingReply)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 24)
+            }
+        }
+    }
+    
+    // MARK: - 5. Notifications & Alerts Card
+    private var notificationsAlertsCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Notifications & Alerts")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(theme.onSurfaceColor)
+            
+            Toggle(isOn: $pushNotificationsEnabled) {
+                HStack(spacing: 8) {
+                    Image(systemName: "bell.badge.fill")
+                        .foregroundColor(theme.primaryColor)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Push Notifications")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        Text("Receive instant alerts for new inbound customer chats")
+                            .font(.system(size: 10))
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                }
+            }
+            .tint(theme.primaryColor)
+            
+            Toggle(isOn: $newLeadSoundEnabled) {
+                HStack(spacing: 8) {
+                    Image(systemName: "bolt.fill")
+                        .foregroundColor(Color.orange)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("New Lead Vibration & Alert")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        Text("Vibrate when a visitor converts to a sales lead")
+                            .font(.system(size: 10))
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                }
+            }
+            .tint(theme.primaryColor)
+            
+            Toggle(isOn: $quietHoursEnabled) {
+                HStack(spacing: 8) {
+                    Image(systemName: "moon.stars.fill")
+                        .foregroundColor(Color.purple)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Quiet Hours (DND)")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        Text("Silence notifications outside working schedule")
+                            .font(.system(size: 10))
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                }
+            }
+            .tint(theme.primaryColor)
+        }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    // MARK: - 6. Omnichannel & Meta Marketing
+    private var metaOmnichannelCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("OMNICHANNEL CHANNELS & ADS")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundColor(Color(red: 0, green: 129/255, blue: 251/255))
+                    Text("Marketing & Social Integrations")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                }
+                Spacer()
+            }
+            
+            if let onNavigateToAds = onNavigateToAds {
+                Button(action: onNavigateToAds) {
+                    HStack {
+                        Image(systemName: "megaphone.fill")
+                            .font(.system(size: 14))
+                        Text("Launch Meta Ads & Marketing Manager")
+                            .font(.system(size: 13, weight: .bold))
+                        Spacer()
+                        Image(systemName: "arrow.right")
+                    }
+                    .padding(12)
+                    .background(Color(red: 0, green: 129/255, blue: 251/255))
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+            }
+            
+            VStack(spacing: 8) {
+                channelRow(icon: "bubble.left.fill", title: "WhatsApp Cloud API", subtitle: "+91 98765 43210", isConnected: true, color: Color(red: 22/255, green: 163/255, blue: 74/255))
+                channelRow(icon: "camera.fill", title: "Instagram Business DM", subtitle: "@letstrack_live", isConnected: true, color: Color(red: 225/255, green: 48/255, blue: 108/255))
+                channelRow(icon: "person.2.fill", title: "Facebook Pages Messenger", subtitle: "LetsTrack Omnichannel", isConnected: true, color: Color(red: 24/255, green: 119/255, blue: 242/255))
+            }
+            
+            Button(action: pingOmnichannelWebhook) {
+                HStack(spacing: 6) {
+                    if isPingingWebhook {
+                        ProgressView().tint(theme.primaryColor).frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: "bolt.horizontal.fill")
+                    }
+                    Text("Test Webhook Roundtrip Ping")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 36)
+                .background(theme.inputBackground)
+                .foregroundColor(theme.onSurfaceColor)
+                .cornerRadius(8)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+            }
+            .disabled(isPingingWebhook)
+            
+            if let pingResult = webhookPingResult {
+                HStack(spacing: 6) {
+                    Circle().fill(Color.green).frame(width: 8, height: 8)
+                    Text(pingResult)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.green)
+                    Spacer()
+                }
+                .padding(8)
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(6)
+            }
+        }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    // MARK: - 7. Security & Biometrics
+    private var securityBiometricsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Security & Privacy")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(theme.onSurfaceColor)
+            
+            Toggle(isOn: $biometricLockEnabled) {
+                HStack(spacing: 8) {
+                    Image(systemName: biometricType == "Face ID" ? "faceid" : "touchid")
+                        .foregroundColor(theme.primaryColor)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("\(biometricType) App Lock")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        Text("Require biometric authentication when opening the app")
+                            .font(.system(size: 10))
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                }
+            }
+            .tint(theme.primaryColor)
+            .onChange(of: biometricLockEnabled) { enabled in
+                UserDefaults.standard.set(enabled, forKey: "biometric_lock_enabled")
+                theme.triggerHaptic(style: .medium)
+            }
+        }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    // MARK: - 8. Storage, Data & Cache
+    private var storageDataCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Data & Media Storage")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(theme.onSurfaceColor)
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Temporary Media Cache")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    Text("Photos and thumbnails stored on this device")
+                        .font(.system(size: 10))
+                        .foregroundColor(theme.textGrayColor)
+                }
+                Spacer()
+                Text(calculatedCacheSize)
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .foregroundColor(theme.primaryColor)
+            }
+            
+            if cacheClearedToast {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                    Text("Cache cleared successfully!")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.green)
+                }
+            }
+            
+            Button(action: clearMediaCache) {
+                HStack(spacing: 6) {
+                    Image(systemName: "trash")
+                    Text("Clear Local Media Cache")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 36)
+                .background(theme.inputBackground)
+                .foregroundColor(theme.onSurfaceColor)
+                .cornerRadius(8)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+            }
+        }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    // MARK: - 9. Subscription & Plan Quota
+    private var subscriptionPlanCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("SUBSCRIPTION & BILLING")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundColor(theme.primaryColor)
+                    Text("Enterprise Growth Plan")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                }
+                Spacer()
+                Text("ACTIVE")
+                    .font(.system(size: 10, weight: .black))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.green.opacity(0.15))
+                    .foregroundColor(.green)
+                    .cornerRadius(6)
+            }
+            
+            Divider().background(theme.borderColor)
+            
+            VStack(spacing: 8) {
+                HStack {
+                    Text("👥 Agent Seats")
+                        .font(.system(size: 12))
+                        .foregroundColor(theme.textGrayColor)
+                    Spacer()
+                    Text("\(socketManager.agentsList.count) / 10 Active")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                }
+                
+                HStack {
+                    Text("🎯 Leads Quota")
+                        .font(.system(size: 12))
+                        .foregroundColor(theme.textGrayColor)
+                    Spacer()
+                    Text("Unlimited Ingestion")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                }
+                
+                HStack {
+                    Text("⚡ Meta Omnichannel Sync")
+                        .font(.system(size: 12))
+                        .foregroundColor(theme.textGrayColor)
+                    Spacer()
+                    Text("Enabled & High Priority")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Color.green)
+                }
+            }
+            
+            Button(action: openBillingPortal) {
+                HStack {
+                    Image(systemName: "creditcard.fill")
+                    Text("Manage Plan & Invoices on Web ↗")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+                .background(theme.primaryColor.opacity(0.12))
+                .foregroundColor(theme.primaryColor)
+                .cornerRadius(10)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.primaryColor.opacity(0.3), lineWidth: 1))
+            }
+            .padding(.top, 4)
+        }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    // MARK: - 10. SuperAdmin Console
+    private var superAdminConsoleCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("SUPERADMIN CONSOLE")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundColor(Color.purple)
+                    Text("Managed Workspaces & Tenants")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                }
+                Spacer()
+                Button(action: loadSuperAdminTenants) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(Color.purple)
+                }
+            }
+            
+            if isLoadingTenants {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+            } else if tenantsList.isEmpty {
+                Text("Current Active Tenant: \(networkClient.currentTenant?.name ?? "Main Organization") (\(networkClient.currentTenant?.domain ?? "letstrack.manacity.in"))")
+                    .font(.system(size: 12))
+                    .foregroundColor(theme.textGrayColor)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(theme.inputBackground)
+                    .cornerRadius(8)
+            } else {
+                ForEach(tenantsList) { tenant in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tenant.name)
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                            Text(tenant.domain)
+                                .font(.system(size: 11))
+                                .foregroundColor(theme.textGrayColor)
+                        }
+                        Spacer()
+                        if tenant.id == networkClient.currentTenant?.id {
+                            Text("CURRENT")
+                                .font(.system(size: 9, weight: .black))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.green.opacity(0.15))
+                                .foregroundColor(.green)
+                                .cornerRadius(4)
+                        }
+                    }
+                    .padding(10)
+                    .background(theme.inputBackground)
+                    .cornerRadius(8)
+                }
+            }
+        }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.purple.opacity(0.3), lineWidth: 1))
+    }
+    
+    // MARK: - 11. About & Sign Out
+    private var aboutAndLogoutCard: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("LetsTrack Mobile iOS")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(theme.onSurfaceColor)
+                Spacer()
+                Text("v1.2.0 • Build 42")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundColor(theme.textGrayColor)
+            }
+            .padding(.horizontal, 4)
+            
+            Button(action: {
+                theme.triggerHaptic(style: .rigid)
+                showLogoutConfirm = true
+            }) {
+                HStack {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                    Text("Sign Out of Account")
+                        .fontWeight(.bold)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 46)
+                .background(Color.red.opacity(0.12))
+                .foregroundColor(.red)
+                .cornerRadius(10)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.red.opacity(0.3), lineWidth: 1))
+            }
+        }
+        .padding(16)
+        .background(theme.surfaceColor)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
     }
     
     private func channelRow(icon: String, title: String, subtitle: String, isConnected: Bool, color: Color) -> some View {
@@ -2950,6 +5178,147 @@ struct SettingsTab: View {
         .padding(10)
         .background(theme.inputBackground)
         .cornerRadius(8)
+    }
+    
+    private func loadInitialSettings() {
+        if let user = networkClient.currentUser {
+            nameInput = user.name
+            emailReadonly = user.email
+        }
+        
+        let laContext = LAContext()
+        var error: NSError?
+        biometricAvailable = laContext.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+        if biometricAvailable {
+            biometricType = laContext.biometryType == .faceID ? "Face ID" : "Touch ID"
+        }
+        biometricLockEnabled = UserDefaults.standard.bool(forKey: "biometric_lock_enabled")
+        
+        Task {
+            if let qrList = try? await networkClient.getQuickReplies() {
+                await MainActor.run { self.quickReplies = qrList }
+            }
+            if let pList = try? await networkClient.getPitches() {
+                await MainActor.run { self.pitchesList = pList }
+            }
+            if let wSettings = try? await networkClient.getWidgetSettings() {
+                await MainActor.run {
+                    self.widgetSettings = wSettings
+                    if let head = wSettings.headingText { self.widgetHeading = head }
+                    if let welc = wSettings.welcomeMessage { self.widgetWelcome = welc }
+                    if let pos = wSettings.position { self.widgetPosition = pos }
+                }
+            }
+        }
+        
+        if isSuperAdmin {
+            loadSuperAdminTenants()
+        }
+    }
+    
+    private func saveWidgetCustomizations() {
+        isSavingWidget = true
+        var updated = widgetSettings
+        updated.headingText = widgetHeading.trimmingCharacters(in: .whitespaces)
+        updated.welcomeMessage = widgetWelcome.trimmingCharacters(in: .whitespaces)
+        updated.position = widgetPosition
+        
+        Task {
+            do {
+                _ = try await networkClient.updateWidgetSettings(settings: updated)
+                await MainActor.run {
+                    self.isSavingWidget = false
+                    withAnimation { self.widgetSavedToast = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        withAnimation { self.widgetSavedToast = false }
+                    }
+                }
+            } catch {
+                await MainActor.run { self.isSavingWidget = false }
+            }
+        }
+    }
+    
+    private func saveNewQuickReply() {
+        guard !newShortcut.isEmpty && !newReplyText.isEmpty else { return }
+        isAddingReply = true
+        Task {
+            do {
+                let created = try await networkClient.createQuickReply(shortcut: newShortcut.trimmingCharacters(in: .whitespaces), text: newReplyText.trimmingCharacters(in: .whitespaces))
+                await MainActor.run {
+                    self.quickReplies.append(created)
+                    self.newShortcut = ""
+                    self.newReplyText = ""
+                    self.isAddingReply = false
+                    self.showAddQuickReply = false
+                }
+            } catch {
+                await MainActor.run { self.isAddingReply = false }
+            }
+        }
+    }
+    
+    private func saveNewPitch() {
+        guard !newPitchTitle.isEmpty && !newPitchText.isEmpty else { return }
+        isAddingPitch = true
+        Task {
+            do {
+                let created = try await networkClient.createPitch(
+                    title: newPitchTitle.trimmingCharacters(in: .whitespaces),
+                    badgeText: newPitchBadge.trimmingCharacters(in: .whitespaces),
+                    targetSubpath: newPitchSubpath.trimmingCharacters(in: .whitespaces),
+                    pitchText: newPitchText.trimmingCharacters(in: .whitespaces)
+                )
+                await MainActor.run {
+                    self.pitchesList.append(created)
+                    self.newPitchTitle = ""
+                    self.newPitchBadge = "⚡ Deal"
+                    self.newPitchSubpath = ""
+                    self.newPitchText = ""
+                    self.isAddingPitch = false
+                    self.showAddPitch = false
+                }
+            } catch {
+                await MainActor.run { self.isAddingPitch = false }
+            }
+        }
+    }
+    
+    private func deletePitchItem(id: String) {
+        Task {
+            do {
+                try await networkClient.deletePitch(id: id)
+                await MainActor.run {
+                    self.pitchesList.removeAll(where: { $0.id == id })
+                }
+            } catch {
+                print("Failed to delete pitch: \(error)")
+            }
+        }
+    }
+    
+    private func deleteQuickReplyItem(id: String) {
+        Task {
+            do {
+                try await networkClient.deleteQuickReply(id: id)
+                await MainActor.run {
+                    self.quickReplies.removeAll(where: { $0.id == id })
+                }
+            } catch {
+                print("Failed to delete quick reply: \(error)")
+            }
+        }
+    }
+    
+    private func clearMediaCache() {
+        URLCache.shared.removeAllCachedResponses()
+        withAnimation {
+            calculatedCacheSize = "0 KB"
+            cacheClearedToast = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            withAnimation { cacheClearedToast = false }
+        }
     }
     
     private func openBillingPortal() {
@@ -2989,16 +5358,16 @@ struct SettingsTab: View {
         }
     }
     
-    private func saveConfigurations() {
+    private func saveProfileDetails() {
         guard !nameInput.trimmingCharacters(in: .whitespaces).isEmpty else {
-            statusMessage = "Name cannot be empty."
-            isSuccess = false
+            profileStatusMessage = "Name cannot be empty."
+            profileSuccess = false
             return
         }
         
-        isLoading = true
-        statusMessage = ""
-        isSuccess = false
+        isSavingProfile = true
+        profileStatusMessage = ""
+        profileSuccess = false
         
         Task {
             do {
@@ -3008,20 +5377,22 @@ struct SettingsTab: View {
                     password: passwordInput.isEmpty ? nil : passwordInput.trimmingCharacters(in: .whitespaces)
                 ))
                 await MainActor.run {
-                    isSuccess = true
-                    statusMessage = "Profile updated successfully!"
+                    profileSuccess = true
+                    profileStatusMessage = "Profile updated successfully!"
                     passwordInput = ""
-                    isLoading = false
+                    isSavingProfile = false
                 }
             } catch {
                 await MainActor.run {
-                    statusMessage = error.localizedDescription
-                    isLoading = false
+                    profileStatusMessage = error.localizedDescription
+                    isSavingProfile = false
                 }
             }
         }
     }
 }
+
+
 
 // MARK: - Status Changer Dialog Sheet
 struct StatusChangerSheet: View {

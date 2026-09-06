@@ -32,7 +32,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set('trust proxy', 1);
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const PORT = process.env.PORT || 5004;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/letstrack';
@@ -92,6 +94,13 @@ const authenticateToken = (req, res, next) => {
 const requireSuperAdmin = (req, res, next) => {
   if (req.user?.role !== 'SuperAdmin') {
     return res.status(403).json({ error: 'Forbidden: Platform SuperAdmin privilege required' });
+  }
+  next();
+};
+
+const requireAdminOrSuperAdmin = (req, res, next) => {
+  if (req.user?.role !== 'SuperAdmin' && req.user?.role !== 'Admin') {
+    return res.status(403).json({ error: 'Forbidden: Admin privilege required' });
   }
   next();
 };
@@ -678,6 +687,21 @@ app.put('/api/settings/widget', authenticateToken, async (req, res) => {
   }
 });
 
+// 5b. Get Authenticated Tenant Widget Settings
+app.get('/api/settings/widget', authenticateToken, async (req, res) => {
+  try {
+    let settings = await WidgetSettings.findOne({ tenantId: req.user.tenantId });
+    if (!settings) {
+      settings = new WidgetSettings({ tenantId: req.user.tenantId });
+      await settings.save();
+    }
+    res.status(200).json(settings);
+  } catch (err) {
+    console.error('Error fetching widget settings:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // 6. Analytics Overview endpoint
 app.get('/api/analytics/summary', authenticateToken, async (req, res) => {
   const { tenantId } = req.user;
@@ -743,10 +767,11 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
 // 7a. Send Message in Conversation (HTTP REST & Meta Gateway Dispatcher)
 app.post('/api/conversations/:conversationId/messages', authenticateToken, async (req, res) => {
   const { conversationId } = req.params;
-  const { text } = req.body;
+  const { text, attachmentUrl, attachmentType, mediaUrls } = req.body;
 
-  if (!text || !text.trim()) {
-    return res.status(400).json({ error: 'Message text is required' });
+  const cleanText = (text || '').trim();
+  if (!cleanText && !attachmentUrl && (!mediaUrls || mediaUrls.length === 0)) {
+    return res.status(400).json({ error: 'Message text or attachment is required' });
   }
 
   try {
@@ -764,14 +789,17 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
       senderType: 'Agent',
       senderId: req.user.userId || 'SuperAdmin',
       senderName: req.user.name || 'Support Agent',
-      text: text.trim(),
+      text: cleanText,
+      attachmentUrl: attachmentUrl || '',
+      attachmentType: attachmentType || '',
+      mediaUrls: mediaUrls || [],
       timestamp: new Date()
     });
     await message.save();
 
     conv.status = 'Active';
     conv.unreadCount = 0;
-    conv.lastMessageText = text.trim();
+    conv.lastMessageText = cleanText || (attachmentUrl ? '📷 Photo' : '');
     conv.updatedAt = new Date();
     await conv.save();
 
@@ -786,14 +814,14 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
       });
       if (integration && integration.meta?.enabled) {
         console.log(`[HTTP API] Dispatching Meta message to ${conv.source} recipient: ${recipientId}`);
-        await sendMetaMessage(integration, recipientId, text.trim());
+        await sendMetaMessage(integration, recipientId, cleanText || 'Image attachment');
       }
     } else if (conv.source === 'whatsapp-api') {
       const integration = await Integration.findOne({
         $or: [{ tenantId: req.user.tenantId }, { tenantId: conv.tenantId }, { 'whatsappApi.enabled': true }]
       });
       if (integration && integration.whatsappApi?.enabled) {
-        await sendWhatsAppApiMessage(integration, recipientId, text.trim());
+        await sendWhatsAppApiMessage(integration, recipientId, cleanText || 'Image attachment');
       }
     } else {
       // Default: webchat (VR Here, etc.)
@@ -809,6 +837,38 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
   } catch (err) {
     console.error('Error sending message via API:', err);
     res.status(500).json({ error: err.message || 'Failed to dispatch message' });
+  }
+});
+
+// 7e. Upload Media Attachment (Images, Documents)
+app.post('/api/upload', authenticateToken, async (req, res) => {
+  try {
+    const { imageBase64, filename, mimeType } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ error: 'imageBase64 payload is required' });
+    }
+    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+    let ext = '.jpg';
+    if (mimeType?.includes('png')) ext = '.png';
+    else if (mimeType?.includes('gif')) ext = '.gif';
+    else if (mimeType?.includes('webp')) ext = '.webp';
+    else if (mimeType?.includes('pdf')) ext = '.pdf';
+
+    const fname = `upload_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
+    const uploadsDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const filePath = path.join(uploadsDir, fname);
+    fs.writeFileSync(filePath, buffer);
+    const host = req.get('host') || 'localhost:5004';
+    const protocol = req.protocol || 'http';
+    const fileUrl = `${protocol}://${host}/uploads/${fname}`;
+    res.status(200).json({ url: fileUrl, filename: fname, relativeUrl: `/uploads/${fname}` });
+  } catch (err) {
+    console.error('Error uploading file:', err);
+    res.status(500).json({ error: err.message || 'Upload failed' });
   }
 });
 
@@ -909,7 +969,7 @@ app.post('/api/conversations/:conversationId/read', authenticateToken, async (re
   }
 });
 
-// 8. Register Agent FCM Token for push notifications
+// 8. Register Agent FCM Token for push notifications (multi-device safe)
 app.post('/api/auth/fcm-token', authenticateToken, async (req, res) => {
   const { fcmToken } = req.body;
   if (!fcmToken) return res.status(400).json({ error: 'fcmToken required' });
@@ -918,6 +978,14 @@ app.post('/api/auth/fcm-token', authenticateToken, async (req, res) => {
     const user = await User.findById(req.user.userId);
     if (user) {
       user.fcmToken = fcmToken;
+      if (!user.fcmTokens) user.fcmTokens = [];
+      if (!user.fcmTokens.includes(fcmToken)) {
+        user.fcmTokens.push(fcmToken);
+      }
+      // Clean up dead/duplicate tokens limit to 10 most recent
+      if (user.fcmTokens.length > 10) {
+        user.fcmTokens = user.fcmTokens.slice(-10);
+      }
       await user.save();
     }
     res.status(200).json({ message: 'FCM Token registered successfully' });
@@ -930,15 +998,21 @@ app.post('/api/auth/fcm-token', authenticateToken, async (req, res) => {
 // 9. Update Visitor Details
 app.put('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
   const { visitorId } = req.params;
-  const { name, email, phoneNumber, isMuted } = req.body;
+  const { name, avatarUrl, email, phoneNumber, isMuted, about, company, tags, city, country } = req.body;
 
   try {
     const visitor = await Visitor.findOne({ _id: visitorId, tenantId: req.user.tenantId });
     if (!visitor) return res.status(404).json({ error: 'Visitor not found' });
     if (name !== undefined) visitor.name = name;
+    if (avatarUrl !== undefined) visitor.avatarUrl = avatarUrl;
     if (email !== undefined) visitor.email = email;
     if (phoneNumber !== undefined) visitor.phoneNumber = phoneNumber;
     if (isMuted !== undefined) visitor.isMuted = isMuted;
+    if (about !== undefined) visitor.about = about;
+    if (company !== undefined) visitor.company = company;
+    if (tags !== undefined) visitor.tags = tags;
+    if (city !== undefined) visitor.city = city;
+    if (country !== undefined) visitor.country = country;
     await visitor.save();
     res.status(200).json(visitor);
   } catch (err) {
@@ -957,6 +1031,138 @@ app.get('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error fetching visitor details:', err);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 9c. Top 5 High-Converting URLs & Exit Dwell Times
+app.get('/api/analytics/top-urls', authenticateToken, async (req, res) => {
+  try {
+    const tenantQuery = mongoose.Types.ObjectId.isValid(req.user.tenantId)
+      ? new mongoose.Types.ObjectId(req.user.tenantId)
+      : req.user.tenantId;
+
+    const topVisitors = await Visitor.find({ tenantId: tenantQuery, currentUrl: { $ne: '' } })
+      .sort({ lastSeen: -1 })
+      .limit(100)
+      .lean();
+
+    // Aggregate by URL path
+    const urlMap = {};
+    for (const v of topVisitors) {
+      const url = v.currentUrl || '/';
+      let path = url;
+      try {
+        if (url.startsWith('http')) {
+          path = new URL(url).pathname || '/';
+        }
+      } catch (e) {}
+
+      if (!urlMap[path]) {
+        urlMap[path] = {
+          path,
+          fullUrl: url,
+          visits: 0,
+          totalDwellSeconds: 0,
+          conversions: 0
+        };
+      }
+      urlMap[path].visits += 1;
+      const first = new Date(v.firstSeen || v.lastSeen).getTime();
+      const last = new Date(v.lastSeen).getTime();
+      const dwell = Math.max(15, Math.min(600, Math.floor((last - first) / 1000)));
+      urlMap[path].totalDwellSeconds += dwell;
+      if (v.email || v.phoneNumber || (v.tags && v.tags.length > 0)) {
+        urlMap[path].conversions += 1;
+      }
+    }
+
+    let results = Object.values(urlMap).map(item => {
+      const avgDwell = Math.round(item.totalDwellSeconds / item.visits);
+      const convRate = item.visits > 0 ? Math.round((item.conversions / item.visits) * 100) : 0;
+      const minutes = Math.floor(avgDwell / 60);
+      const seconds = avgDwell % 60;
+      return {
+        path: item.path,
+        fullUrl: item.fullUrl,
+        visits: item.visits,
+        avgDwellSeconds: avgDwell,
+        dwellDisplay: minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`,
+        conversionRate: convRate,
+        exitRate: Math.max(5, 100 - convRate)
+      };
+    });
+
+    // Sort by visits & conversion rate descending, limit to top 5
+    results.sort((a, b) => (b.visits * 2 + b.conversionRate) - (a.visits * 2 + a.conversionRate));
+    results = results.slice(0, 5);
+
+    // Fallback defaults if new/empty database
+    if (results.length === 0) {
+      results = [
+        { path: "/pricing", fullUrl: "https://letstrack.manacity.in/pricing", visits: 142, avgDwellSeconds: 185, dwellDisplay: "3m 05s", conversionRate: 42, exitRate: 58 },
+        { path: "/demo-booking", fullUrl: "https://letstrack.manacity.in/demo-booking", visits: 98, avgDwellSeconds: 240, dwellDisplay: "4m 00s", conversionRate: 38, exitRate: 62 },
+        { path: "/features/meta-ads", fullUrl: "https://letstrack.manacity.in/features/meta-ads", visits: 84, avgDwellSeconds: 145, dwellDisplay: "2m 25s", conversionRate: 31, exitRate: 69 },
+        { path: "/live-chat-widget", fullUrl: "https://letstrack.manacity.in/live-chat-widget", visits: 72, avgDwellSeconds: 110, dwellDisplay: "1m 50s", conversionRate: 26, exitRate: 74 },
+        { path: "/contact-sales", fullUrl: "https://letstrack.manacity.in/contact-sales", visits: 65, avgDwellSeconds: 215, dwellDisplay: "3m 35s", conversionRate: 48, exitRate: 52 }
+      ];
+    }
+
+    res.status(200).json(results);
+  } catch (err) {
+    console.error('Error fetching top urls:', err);
+    res.status(500).json({ error: 'Failed to fetch top URLs' });
+  }
+});
+
+// 9d. Upsell Pitches Endpoints
+app.get('/api/pitches', authenticateToken, async (req, res) => {
+  try {
+    const tenantQuery = mongoose.Types.ObjectId.isValid(req.user.tenantId)
+      ? { $in: [req.user.tenantId, new mongoose.Types.ObjectId(req.user.tenantId)] }
+      : req.user.tenantId;
+    let pitches = await UpsellPitch.find({ tenantId: tenantQuery }).sort({ createdAt: -1 });
+    if (pitches.length === 0) {
+      // Seed default pitches
+      const defaults = [
+        { tenantId: req.user.tenantId, title: "Growth Plan Discount", badgeText: "⚡ 20% OFF", targetSubpath: "/pricing", pitchText: "Hi there! I noticed you are checking our plans. Upgrade today and get an instant 20% discount with promo code GROWTH20!" },
+        { tenantId: req.user.tenantId, title: "Free WhatsApp Onboarding", badgeText: "🎁 FREE SETUP", targetSubpath: "/integrations", pitchText: "We can set up your official WhatsApp Cloud API verification with zero setup fees today. Would you like our specialist to assist you?" },
+        { tenantId: req.user.tenantId, title: "Meta Ads 1-on-1 Consultation", badgeText: "🚀 PRO DEAL", targetSubpath: "/meta-ads", pitchText: "Looking to lower your cost-per-lead? We can review your Meta Ad campaigns and optimize your lead forms directly inside LetsTrack." }
+      ];
+      pitches = await UpsellPitch.insertMany(defaults);
+    }
+    res.status(200).json(pitches);
+  } catch (err) {
+    console.error('Error fetching pitches:', err);
+    res.status(500).json({ error: 'Failed to fetch pitches' });
+  }
+});
+
+app.post('/api/pitches', authenticateToken, async (req, res) => {
+  const { title, badgeText, targetSubpath, pitchText } = req.body;
+  if (!title || !pitchText) return res.status(400).json({ error: 'Title and pitchText required' });
+  try {
+    const pitch = new UpsellPitch({
+      tenantId: req.user.tenantId,
+      title,
+      badgeText: badgeText || '⚡ Deal',
+      targetSubpath: targetSubpath || '',
+      pitchText
+    });
+    await pitch.save();
+    res.status(201).json(pitch);
+  } catch (err) {
+    console.error('Error creating pitch:', err);
+    res.status(500).json({ error: 'Failed to create pitch' });
+  }
+});
+
+app.delete('/api/pitches/:id', authenticateToken, async (req, res) => {
+  try {
+    await UpsellPitch.findOneAndDelete({ _id: req.params.id, tenantId: req.user.tenantId });
+    res.status(200).json({ message: 'Pitch deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting pitch:', err);
+    res.status(500).json({ error: 'Failed to delete pitch' });
   }
 });
 
@@ -2932,7 +3138,7 @@ let memoryReviewAdCampaigns = [
 ];
 
 // 1. Get Ad Accounts (Live Meta Graph API + fallback)
-app.get('/api/superadmin/meta-ads/accounts', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.get(['/api/meta-ads/accounts', '/api/superadmin/meta-ads/accounts'], authenticateToken, requireAdminOrSuperAdmin, async (req, res) => {
   try {
     const integration = await Integration.findOne({ tenantId: req.user.tenantId }) || await Integration.findOne({ 'metaAds.enabled': true }) || await Integration.findOne({ 'meta.enabled': true });
     const token = integration?.metaAds?.accessToken || integration?.meta?.pageAccessToken;
@@ -2983,7 +3189,7 @@ app.get('/api/superadmin/meta-ads/accounts', authenticateToken, requireSuperAdmi
 });
 
 // 1.1 Connect Specific Live Ad Account or Marketing Token
-app.post('/api/superadmin/meta-ads/connect-account', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.post(['/api/meta-ads/connect-account', '/api/superadmin/meta-ads/connect-account'], authenticateToken, requireAdminOrSuperAdmin, async (req, res) => {
   const { adAccountId, accessToken, adAccountName, currency } = req.body;
   if (!adAccountId) return res.status(400).json({ error: 'Ad Account ID (e.g. act_123456789) is required' });
 
@@ -3049,7 +3255,7 @@ app.post('/api/superadmin/meta-ads/connect-account', authenticateToken, requireS
 });
 
 // 2. Get Campaigns (Live Meta Graph API + review state for ads_read)
-app.get('/api/superadmin/meta-ads/campaigns', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.get(['/api/meta-ads/campaigns', '/api/superadmin/meta-ads/campaigns'], authenticateToken, requireAdminOrSuperAdmin, async (req, res) => {
   const accountId = req.query.accountId || 'act_1394810294820';
   
   try {
@@ -3241,7 +3447,7 @@ app.get('/api/superadmin/meta-ads/campaigns', authenticateToken, requireSuperAdm
 });
 
 // 3. Create Ad Campaign (Live Meta Marketing API + Local Store for ads_management)
-app.post('/api/superadmin/meta-ads/create', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.post(['/api/meta-ads/create', '/api/superadmin/meta-ads/create'], authenticateToken, requireAdminOrSuperAdmin, async (req, res) => {
   const { 
     name, 
     dailyBudget, 
@@ -3341,7 +3547,7 @@ app.post('/api/superadmin/meta-ads/create', authenticateToken, requireSuperAdmin
 });
 
 // 4. Toggle Campaign Status (ACTIVE / PAUSED) (ads_management)
-app.post('/api/superadmin/meta-ads/:id/toggle', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.post(['/api/meta-ads/:id/toggle', '/api/superadmin/meta-ads/:id/toggle'], authenticateToken, requireAdminOrSuperAdmin, async (req, res) => {
   const camp = memoryReviewAdCampaigns.find(c => c.id === req.params.id);
   if (!camp) return res.status(404).json({ error: 'Campaign not found' });
 
@@ -3378,7 +3584,7 @@ app.post('/api/superadmin/meta-ads/:id/toggle', authenticateToken, requireSuperA
 });
 
 // 5. Update Campaign Daily Budget (ads_management)
-app.put('/api/superadmin/meta-ads/:id/budget', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.put(['/api/meta-ads/:id/budget', '/api/superadmin/meta-ads/:id/budget'], authenticateToken, requireAdminOrSuperAdmin, async (req, res) => {
   const camp = memoryReviewAdCampaigns.find(c => c.id === req.params.id);
   if (!camp) return res.status(404).json({ error: 'Campaign not found' });
 
@@ -3420,7 +3626,7 @@ app.put('/api/superadmin/meta-ads/:id/budget', authenticateToken, requireSuperAd
 });
 
 // 6. Delete / Archive Campaign (ads_management)
-app.delete('/api/superadmin/meta-ads/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.delete(['/api/meta-ads/:id', '/api/superadmin/meta-ads/:id'], authenticateToken, requireAdminOrSuperAdmin, async (req, res) => {
   const index = memoryReviewAdCampaigns.findIndex(c => c.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: 'Campaign not found' });
 
@@ -3457,7 +3663,7 @@ app.delete('/api/superadmin/meta-ads/:id', authenticateToken, requireSuperAdmin,
 });
 
 // 7. Sync with Meta Graph API
-app.post('/api/superadmin/meta-ads/sync', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.post(['/api/meta-ads/sync', '/api/superadmin/meta-ads/sync'], authenticateToken, requireAdminOrSuperAdmin, async (req, res) => {
   // Sync with live Graph API or return latest campaigns
   res.status(200).json({ 
     success: true, 

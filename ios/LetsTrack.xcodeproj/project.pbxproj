@@ -208,6 +208,7 @@
 				INFOPLIST_FILE = LetsTrack/Info.plist;
 				INFOPLIST_KEY_CFBundleURLTypes = "( { CFBundleTypeRole = Editor; CFBundleURLSchemes = ( \"com.googleusercontent.apps.101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34\" ); } )";
 				INFOPLIST_KEY_GIDClientID = "101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34.apps.googleusercontent.com";
+				INFOPLIST_KEY_NSContactsUsageDescription = "LetsTrack needs access to contacts to import and save lead contact details.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -241,6 +242,7 @@
 				INFOPLIST_FILE = LetsTrack/Info.plist;
 				INFOPLIST_KEY_CFBundleURLTypes = "( { CFBundleTypeRole = Editor; CFBundleURLSchemes = ( \"com.googleusercontent.apps.101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34\" ); } )";
 				INFOPLIST_KEY_GIDClientID = "101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34.apps.googleusercontent.com";
+				INFOPLIST_KEY_NSContactsUsageDescription = "LetsTrack needs access to contacts to import and save lead contact details.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

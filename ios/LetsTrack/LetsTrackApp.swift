@@ -125,20 +125,177 @@ struct LetsTrackApp: App {
     }
 }
 
+import LocalAuthentication
+
 struct ContentView: View {
     @EnvironmentObject var theme: ThemeManager
     @ObservedObject var networkClient = NetworkClient.shared
+    @Environment(\.scenePhase) private var scenePhase
+    
+    @State private var isAppLocked = false
+    @State private var isAuthenticating = false
+    @State private var authErrorMessage: String? = nil
     
     var body: some View {
-        Group {
-            if networkClient.isAuthenticated {
-                DashboardView()
-                    .environmentObject(theme)
-            } else {
-                LoginView()
-                    .environmentObject(theme)
+        ZStack {
+            Group {
+                if networkClient.isAuthenticated {
+                    DashboardView()
+                        .environmentObject(theme)
+                } else {
+                    LoginView()
+                        .environmentObject(theme)
+                }
+            }
+            .animation(.default, value: networkClient.isAuthenticated)
+            
+            // Native Face ID / App Lock Overlay
+            if isAppLocked && networkClient.isAuthenticated {
+                AppLockOverlayView(
+                    isAuthenticating: isAuthenticating,
+                    errorMessage: authErrorMessage,
+                    onUnlockTap: authenticateUser
+                )
+                .environmentObject(theme)
+                .transition(.opacity)
+                .zIndex(999)
             }
         }
-        .animation(.default, value: networkClient.isAuthenticated)
+        .onChange(of: scenePhase) { newPhase in
+            let isLockEnabled = UserDefaults.standard.bool(forKey: "biometric_lock_enabled")
+            if isLockEnabled && networkClient.isAuthenticated {
+                if newPhase == .background || newPhase == .inactive {
+                    isAppLocked = true
+                } else if newPhase == .active && isAppLocked {
+                    authenticateUser()
+                }
+            } else {
+                isAppLocked = false
+            }
+        }
+        .onAppear {
+            let isLockEnabled = UserDefaults.standard.bool(forKey: "biometric_lock_enabled")
+            if isLockEnabled && networkClient.isAuthenticated {
+                isAppLocked = true
+                authenticateUser()
+            }
+        }
+    }
+    
+    private func authenticateUser() {
+        guard !isAuthenticating else { return }
+        isAuthenticating = true
+        authErrorMessage = nil
+        
+        let context = LAContext()
+        context.localizedCancelTitle = "Cancel"
+        var error: NSError?
+        
+        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+            let reason = "Unlock LetsTrack to access your customer conversations and leads"
+            context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, authenticationError in
+                DispatchQueue.main.async {
+                    self.isAuthenticating = false
+                    if success {
+                        withAnimation {
+                            self.isAppLocked = false
+                            self.authErrorMessage = nil
+                        }
+                    } else if let authError = authenticationError as? LAError {
+                        if authError.code != .userCancel {
+                            self.authErrorMessage = authError.localizedDescription
+                        }
+                    }
+                }
+            }
+        } else if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+            // Fallback to device passcode
+            let reason = "Unlock LetsTrack with your device passcode"
+            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, _ in
+                DispatchQueue.main.async {
+                    self.isAuthenticating = false
+                    if success {
+                        withAnimation {
+                            self.isAppLocked = false
+                        }
+                    }
+                }
+            }
+        } else {
+            // Biometrics not available on device
+            isAuthenticating = false
+            isAppLocked = false
+        }
+    }
+}
+
+// MARK: - App Lock Overlay View
+struct AppLockOverlayView: View {
+    let isAuthenticating: Bool
+    let errorMessage: String?
+    let onUnlockTap: () -> Void
+    @EnvironmentObject var theme: ThemeManager
+    
+    var body: some View {
+        ZStack {
+            theme.backgroundColor.ignoresSafeArea()
+            
+            VStack(spacing: 24) {
+                Spacer()
+                
+                ZStack {
+                    Circle()
+                        .fill(theme.primaryColor.opacity(0.15))
+                        .frame(width: 96, height: 96)
+                    
+                    Image(systemName: "lock.shield.fill")
+                        .font(.system(size: 44, weight: .bold))
+                        .foregroundColor(theme.primaryColor)
+                }
+                
+                VStack(spacing: 8) {
+                    Text("LetsTrack is Locked")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    
+                    Text("Authentication required to access active chats, radar, and CRM leads.")
+                        .font(.system(size: 13))
+                        .foregroundColor(theme.textGrayColor)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                
+                if let error = errorMessage {
+                    Text(error)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 24)
+                }
+                
+                Spacer()
+                
+                Button(action: onUnlockTap) {
+                    HStack(spacing: 8) {
+                        if isAuthenticating {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: "faceid")
+                                .font(.system(size: 18, weight: .bold))
+                            Text("Unlock with Face ID")
+                                .font(.system(size: 15, weight: .bold))
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(theme.primaryColor)
+                    .cornerRadius(12)
+                    .shadow(color: theme.primaryColor.opacity(0.35), radius: 8, y: 4)
+                }
+                .disabled(isAuthenticating)
+                .padding(.horizontal, 28)
+                .padding(.bottom, 40)
+            }
+        }
     }
 }

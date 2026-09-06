@@ -409,4 +409,329 @@ final class NetworkClient: ObservableObject {
         
         return (try? decoder.decode([TenantWorkspaceDto].self, from: data)) ?? []
     }
+    
+    // MARK: - Meta Ads & Omnichannel Marketing APIs
+    func getAdAccounts() async throws -> [AdAccountDto] {
+        let url = URL(string: "\(baseURL)/api/meta-ads/accounts")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            return []
+        }
+        struct AccountsResp: Codable {
+            let success: Bool?
+            let accounts: [AdAccountDto]
+        }
+        if let resp = try? decoder.decode(AccountsResp.self, from: data) {
+            return resp.accounts
+        }
+        return (try? decoder.decode([AdAccountDto].self, from: data)) ?? []
+    }
+    
+    func getAdCampaigns(accountId: String? = nil) async throws -> [AdCampaignDto] {
+        var urlComponents = URLComponents(string: "\(baseURL)/api/meta-ads/campaigns")!
+        if let accId = accountId {
+            urlComponents.queryItems = [URLQueryItem(name: "accountId", value: accId)]
+        }
+        guard let url = urlComponents.url else { return [] }
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            return []
+        }
+        struct CampaignsResp: Codable {
+            let success: Bool?
+            let campaigns: [AdCampaignDto]
+        }
+        if let resp = try? decoder.decode(CampaignsResp.self, from: data) {
+            return resp.campaigns
+        }
+        return (try? decoder.decode([AdCampaignDto].self, from: data)) ?? []
+    }
+    
+    func createAdCampaign(request: CreateCampaignRequest) async throws -> AdCampaignDto {
+        let url = URL(string: "\(baseURL)/api/meta-ads/create")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try encoder.encode(request)
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to create Meta ad campaign."])
+        }
+        struct CreateResp: Codable {
+            let success: Bool?
+            let campaign: AdCampaignDto
+        }
+        let resp = try decoder.decode(CreateResp.self, from: data)
+        return resp.campaign
+    }
+    
+    func toggleAdCampaignStatus(campaignId: String) async throws -> AdCampaignDto {
+        let url = URL(string: "\(baseURL)/api/meta-ads/\(campaignId)/toggle")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to toggle campaign status."])
+        }
+        struct ToggleResp: Codable {
+            let success: Bool?
+            let campaign: AdCampaignDto
+        }
+        let resp = try decoder.decode(ToggleResp.self, from: data)
+        return resp.campaign
+    }
+    
+    func updateAdCampaignBudget(campaignId: String, dailyBudget: Double) async throws -> AdCampaignDto {
+        let url = URL(string: "\(baseURL)/api/meta-ads/\(campaignId)/budget")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "PUT"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body = ["dailyBudget": dailyBudget]
+        urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to update daily budget."])
+        }
+        struct BudgetResp: Codable {
+            let success: Bool?
+            let campaign: AdCampaignDto
+        }
+        let resp = try decoder.decode(BudgetResp.self, from: data)
+        return resp.campaign
+    }
+    
+    func deleteAdCampaign(campaignId: String) async throws {
+        let url = URL(string: "\(baseURL)/api/meta-ads/\(campaignId)")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "DELETE"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (_, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to archive campaign."])
+        }
+    }
+    
+    func syncMetaAds() async throws -> String {
+        let url = URL(string: "\(baseURL)/api/meta-ads/sync")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to sync Meta Ads."])
+        }
+        struct SyncResp: Codable {
+            let message: String?
+        }
+        let resp = try? decoder.decode(SyncResp.self, from: data)
+        return resp?.message ?? "Synced with Meta API v26.0"
+    }
+    
+    // ============================================
+    // MEDIA UPLOADS & REST CHAT DISPATCH
+    // ============================================
+    func uploadImage(data: Data, mimeType: String = "image/jpeg") async throws -> String {
+        let url = URL(string: "\(baseURL)/api/upload")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let base64String = data.base64EncodedString()
+        let payload: [String: String] = [
+            "imageBase64": base64String,
+            "mimeType": mimeType
+        ]
+        urlRequest.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        
+        let (resData, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to upload image."])
+        }
+        
+        let uploadResp = try decoder.decode(UploadResponseDto.self, from: resData)
+        return uploadResp.url
+    }
+    
+    func sendChatMessage(conversationId: String, text: String, attachmentUrl: String? = nil, attachmentType: String? = nil) async throws -> MessageDto {
+        let url = URL(string: "\(baseURL)/api/conversations/\(conversationId)/messages")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        var body: [String: Any] = [
+            "text": text
+        ]
+        if let att = attachmentUrl, !att.isEmpty {
+            body["attachmentUrl"] = att
+            body["attachmentType"] = attachmentType ?? "image/jpeg"
+        }
+        urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to dispatch message."])
+        }
+        
+        struct MessageResp: Codable {
+            let message: MessageDto
+        }
+        if let msgResp = try? decoder.decode(MessageResp.self, from: data) {
+            return msgResp.message
+        }
+        return try decoder.decode(MessageDto.self, from: data)
+    }
+    
+    // ============================================
+    // WIDGET SETTINGS & QUICK REPLIES
+    // ============================================
+    func getWidgetSettings() async throws -> WidgetSettingsDto {
+        let url = URL(string: "\(baseURL)/api/settings/widget")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch widget settings."])
+        }
+        return try decoder.decode(WidgetSettingsDto.self, from: data)
+    }
+    
+    func updateWidgetSettings(settings: WidgetSettingsDto) async throws -> WidgetSettingsDto {
+        let url = URL(string: "\(baseURL)/api/settings/widget")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "PUT"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try encoder.encode(settings)
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to update widget settings."])
+        }
+        return try decoder.decode(WidgetSettingsDto.self, from: data)
+    }
+    
+    func createQuickReply(shortcut: String, text: String) async throws -> QuickReplyDto {
+        let url = URL(string: "\(baseURL)/api/quick-replies")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body = ["shortcut": shortcut, "text": text]
+        urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to create quick reply."])
+        }
+        return try decoder.decode(QuickReplyDto.self, from: data)
+    }
+    
+    func deleteQuickReply(id: String) async throws {
+        let url = URL(string: "\(baseURL)/api/quick-replies/\(id)")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "DELETE"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (_, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to delete quick reply."])
+        }
+    }
+    
+    // ============================================
+    // CONVERSATIONS & ANALYTICS
+    // ============================================
+    func deleteConversation(conversationId: String) async throws {
+        let url = URL(string: "\(baseURL)/api/conversations/\(conversationId)")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "DELETE"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (_, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to delete conversation."])
+        }
+    }
+    
+    func getTopUrls() async throws -> [TopUrlAnalyticsDto] {
+        let url = URL(string: "\(baseURL)/api/analytics/top-urls")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch top URLs."])
+        }
+        return try decoder.decode([TopUrlAnalyticsDto].self, from: data)
+    }
+    
+    // ============================================
+    // UPSELL PITCHES
+    // ============================================
+    func getPitches() async throws -> [UpsellPitchDto] {
+        let url = URL(string: "\(baseURL)/api/pitches")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch pitches."])
+        }
+        return try decoder.decode([UpsellPitchDto].self, from: data)
+    }
+    
+    func createPitch(title: String, badgeText: String, targetSubpath: String?, pitchText: String) async throws -> UpsellPitchDto {
+        let url = URL(string: "\(baseURL)/api/pitches")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "title": title,
+            "badgeText": badgeText,
+            "targetSubpath": targetSubpath ?? "",
+            "pitchText": pitchText
+        ]
+        urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to create pitch."])
+        }
+        return try decoder.decode(UpsellPitchDto.self, from: data)
+    }
+    
+    func deletePitch(id: String) async throws {
+        let url = URL(string: "\(baseURL)/api/pitches/\(id)")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "DELETE"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (_, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to delete pitch."])
+        }
+    }
 }

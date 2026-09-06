@@ -159,12 +159,16 @@ struct VisitorDto: Codable, Identifiable, Equatable {
     var id: String { _id }
     let _id: String
     var name: String
+    var avatarUrl: String?
     var email: String?
     var phoneNumber: String?
     var country: String
     var city: String
     var deviceType: String
     var currentUrl: String?
+    var about: String?
+    var company: String?
+    var tags: [String]?
     var isOnline: Bool
     var isMuted: Bool?
     var source: String?
@@ -212,7 +216,31 @@ struct MessageDto: Codable, Identifiable, Equatable {
     let senderId: String
     let senderName: String
     let text: String
+    var attachmentUrl: String?
+    var attachmentType: String?
+    var mediaUrls: [String]?
     let timestamp: String
+}
+
+struct UploadResponseDto: Codable {
+    let url: String
+    let filename: String?
+    let relativeUrl: String?
+}
+
+struct WidgetSettingsDto: Codable {
+    var primaryColor: String?
+    var headingText: String?
+    var welcomeMessage: String?
+    var preChatEnabled: Bool?
+    var position: String?
+    var headerTextColor: String?
+    var gradientColor: String?
+    var useGradient: Bool?
+    var statusText: String?
+    var borderRadius: Int?
+    var launcherText: String?
+    var hideBranding: Bool?
 }
 
 // ============================================
@@ -461,55 +489,168 @@ final class ContactHelper {
         phone: String?,
         email: String?,
         company: String?,
-        note: String? = "Captured via LetsTrack Omnichannel CRM",
+        note: String? = nil,
         completion: ((Bool, String) -> Void)? = nil
     ) {
         let status = CNContactStore.authorizationStatus(for: .contacts)
         if status == .notDetermined {
-            contactStore.requestAccess(for: .contacts) { granted, _ in
+            contactStore.requestAccess(for: .contacts) { granted, error in
                 if granted {
-                    self.performSave(fullName: fullName, phone: phone, email: email, company: company, note: note, completion: completion)
+                    self.performSaveOrUpdate(fullName: fullName, phone: phone, email: email, company: company, completion: completion)
                 } else {
-                    completion?(false, "Contacts permission was not granted.")
+                    let errMsg = error?.localizedDescription ?? "Contacts permission was not granted."
+                    DispatchQueue.main.async {
+                        completion?(false, errMsg)
+                    }
                 }
             }
-        } else if status == .authorized {
-            performSave(fullName: fullName, phone: phone, email: email, company: company, note: note, completion: completion)
+        } else if status == .authorized || status.rawValue == 4 /* .limited on iOS 18+ */ {
+            performSaveOrUpdate(fullName: fullName, phone: phone, email: email, company: company, completion: completion)
         } else {
-            completion?(false, "Please allow Contacts permission in iOS Settings.")
+            DispatchQueue.main.async {
+                completion?(false, "Please allow Contacts permission in iOS Settings to save leads.")
+            }
         }
     }
     
-    private func performSave(
+    private func performSaveOrUpdate(
         fullName: String,
         phone: String?,
         email: String?,
         company: String?,
-        note: String?,
         completion: ((Bool, String) -> Void)?
     ) {
-        let contact = CNMutableContact()
-        let parts = fullName.trimmingCharacters(in: .whitespaces).components(separatedBy: " ")
-        if let first = parts.first { contact.givenName = first }
-        if parts.count > 1 { contact.familyName = parts.dropFirst().joined(separator: " ") }
-        if let comp = company, !comp.isEmpty { contact.organizationName = comp }
-        if let p = phone, !p.isEmpty {
-            contact.phoneNumbers = [CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: p))]
+        let trimmedName = fullName.trimmingCharacters(in: .whitespaces)
+        let trimmedPhone = phone?.trimmingCharacters(in: .whitespaces)
+        let trimmedEmail = email?.trimmingCharacters(in: .whitespaces)
+        let trimmedCompany = company?.trimmingCharacters(in: .whitespaces)
+        
+        let keysToFetch: [CNKeyDescriptor] = [
+            CNContactGivenNameKey as CNKeyDescriptor,
+            CNContactFamilyNameKey as CNKeyDescriptor,
+            CNContactOrganizationNameKey as CNKeyDescriptor,
+            CNContactPhoneNumbersKey as CNKeyDescriptor,
+            CNContactEmailAddressesKey as CNKeyDescriptor
+        ]
+        
+        var existingContact: CNContact? = nil
+        
+        // 1. Try finding existing contact by phone
+        if let p = trimmedPhone, !p.isEmpty {
+            let cleanDigits = p.replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)
+            if !cleanDigits.isEmpty {
+                let predicate = CNContact.predicateForContacts(matching: CNPhoneNumber(stringValue: p))
+                if let contacts = try? contactStore.unifiedContacts(matching: predicate, keysToFetch: keysToFetch),
+                   let match = contacts.first {
+                    existingContact = match
+                }
+            }
         }
-        if let e = email, !e.isEmpty {
-            contact.emailAddresses = [CNLabeledValue(label: CNLabelWork, value: e as NSString)]
+        
+        // 2. Try finding existing contact by email if not found by phone
+        if existingContact == nil, let em = trimmedEmail, !em.isEmpty {
+            let predicate = CNContact.predicateForContacts(matchingEmailAddress: em)
+            if let contacts = try? contactStore.unifiedContacts(matching: predicate, keysToFetch: keysToFetch),
+               let match = contacts.first {
+                existingContact = match
+            }
         }
-        if let n = note, !n.isEmpty {
-            contact.note = n
+        
+        // 3. Try finding existing contact by exact matching name if not found
+        if existingContact == nil, !trimmedName.isEmpty {
+            let predicate = CNContact.predicateForContacts(matchingName: trimmedName)
+            if let contacts = try? contactStore.unifiedContacts(matching: predicate, keysToFetch: keysToFetch) {
+                existingContact = contacts.first(where: {
+                    let cName = "\($0.givenName) \($0.familyName)".trimmingCharacters(in: .whitespaces)
+                    return cName.caseInsensitiveCompare(trimmedName) == .orderedSame
+                })
+            }
         }
         
         let saveRequest = CNSaveRequest()
-        saveRequest.add(contact, toContainerWithIdentifier: nil)
-        do {
-            try contactStore.execute(saveRequest)
-            completion?(true, "Saved \(fullName) to iPhone Contacts!")
-        } catch {
-            completion?(false, "Error saving to Contacts: \(error.localizedDescription)")
+        
+        if let existing = existingContact, let mutable = existing.mutableCopy() as? CNMutableContact {
+            // Update / merge into existing contact without duplicating
+            var updatedAny = false
+            
+            if mutable.givenName.isEmpty && mutable.familyName.isEmpty && !trimmedName.isEmpty {
+                let parts = trimmedName.components(separatedBy: " ")
+                mutable.givenName = parts.first ?? ""
+                if parts.count > 1 {
+                    mutable.familyName = parts.dropFirst().joined(separator: " ")
+                }
+                updatedAny = true
+            }
+            
+            if let comp = trimmedCompany, !comp.isEmpty && mutable.organizationName.isEmpty {
+                mutable.organizationName = comp
+                updatedAny = true
+            }
+            
+            if let p = trimmedPhone, !p.isEmpty {
+                let cleanNew = p.replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)
+                let alreadyHasPhone = mutable.phoneNumbers.contains {
+                    let existingClean = $0.value.stringValue.replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)
+                    return existingClean == cleanNew || (!cleanNew.isEmpty && cleanNew.count >= 10 && existingClean.hasSuffix(cleanNew.suffix(10)))
+                }
+                if !alreadyHasPhone {
+                    mutable.phoneNumbers.append(CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: p)))
+                    updatedAny = true
+                }
+            }
+            
+            if let em = trimmedEmail, !em.isEmpty {
+                let alreadyHasEmail = mutable.emailAddresses.contains {
+                    ($0.value as String).caseInsensitiveCompare(em) == .orderedSame
+                }
+                if !alreadyHasEmail {
+                    mutable.emailAddresses.append(CNLabeledValue(label: CNLabelWork, value: em as NSString))
+                    updatedAny = true
+                }
+            }
+            
+            if updatedAny {
+                saveRequest.update(mutable)
+                do {
+                    try contactStore.execute(saveRequest)
+                    DispatchQueue.main.async {
+                        completion?(true, "Updated \(trimmedName) in iPhone Contacts!")
+                    }
+                } catch {
+                    DispatchQueue.main.async {
+                        completion?(false, "Error updating Contact: \(error.localizedDescription)")
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    completion?(true, "\(trimmedName) is already in iPhone Contacts!")
+                }
+            }
+        } else {
+            // Create new contact
+            let contact = CNMutableContact()
+            let parts = trimmedName.components(separatedBy: " ")
+            if let first = parts.first { contact.givenName = first }
+            if parts.count > 1 { contact.familyName = parts.dropFirst().joined(separator: " ") }
+            if let comp = trimmedCompany, !comp.isEmpty { contact.organizationName = comp }
+            if let p = trimmedPhone, !p.isEmpty {
+                contact.phoneNumbers = [CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: p))]
+            }
+            if let e = trimmedEmail, !e.isEmpty {
+                contact.emailAddresses = [CNLabeledValue(label: CNLabelWork, value: e as NSString)]
+            }
+            
+            saveRequest.add(contact, toContainerWithIdentifier: nil)
+            do {
+                try contactStore.execute(saveRequest)
+                DispatchQueue.main.async {
+                    completion?(true, "Saved \(trimmedName) to iPhone Contacts!")
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion?(false, "Error saving to Contacts: \(error.localizedDescription)")
+                }
+            }
         }
     }
 }
@@ -557,3 +698,159 @@ struct ContactPickerView: UIViewControllerRepresentable {
         }
     }
 }
+
+// ============================================
+// META ADS & CAMPAIGN MANAGEMENT MODELS
+// ============================================
+struct AdAccountDto: Codable, Identifiable {
+    let id: String
+    let accountId: String?
+    let name: String
+    let accountStatus: String?
+    let currency: String?
+    let timezone: String?
+    let balance: String?
+    let spendCap: String?
+    let totalSpent: String?
+}
+
+struct AdSetDto: Codable {
+    let name: String?
+    let locations: [String]?
+    let ageRange: String?
+    let interests: [String]?
+    let placements: [String]?
+}
+
+struct AdCreativeDto: Codable {
+    let headline: String?
+    let primaryText: String?
+    let callToAction: String?
+    let destination: String?
+    let mediaType: String?
+    let previewImage: String?
+}
+
+struct AdCampaignDto: Codable, Identifiable {
+    let id: String
+    let accountId: String?
+    let name: String
+    var status: String // ACTIVE | PAUSED
+    let objective: String?
+    let buyingType: String?
+    var dailyBudget: String?
+    var rawDailyBudget: Double?
+    let impressions: Int?
+    let reach: Int?
+    let clicks: Int?
+    let ctr: String?
+    let cpc: String?
+    let spend: String?
+    let conversions: Int?
+    let targetUrl: String?
+    let adSet: AdSetDto?
+    let adCreative: AdCreativeDto?
+    let createdAt: String?
+}
+
+struct CreateCampaignRequest: Codable {
+    let accountId: String?
+    let name: String
+    let objective: String
+    let dailyBudget: Double
+    let targetUrl: String?
+    let adSetName: String?
+    let locations: [String]?
+    let ageRange: String?
+    let interests: [String]?
+    let placements: [String]?
+    let headline: String?
+    let primaryText: String?
+    let callToAction: String?
+    let destination: String?
+    let previewImage: String?
+}
+
+// MARK: - Upsell Pitch & Analytics DTOs
+struct UpsellPitchDto: Codable, Identifiable, Equatable {
+    var id: String { _id ?? UUID().uuidString }
+    var _id: String?
+    var title: String
+    var badgeText: String
+    var targetSubpath: String?
+    var pitchText: String
+}
+
+struct TopUrlAnalyticsDto: Codable, Identifiable, Equatable {
+    var id: String { path }
+    var path: String
+    var fullUrl: String
+    var visits: Int
+    var avgDwellSeconds: Int
+    var dwellDisplay: String
+    var conversionRate: Int
+    var exitRate: Int
+}
+
+// MARK: - Official Brand Logos View
+struct BrandLogoView: View {
+    let source: String
+    var size: CGFloat = 20
+    
+    private var normalizedSource: String {
+        let s = source.lowercased()
+        if s.contains("whatsapp") { return "whatsapp" }
+        if s.contains("insta") || s.contains("ig") { return "instagram" }
+        if s.contains("face") || s.contains("fb") { return "facebook" }
+        return "livechat"
+    }
+    
+    var body: some View {
+        ZStack {
+            switch normalizedSource {
+            case "whatsapp":
+                Circle()
+                    .fill(Color(red: 37/255, green: 211/255, blue: 102/255))
+                    .frame(width: size, height: size)
+                Image(systemName: "phone.fill")
+                    .font(.system(size: size * 0.52, weight: .bold))
+                    .foregroundColor(.white)
+            case "instagram":
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [
+                            Color(red: 131/255, green: 58/255, blue: 180/255),
+                            Color(red: 253/255, green: 29/255, blue: 29/255),
+                            Color(red: 252/255, green: 175/255, blue: 69/255)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .frame(width: size, height: size)
+                Image(systemName: "camera.fill")
+                    .font(.system(size: size * 0.52, weight: .bold))
+                    .foregroundColor(.white)
+            case "facebook":
+                Circle()
+                    .fill(Color(red: 24/255, green: 119/255, blue: 242/255))
+                    .frame(width: size, height: size)
+                Text("f")
+                    .font(.system(size: size * 0.65, weight: .black, design: .rounded))
+                    .foregroundColor(.white)
+            default:
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [Color(red: 124/255, green: 58/255, blue: 237/255), Color(red: 79/255, green: 70/255, blue: 229/255)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .frame(width: size, height: size)
+                Image(systemName: "bubble.left.and.bubble.right.fill")
+                    .font(.system(size: size * 0.48, weight: .bold))
+                    .foregroundColor(.white)
+            }
+        }
+    }
+}
+
+

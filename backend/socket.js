@@ -268,28 +268,32 @@ export const initializeSocket = (httpServer) => {
                 { email: 'rajugariventures@gmail.com' }
               ]
             });
-            const staffWithFcm = staffList.filter(s => s.fcmToken);
-
-            console.log(`[VisitorInit] Visitor ${visitor.name} online for tenant ${currentTenantId}. Staff count: ${staffList.length}, Staff with FCM token: ${staffWithFcm.length}`);
-
+            const recipientTokens = new Set();
             for (const staff of staffList) {
-              if (staff.fcmToken) {
-                const title = isNewVisitor ? "🟢 New Visitor Online!" : "⚡️ Visitor Returned Online!";
-
-                const body = isNewVisitor 
-                  ? `👤 ${visitor.name} has just landed on your website.`
-                  : `👤 ${visitor.name} returned. Last seen: ${lastSeenFormatted} on URL: ${displayUrl}`;
-                await sendPushNotification(
-                  staff.fcmToken,
-                  title,
-                  body,
-                  { 
-                    type: "new-visitor", 
-                    visitorId: String(currentVisitorId || ''),
-                    tenantId: String(currentTenantId || '')
-                  }
-                );
+              if (staff.fcmToken) recipientTokens.add(staff.fcmToken);
+              if (Array.isArray(staff.fcmTokens)) {
+                staff.fcmTokens.forEach(t => t && recipientTokens.add(t));
               }
+            }
+
+            console.log(`[VisitorInit] Visitor ${visitor.name} online for tenant ${currentTenantId}. Staff count: ${staffList.length}, Unique devices to notify: ${recipientTokens.size}`);
+
+            const title = isNewVisitor ? "🟢 New Visitor Online!" : "⚡️ Visitor Returned Online!";
+            const body = isNewVisitor 
+              ? `👤 ${visitor.name} has just landed on your website.`
+              : `👤 ${visitor.name} returned. Last seen: ${lastSeenFormatted} on URL: ${displayUrl}`;
+
+            for (const token of recipientTokens) {
+              await sendPushNotification(
+                token,
+                title,
+                body,
+                { 
+                  type: "new-visitor", 
+                  visitorId: String(currentVisitorId || ''),
+                  tenantId: String(currentTenantId || '')
+                }
+              );
             }
           } catch (err) {
             console.error('Error dispatching visitor push notification:', err);
@@ -535,8 +539,9 @@ export const initializeSocket = (httpServer) => {
 
             if (conversation.assignedAgentId) {
               const agent = await User.findById(conversation.assignedAgentId);
-              if (agent && agent.fcmToken) {
-                recipientTokens.add(agent.fcmToken);
+              if (agent) {
+                if (agent.fcmToken) recipientTokens.add(agent.fcmToken);
+                if (Array.isArray(agent.fcmTokens)) agent.fcmTokens.forEach(t => t && recipientTokens.add(t));
               }
             }
 
@@ -554,9 +559,8 @@ export const initializeSocket = (httpServer) => {
             });
 
             for (const staff of staffList) {
-              if (staff.fcmToken) {
-                recipientTokens.add(staff.fcmToken);
-              }
+              if (staff.fcmToken) recipientTokens.add(staff.fcmToken);
+              if (Array.isArray(staff.fcmTokens)) staff.fcmTokens.forEach(t => t && recipientTokens.add(t));
             }
 
             console.log(`[VisitorMsg] Dispatching FCM push to ${recipientTokens.size} devices for message from ${visitorName}`);
@@ -712,7 +716,7 @@ export const initializeSocket = (httpServer) => {
 
     // Handle Agent Sending Message to Visitor
     socket.on('agent-msg', async (data) => {
-      const { conversationId, text, visitorId } = data;
+      const { conversationId, text, visitorId, attachmentUrl, attachmentType, mediaUrls } = data;
       if (!currentAgentId) return;
 
       try {
@@ -725,7 +729,10 @@ export const initializeSocket = (httpServer) => {
           senderType: 'Agent',
           senderId: currentAgentId,
           senderName: agent.name,
-          text,
+          text: text || '',
+          attachmentUrl: attachmentUrl || '',
+          attachmentType: attachmentType || '',
+          mediaUrls: mediaUrls || [],
           timestamp: new Date()
         });
         await message.save();
@@ -735,7 +742,7 @@ export const initializeSocket = (httpServer) => {
         if (conv) {
           conv.status = 'Active';
           conv.unreadCount = 0;
-          conv.lastMessageText = text;
+          conv.lastMessageText = text ? text : (attachmentUrl ? '📷 Photo' : '');
           conv.updatedAt = new Date();
           await conv.save();
 

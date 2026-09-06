@@ -15,5 +15,19 @@
 	</array>
 	<key>GIDClientID</key>
 	<string>101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34.apps.googleusercontent.com</string>
+	<key>NSContactsUsageDescription</key>
+	<string>LetsTrack needs access to contacts to import and save lead contact details.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>LetsTrack uses Face ID to securely unlock your agent dashboard and protect customer conversations.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>LetsTrack needs photo library access to upload images in chats and update customer profile pictures.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>LetsTrack needs camera access to capture and share photos in chats.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>mailto</string>
+		<string>whatsapp</string>
+	</array>
 </dict>
 </plist>

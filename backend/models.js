@@ -53,6 +53,7 @@ const UserSchema = new mongoose.Schema({
   status: { type: String, enum: ['Online', 'Away', 'Offline'], default: 'Offline' },
   avatarUrl: { type: String, default: '' },
   fcmToken: { type: String, default: '' },
+  fcmTokens: [{ type: String }],
   isBanned: { type: Boolean, default: false },
   lastActive: { type: Date, default: Date.now },
   createdAt: { type: Date, default: Date.now }
@@ -63,6 +64,7 @@ const VisitorSchema = new mongoose.Schema({
   _id: { type: String, required: true }, // Custom UUID string
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
   name: { type: String, required: true },
+  avatarUrl: { type: String, default: '' },
   email: { type: String, default: '' },
   phoneNumber: { type: String, default: '' },
   ipAddress: { type: String, default: '' },
@@ -73,6 +75,9 @@ const VisitorSchema = new mongoose.Schema({
   os: { type: String, default: 'Unknown' },
   currentUrl: { type: String, default: '' },
   referrer: { type: String, default: '' },
+  about: { type: String, default: '' },
+  company: { type: String, default: '' },
+  tags: [{ type: String }],
   isOnline: { type: Boolean, default: false },
   isMuted: { type: Boolean, default: false },
   source: { type: String, enum: ['webchat', 'whatsapp-web', 'whatsapp-api', 'instagram', 'facebook'], default: 'webchat' },
@@ -100,7 +105,10 @@ const MessageSchema = new mongoose.Schema({
   senderType: { type: String, enum: ['Visitor', 'Agent', 'System'], required: true },
   senderId: { type: String, required: true },
   senderName: { type: String, required: true },
-  text: { type: String, required: true },
+  text: { type: String, default: '' },
+  attachmentUrl: { type: String, default: '' },
+  attachmentType: { type: String, default: '' },
+  mediaUrls: [{ type: String }],
   timestamp: { type: Date, default: Date.now }
 });
 

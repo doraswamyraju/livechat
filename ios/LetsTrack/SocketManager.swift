@@ -267,12 +267,16 @@ class SocketManager: ObservableObject {
         }
     }
     
-    func sendAgentMessage(conversationId: String, visitorId: String, text: String) {
-        let payload: [String: Any] = [
+    func sendAgentMessage(conversationId: String, visitorId: String, text: String, attachmentUrl: String? = nil, attachmentType: String? = nil) {
+        var payload: [String: Any] = [
             "conversationId": conversationId,
             "visitorId": visitorId,
             "text": text
         ]
+        if let att = attachmentUrl, !att.isEmpty {
+            payload["attachmentUrl"] = att
+            payload["attachmentType"] = attachmentType ?? "image/jpeg"
+        }
         socket?.emit("agent-msg", payload)
     }
     
@@ -291,6 +295,9 @@ class SocketManager: ObservableObject {
             city: dict["city"] as? String ?? "Unknown",
             deviceType: dict["deviceType"] as? String ?? "Desktop",
             currentUrl: dict["currentUrl"] as? String,
+            about: dict["about"] as? String,
+            company: dict["company"] as? String,
+            tags: dict["tags"] as? [String],
             isOnline: dict["isOnline"] as? Bool ?? false,
             isMuted: dict["isMuted"] as? Bool ?? false
         )
@@ -351,6 +358,9 @@ class SocketManager: ObservableObject {
             senderId: dict["senderId"] as? String ?? "SYSTEM",
             senderName: dict["senderName"] as? String ?? "System",
             text: dict["text"] as? String ?? "",
+            attachmentUrl: dict["attachmentUrl"] as? String,
+            attachmentType: dict["attachmentType"] as? String,
+            mediaUrls: dict["mediaUrls"] as? [String],
             timestamp: dict["timestamp"] as? String ?? ""
         )
     }

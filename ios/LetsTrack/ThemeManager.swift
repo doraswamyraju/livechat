@@ -8,21 +8,75 @@ class ThemeManager: ObservableObject {
         }
     }
     
+    @Published var accentColorKey: String = "red" {
+        didSet {
+            UserDefaults.standard.set(accentColorKey, forKey: "accent_color_key")
+        }
+    }
+    
+    @Published var hapticsEnabled: Bool = true {
+        didSet {
+            UserDefaults.standard.set(hapticsEnabled, forKey: "haptics_enabled")
+        }
+    }
+    
+    @Published var soundsEnabled: Bool = true {
+        didSet {
+            UserDefaults.standard.set(soundsEnabled, forKey: "sounds_enabled")
+        }
+    }
+    
     init() {
         self.themeMode = UserDefaults.standard.string(forKey: "theme_mode") ?? "light"
+        self.accentColorKey = UserDefaults.standard.string(forKey: "accent_color_key") ?? "red"
+        self.hapticsEnabled = UserDefaults.standard.object(forKey: "haptics_enabled") as? Bool ?? true
+        self.soundsEnabled = UserDefaults.standard.object(forKey: "sounds_enabled") as? Bool ?? true
     }
     
     var isDark: Bool {
         themeMode == "dark"
     }
     
-    // Brand Accent Red (#DC2626)
+    // Dynamic Brand Accent Color
     var primaryColor: Color {
-        Color(red: 220/255, green: 38/255, blue: 38/255)
+        switch accentColorKey.lowercased() {
+        case "blue":
+            return Color(red: 37/255, green: 99/255, blue: 235/255) // Royal Blue #2563EB
+        case "emerald":
+            return Color(red: 16/255, green: 185/255, blue: 129/255) // Emerald #10B981
+        case "purple":
+            return Color(red: 124/255, green: 58/255, blue: 237/255) // Violet #7C3AED
+        case "amber":
+            return Color(red: 245/255, green: 158/255, blue: 11/255) // Amber #F59E0B
+        case "pink":
+            return Color(red: 236/255, green: 72/255, blue: 153/255) // Rose Pink #EC4899
+        default:
+            return Color(red: 220/255, green: 38/255, blue: 38/255) // Crimson Red #DC2626
+        }
     }
     
     var secondaryColor: Color {
-        Color(red: 239/255, green: 68/255, blue: 68/255)
+        switch accentColorKey.lowercased() {
+        case "blue":
+            return Color(red: 96/255, green: 165/255, blue: 250/255)
+        case "emerald":
+            return Color(red: 52/255, green: 211/255, blue: 153/255)
+        case "purple":
+            return Color(red: 167/255, green: 139/255, blue: 250/255)
+        case "amber":
+            return Color(red: 251/255, green: 191/255, blue: 36/255)
+        case "pink":
+            return Color(red: 244/255, green: 114/255, blue: 182/255)
+        default:
+            return Color(red: 239/255, green: 68/255, blue: 68/255)
+        }
+    }
+    
+    func triggerHaptic(style: UIImpactFeedbackGenerator.FeedbackStyle = .light) {
+        guard hapticsEnabled else { return }
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.prepare()
+        generator.impactOccurred()
     }
     
     var backgroundColor: Color {
