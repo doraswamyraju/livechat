@@ -263,4 +263,104 @@ class NetworkClient: ObservableObject {
         let (data, _) = try await URLSession.shared.data(for: urlRequest)
         return try decoder.decode(VisitorDto.self, from: data)
     }
+    
+    // MARK: - Lead Management APIs
+    
+    func getLeads(search: String? = nil, status: String? = nil, source: String? = nil) async throws -> [LeadDto] {
+        var urlComponents = URLComponents(string: "\(baseURL)/api/leads")!
+        var queryItems: [URLQueryItem] = []
+        if let search = search, !search.isEmpty {
+            queryItems.append(URLQueryItem(name: "search", value: search))
+        }
+        if let status = status, status != "All" && !status.isEmpty {
+            queryItems.append(URLQueryItem(name: "status", value: status))
+        }
+        if let source = source, source != "All" && !source.isEmpty {
+            queryItems.append(URLQueryItem(name: "source", value: source))
+        }
+        if !queryItems.isEmpty {
+            urlComponents.queryItems = queryItems
+        }
+        
+        var urlRequest = URLRequest(url: urlComponents.url!)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch leads."])
+        }
+        
+        // Backend returns { leads: [...], total, page, pages }
+        struct LeadsResponse: Codable {
+            let leads: [LeadDto]
+        }
+        
+        if let resp = try? decoder.decode(LeadsResponse.self, from: data) {
+            return resp.leads
+        }
+        return try decoder.decode([LeadDto].self, from: data)
+    }
+    
+    func createLead(request: CreateLeadRequest) async throws -> LeadDto {
+        let url = URL(string: "\(baseURL)/api/leads")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.httpBody = try encoder.encode(request)
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to create lead."])
+        }
+        
+        return try decoder.decode(LeadDto.self, from: data)
+    }
+    
+    func updateLead(leadId: String, fields: [String: Any]) async throws -> LeadDto {
+        let url = URL(string: "\(baseURL)/api/leads/\(leadId)")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "PUT"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.httpBody = try JSONSerialization.data(withJSONObject: fields)
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to update lead."])
+        }
+        
+        return try decoder.decode(LeadDto.self, from: data)
+    }
+    
+    func getLeadStats() async throws -> LeadStatsDto {
+        let url = URL(string: "\(baseURL)/api/leads/stats")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch lead stats."])
+        }
+        
+        return try decoder.decode(LeadStatsDto.self, from: data)
+    }
+    
+    func addLeadNote(leadId: String, text: String) async throws -> LeadDto {
+        let url = URL(string: "\(baseURL)/api/leads/\(leadId)/notes")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.httpBody = try JSONSerialization.data(withJSONObject: ["text": text])
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to add note to lead."])
+        }
+        
+        return try decoder.decode(LeadDto.self, from: data)
+    }
 }

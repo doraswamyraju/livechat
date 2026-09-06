@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import LandingPage from './components/LandingPage';
 import DemoSandbox from './components/DemoSandbox';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
+import LeadManagementSystem from './components/LeadManagementSystem';
 import { initSecurityShield } from './utils/securityShield';
 
 const BACKEND_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -36,11 +37,33 @@ function App() {
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('letstrack_user')) || null);
   const [tenant, setTenant] = useState(JSON.parse(localStorage.getItem('letstrack_tenant')) || null);
   
+  // Theme state (Primary Light mode by default + Dark mode toggle)
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('letstrack_theme') || 'light');
+  
+  const toggleTheme = () => {
+    setThemeMode(prev => {
+      const next = prev === 'light' ? 'dark' : 'light';
+      localStorage.setItem('letstrack_theme', next);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (themeMode === 'dark') {
+      document.documentElement.classList.add('theme-dark');
+      document.body.classList.add('theme-dark');
+    } else {
+      document.documentElement.classList.remove('theme-dark');
+      document.body.classList.remove('theme-dark');
+    }
+  }, [themeMode]);
+
   // Hash-based Navigation Mapping (ensures URL updates on tab switch)
   const tabToHash = {
     analytics: 'overview',
     monitor: 'monitor',
     chat: 'inbox',
+    leads: 'leads',
     whatsapp: 'whatsapp',
     agents: 'team',
     customize: 'widget',
@@ -52,6 +75,7 @@ function App() {
     overview: 'analytics',
     monitor: 'monitor',
     inbox: 'chat',
+    leads: 'leads',
     whatsapp: 'whatsapp',
     team: 'agents',
     widget: 'customize',
@@ -89,6 +113,7 @@ function App() {
   useEffect(() => {
     initSecurityShield(() => user);
   }, [user]);
+
 
   // Collapsible Layouts State
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('letstrack_sidebar_collapsed') === 'true');
@@ -1831,40 +1856,78 @@ function App() {
         <div className="auth-bg-blob top-left"></div>
         <div className="auth-bg-blob bottom-right"></div>
         
-        <div className="auth-card glass-card">
-          <div style={{ marginBottom: '16px' }}>
+        <div className="auth-card glass-card" style={{ maxWidth: '480px', width: '100%', padding: '32px 28px' }}>
+          <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span
               className="auth-link"
               onClick={() => navigateAuthMode('landing')}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#9ca3af' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}
             >
-              ← Back to Product Overview
+              ← Product Overview
+            </span>
+            <span style={{
+              background: 'var(--primary-light)',
+              color: 'var(--primary)',
+              border: '1px solid var(--primary-border)',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontSize: '11px',
+              fontWeight: 800
+            }}>
+              Omnichannel Hub
             </span>
           </div>
 
           <div style={{ textAlign: 'center', marginBottom: '14px' }}>
-            <img src="/logo-wide.png" alt="LetsTrack" style={{ height: '48px', maxWidth: '100%', objectFit: 'contain' }} />
+            <img src="/logo-wide.png" alt="LetsTrack" style={{ height: '52px', maxWidth: '100%', objectFit: 'contain' }} />
           </div>
-          <div className="auth-subtitle">Real-time Visitor Tracking & Messaging Platform</div>
+
+          <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
+              One Unified Console for All Your Customer Channels
+            </div>
+            <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+              Manage Instagram DMs, Facebook Messenger, WhatsApp Cloud API, LiveChat & Lead CRM from LetsTrack.
+            </div>
+
+            {/* Live Omnichannel Badges */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }}>
+              <span style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecdd3', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                💬 LiveChat
+              </span>
+              <span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                🟢 WhatsApp API
+              </span>
+              <span style={{ background: '#faf5ff', color: '#9333ea', border: '1px solid #e9d5ff', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                📸 Instagram DM
+              </span>
+              <span style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                👥 Facebook
+              </span>
+              <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                🧭 Visitor Radar
+              </span>
+            </div>
+          </div>
 
           {authMode === 'login' ? (
             <form className="auth-form" onSubmit={handleLogin}>
-              <div style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.15), rgba(15,23,42,0.9))', border: '1px solid rgba(220,38,38,0.4)', borderRadius: '12px', padding: '12px', marginBottom: '16px', textAlignment: 'center' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#ffffff', marginBottom: '6px' }}>
-                  🚀 Want to explore without signing up?
+              <div style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.1), rgba(15,23,42,0.03))', border: '1px solid rgba(220,38,38,0.3)', borderRadius: '12px', padding: '12px', marginBottom: '16px', textAlign: 'center' }}>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                  🚀 Test drive all channels instantly without signing up!
                 </div>
                 <button 
                   type="button" 
                   className="auth-btn" 
                   onClick={handle1ClickDemoLogin}
-                  style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', padding: '8px 16px', fontSize: '13px' }}
+                  style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', padding: '9px 16px', fontSize: '13px', fontWeight: 800, width: '100%', boxShadow: '0 4px 12px rgba(220,38,38,0.25)' }}
                 >
-                  Launch Full Live Console (1-Click Demo)
+                  Launch Live Interactive Demo (1-Click)
                 </button>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Email Address</label>
+                <label className="form-label">Email Username</label>
                 <input
                   type="email"
                   className="form-input"
@@ -1885,20 +1948,22 @@ function App() {
                   required
                 />
               </div>
-              <button type="submit" className="auth-btn">Access Console</button>
+              <button type="submit" className="auth-btn" style={{ fontWeight: 800, fontSize: '14px', height: '44px' }}>
+                Sign In to Account
+              </button>
               
               <div id="g_id_signin" style={{ marginTop: '14px', display: 'flex', justifyContent: 'center' }}></div>
 
-              
               <div className="auth-switch-text" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px' }}>
                 <span className="auth-link" onClick={() => navigateAuthMode('register')}>
-                  Create Tenant
+                  Create Tenant Workspace
                 </span>
                 <span className="auth-link" onClick={() => navigateAuthMode('reset')}>
                   Forgot Password?
                 </span>
               </div>
             </form>
+
           ) : authMode === 'reset' ? (
             <form className="auth-form" onSubmit={handleResetPassword}>
               <div className="form-group">
@@ -2116,6 +2181,23 @@ function App() {
             <span>Inbox Console</span>
           </button>
 
+          {/* Lead Management System (LMS & CRM) */}
+          <button className={`menu-item ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')} title="Leads & CRM Pipeline">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            <span>Leads & CRM</span>
+            <span style={{ 
+              marginLeft: 'auto', 
+              fontSize: '9.5px', 
+              fontWeight: 800, 
+              background: 'linear-gradient(135deg, #dc2626, #b91c1c)', 
+              color: '#ffffff', 
+              padding: '2px 6px', 
+              borderRadius: '8px' 
+            }}>
+              LMS
+            </span>
+          </button>
+
           {/* New WhatsApp Business API tab (Coming Soon) */}
           <button className={`menu-item ${activeTab === 'whatsapp' ? 'active' : ''}`} onClick={() => setActiveTab('whatsapp')} title="WhatsApp Business API (Coming Soon)">
             <svg viewBox="0 0 24 24" style={{ fill: '#25D366' }}><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 6.46 17.5 2 12.04 2M12.05 3.67C16.58 3.67 20.28 7.37 20.28 11.92C20.28 16.46 16.58 20.17 12.05 20.17C10.58 20.17 9.15 19.78 7.91 19.05L7.61 18.87L4.5 19.69L5.33 16.65L5.13 16.34C4.34 15.08 3.8 13.53 3.8 11.92C3.8 7.37 7.5 3.67 12.05 3.67Z"/></svg>
@@ -2192,6 +2274,7 @@ function App() {
               {activeTab === 'analytics' && 'Operational Metrics Overview'}
               {activeTab === 'monitor' && 'Live Traffic Analytics'}
               {activeTab === 'chat' && 'Live Chat Dashboard'}
+              {activeTab === 'leads' && '🎯 Lead Management System (LMS) & CRM Pipeline'}
               {activeTab === 'whatsapp' && 'Meta WhatsApp Business API Hub'}
               {activeTab === 'customize' && 'Widget Configuration Center'}
               {activeTab === 'agents' && 'Employee Administration'}
@@ -2202,7 +2285,28 @@ function App() {
             </div>
           </div>
 
-          <div className="navbar-profile">
+          <div className="navbar-profile" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Theme Toggle (Light / Dark) */}
+            <button
+              onClick={toggleTheme}
+              style={{
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                padding: '6px 12px',
+                color: 'var(--text-primary)',
+                fontWeight: 700,
+                fontSize: '12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title={`Switch to ${themeMode === 'light' ? 'Dark' : 'Light'} Mode`}
+            >
+              {themeMode === 'light' ? '🌙 Dark' : '☀️ Light'}
+            </button>
+
             {/* Status Dropdown */}
             <div className="status-dropdown">
               <button className="status-trigger" onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}>
@@ -2231,7 +2335,7 @@ function App() {
               </div>
             </div>
             
-            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '13px', marginLeft: '12px', fontWeight: '500' }}>
+            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '13px', marginLeft: '6px', fontWeight: '600' }}>
               Sign Out
             </button>
           </div>
@@ -2240,8 +2344,26 @@ function App() {
         {/* Dynamic Viewport */}
         <div className={`viewport-content ${activeTab === 'chat' ? 'chat-viewport' : ''}`}>
           
+          {/* TAB: LEAD MANAGEMENT SYSTEM (LMS) */}
+          {activeTab === 'leads' && (
+            <LeadManagementSystem
+              token={token}
+              user={user}
+              BACKEND_URL={BACKEND_URL}
+              showToast={showToast}
+              onOpenChatWithLead={(lead) => {
+                setActiveTab('chat');
+                if (lead.conversationId) {
+                  const matchConv = conversations.find(c => c._id === lead.conversationId);
+                  if (matchConv) handleSelectConversation(matchConv);
+                }
+              }}
+            />
+          )}
+
           {/* A. ANALYTICS VIEW */}
           {activeTab === 'analytics' && (
+
             <div>
               <div className="analytics-stats-row">
                 <div className="stat-card glass-card" onClick={() => setActiveTab('monitor')} style={{ cursor: 'pointer' }}>
@@ -2988,31 +3110,82 @@ function App() {
             <div className={`inbox-container ${chatDetailsCollapsed ? 'details-collapsed' : ''}`}>
               {/* 1. Chats Rooms List */}
               <div className="pane-rooms">
-                <div className="rooms-filter-tabs" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', borderBottom: '1px solid var(--border-color)' }}>
-                  <button 
-                    onClick={() => setShowNewChatModal(true)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      backgroundColor: 'var(--primary)',
-                      color: 'white',
-                      border: 'none',
-                      fontSize: '12.5px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      boxShadow: '0 0 10px rgba(220, 38, 38, 0.25)',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
-                    onMouseOut={(e) => e.currentTarget.style.filter = 'none'}
-                  >
-                    💬 + New Chat
-                  </button>
+                <div className="rooms-filter-tabs" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px 14px 10px', borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '19px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Unified Inbox</h2>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>All conversations. One place.</div>
+                    </div>
+                    <button 
+                      onClick={() => setShowNewChatModal(true)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--primary)',
+                        color: 'white',
+                        border: 'none',
+                        fontSize: '11.5px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        boxShadow: '0 2px 6px rgba(220, 38, 38, 0.25)'
+                      }}
+                    >
+                      + Chat
+                    </button>
+                  </div>
+
+                  {/* Channel categories pills with Live Counts */}
+                  {(() => {
+                    const activeConvs = conversations.filter(c => !c.isArchived && c.status !== 'Archived');
+                    const cTotal = activeConvs.length;
+                    const cWA = activeConvs.filter(c => c.source === 'whatsapp-web' || c.source === 'whatsapp-api').length;
+                    const cIG = activeConvs.filter(c => c.source === 'instagram').length;
+                    const cFB = activeConvs.filter(c => c.source === 'facebook').length;
+                    const cWeb = activeConvs.filter(c => !c.source || c.source === 'webchat').length;
+
+                    return (
+                      <div className="channel-filter-scroll" style={{ display: 'flex', gap: '6px', overflowX: 'auto', padding: '2px 0' }}>
+                        <button
+                          onClick={() => setChannelFilter('all')}
+                          className={`channel-pill ${channelFilter === 'all' ? 'active' : ''}`}
+                        >
+                          <span>All</span>
+                          <span className="pill-count-badge">{cTotal}</span>
+                        </button>
+                        <button
+                          onClick={() => setChannelFilter('whatsapp')}
+                          className={`channel-pill ${channelFilter === 'whatsapp' ? 'active' : ''}`}
+                        >
+                          <span>🟢 WA</span>
+                          <span className="pill-count-badge">{cWA}</span>
+                        </button>
+                        <button
+                          onClick={() => setChannelFilter('instagram')}
+                          className={`channel-pill ${channelFilter === 'instagram' ? 'active' : ''}`}
+                        >
+                          <span>📸 IG</span>
+                          <span className="pill-count-badge">{cIG}</span>
+                        </button>
+                        <button
+                          onClick={() => setChannelFilter('facebook')}
+                          className={`channel-pill ${channelFilter === 'facebook' ? 'active' : ''}`}
+                        >
+                          <span>👥 FB</span>
+                          <span className="pill-count-badge">{cFB}</span>
+                        </button>
+                        <button
+                          onClick={() => setChannelFilter('webchat')}
+                          className={`channel-pill ${channelFilter === 'webchat' ? 'active' : ''}`}
+                        >
+                          <span>💬 Web</span>
+                          <span className="pill-count-badge">{cWeb}</span>
+                        </button>
+                      </div>
+                    );
+                  })()}
 
                   {/* Search Filter Input */}
                   <div style={{ position: 'relative', width: '100%' }}>
@@ -3022,7 +3195,7 @@ function App() {
                       placeholder="Search name, phone, message..."
                       value={inboxSearchQuery}
                       onChange={(e) => setInboxSearchQuery(e.target.value)}
-                      style={{ width: '100%', paddingLeft: '28px', paddingRight: inboxSearchQuery ? '24px' : '10px' }}
+                      style={{ width: '100%', paddingLeft: '28px', paddingRight: inboxSearchQuery ? '24px' : '10px', borderRadius: '8px' }}
                     />
                     <span style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-muted)' }}>
                       🔍
@@ -3036,106 +3209,7 @@ function App() {
                       </button>
                     )}
                   </div>
-                  
-                  {/* Channel categories tabs with Official Icons */}
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: 'repeat(5, 1fr)', 
-                    gap: '4px',
-                    backgroundColor: 'var(--bg-tertiary)',
-                    borderRadius: '8px',
-                    padding: '3px',
-                    border: '1px solid var(--border-color)'
-                  }}>
-                    <button
-                      onClick={() => setChannelFilter('all')}
-                      style={{
-                        padding: '6px 2px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: channelFilter === 'all' ? 'var(--bg-secondary)' : 'transparent',
-                        color: channelFilter === 'all' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '3px',
-                        transition: 'all 0.2s'
-                      }}
-                      title="All Channels"
-                    >
-                      All
-                    </button>
-                    <button
-                      onClick={() => setChannelFilter('webchat')}
-                      style={{
-                        padding: '6px 2px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: channelFilter === 'webchat' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
-                        color: channelFilter === 'webchat' ? '#818CF8' : 'var(--text-secondary)',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '3px',
-                        transition: 'all 0.2s'
-                      }}
-                      title="Web Chat"
-                    >
-                      {renderChannelIcon('webchat', 13)}
-                      <span>Web</span>
-                    </button>
-                    <button
-                      onClick={() => setChannelFilter('whatsapp')}
-                      style={{
-                        padding: '6px 2px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: channelFilter === 'whatsapp' ? 'rgba(37, 211, 102, 0.15)' : 'transparent',
-                        color: channelFilter === 'whatsapp' ? '#25D366' : 'var(--text-secondary)',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '3px',
-                        transition: 'all 0.2s'
-                      }}
-                      title="WhatsApp (Linked & API)"
-                    >
-                      {renderChannelIcon('whatsapp-web', 13)}
-                      <span>WA</span>
-                    </button>
-                    <button
-                      onClick={() => setChannelFilter('facebook')}
-                      style={{
-                        padding: '6px 2px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: channelFilter === 'facebook' ? 'rgba(0, 132, 255, 0.15)' : 'transparent',
-                        color: channelFilter === 'facebook' ? '#60A5FA' : 'var(--text-secondary)',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '3px',
-                        transition: 'all 0.2s'
-                      }}
-                      title="Facebook Messenger"
-                    >
-                      {renderChannelIcon('facebook', 13)}
-                      <span>FB</span>
-                    </button>
-                    <button
-                      onClick={() => setChannelFilter('instagram')}
+
                       style={{
                         padding: '6px 2px',
                         borderRadius: '6px',
@@ -3498,6 +3572,63 @@ function App() {
 
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <button
+                          onClick={async () => {
+                            try {
+                              const vName = selectedVisitor?.name || 'Visitor';
+                              const vEmail = selectedVisitor?.email || '';
+                              const vPhone = selectedVisitor?.phoneNumber || '';
+                              const source = selectedConversation.source === 'whatsapp-api' ? 'whatsapp' : (selectedConversation.source || 'chat');
+
+                              const res = await fetch(`${BACKEND_URL}/api/leads`, {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  Authorization: `Bearer ${token}`
+                                },
+                                body: JSON.stringify({
+                                  tenantId: tenant._id,
+                                  name: vName,
+                                  email: vEmail,
+                                  phoneNumber: vPhone,
+                                  source: source,
+                                  status: 'New',
+                                  conversationId: selectedConversation._id,
+                                  visitorId: selectedVisitor?._id || '',
+                                  tags: ['Chat Conversion', source],
+                                  initialNote: `Converted from live chat conversation (${source}). Last message: "${selectedConversation.lastMessageText || ''}"`
+                                })
+                              });
+                              if (res.ok) {
+                                showToast('Converted to Lead successfully!', 'success');
+                                setActiveTab('leads');
+                              } else {
+                                const d = await res.json();
+                                showToast(d.error || 'Failed to convert to lead', 'error');
+                              }
+                            } catch (err) {
+                              showToast('Failed to convert to lead', 'error');
+                            }
+                          }}
+                          style={{
+                            backgroundColor: '#fef2f2',
+                            color: '#dc2626',
+                            border: '1px solid #fecdd3',
+                            padding: '6px 14px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            boxShadow: '0 2px 6px rgba(220, 38, 38, 0.15)'
+                          }}
+                          title="Convert this chat into an LMS Lead record"
+                        >
+                          ⚡ Convert to Lead
+                        </button>
+
+                        <button
                           onClick={toggleChatDetails}
                           style={{
                             backgroundColor: chatDetailsCollapsed ? '#fee2e2' : 'var(--bg-tertiary)',
@@ -3553,6 +3684,7 @@ function App() {
                           🗑️ Delete
                         </button>
                       </div>
+
                     </div>
 
                     {/* Live Activity Radar & Journey Strip inside Chat */}

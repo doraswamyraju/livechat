@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
+import LeadManagementSystem from './LeadManagementSystem';
 
 export default function SuperAdminDashboard({
   token,
@@ -10,7 +11,8 @@ export default function SuperAdminDashboard({
   onImpersonateSuccess
 }) {
   // Navigation
-  const [activeTab, setActiveTab] = useState('meta'); // 'meta' | 'inbox' | 'ads' | 'visitors' | 'workspaces' | 'payments' | 'users' | 'logs'
+  const [activeTab, setActiveTab] = useState('meta'); // 'meta' | 'inbox' | 'leads' | 'ads' | 'visitors' | 'workspaces' | 'payments' | 'users' | 'logs'
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -1127,7 +1129,32 @@ export default function SuperAdminDashboard({
               {!sidebarCollapsed && <span>Omnichannel Inbox</span>}
             </button>
 
+            {/* Lead Management System (LMS & CRM) */}
+            <button
+              onClick={() => setActiveTab('leads')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: activeTab === 'leads' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'transparent',
+                color: activeTab === 'leads' ? '#ffffff' : '#9ca3af',
+                fontWeight: activeTab === 'leads' ? 700 : 500,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
+              }}
+            >
+              <span style={{ fontSize: '17px' }}>🎯</span>
+              {!sidebarCollapsed && <span>Leads & LMS CRM</span>}
+            </button>
+
             {/* Meta Ads Manager */}
+
             <button
               onClick={() => {
                 setActiveTab('ads');
@@ -1311,7 +1338,9 @@ export default function SuperAdminDashboard({
             <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
               {activeTab === 'meta' && '⚡ Meta Omnichannel Enterprise Hub'}
               {activeTab === 'inbox' && '💬 Omnichannel Live Messaging & Inbox Console'}
+              {activeTab === 'leads' && '🎯 Lead Management System (LMS) & Meta Ads CRM'}
               {activeTab === 'ads' && '📊 Meta Marketing & Ad Campaigns Engine'}
+
               {activeTab === 'visitors' && '👁️ Live Real-Time Visitor Journey Tracking'}
               {activeTab === 'workspaces' && '🏢 Client Workspaces & Tenancy Administration'}
               {activeTab === 'payments' && '💳 Transaction Ledger & Subscription Billing'}
@@ -1687,24 +1716,65 @@ export default function SuperAdminDashboard({
             </div>
           )}
 
+          {/* TAB: LEAD MANAGEMENT SYSTEM & CRM */}
+          {activeTab === 'leads' && (
+            <LeadManagementSystem
+              token={token}
+              user={user}
+              BACKEND_URL={BACKEND_URL}
+              showToast={showToast}
+              onOpenChatWithLead={(lead) => {
+                setActiveTab('inbox');
+                if (lead.conversationId) setSelectedConvId(lead.conversationId);
+              }}
+            />
+          )}
+
           {/* TAB 2: LIVE OMNICHANNEL INBOX (LIVE WEBSOCKET & META WEBHOOKS) */}
           {activeTab === 'inbox' && (
-            <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0', display: 'flex', height: '680px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0', display: 'flex', height: '720px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
               
-              {/* Left Pane: Conversation Threads */}
-              <div style={{ width: '280px', minWidth: '260px', flexShrink: 0, borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', background: '#ffffff' }}>
+              {/* Left Pane: Conversation Threads (Unified Inbox) */}
+              <div style={{ width: '340px', minWidth: '320px', flexShrink: 0, borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', background: '#ffffff' }}>
                 
-                {/* Search & Channel Badges */}
-                <div style={{ padding: '14px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
+                {/* Unified Inbox Header with Channel Filter Pills */}
+                <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>Unified Inbox</h2>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>All conversations. One place.</div>
+                    </div>
+                    <button
+                      onClick={() => fetchConversations()}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '6px', borderRadius: '6px', color: '#64748b' }}
+                      title="Refresh Inbox"
+                    >
+                      🔄
+                    </button>
+                  </div>
+
+                  {/* Horizontal Channel Filter Pills */}
+                  <div className="channel-filter-scroll" style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
                     <button
                       onClick={() => {
                         setChatChannelFilter('all');
                         if (conversations.length > 0) setSelectedConvId(conversations[0]._id);
                       }}
-                      style={{ padding: '6px 2px', borderRadius: '6px', border: 'none', background: chatChannelFilter === 'all' ? '#0f172a' : 'transparent', color: chatChannelFilter === 'all' ? '#fff' : '#64748b', fontSize: '10.5px', fontWeight: 800, cursor: 'pointer' }}
+                      className={`channel-pill ${chatChannelFilter === 'all' ? 'active' : ''}`}
                     >
-                      All
+                      <span>All</span>
+                      <span className="pill-count-badge">{conversations.length}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setChatChannelFilter('whatsapp-api');
+                        const matching = conversations.filter(c => c.source === 'whatsapp-api' || c.source === 'whatsapp-web');
+                        if (matching.length > 0) setSelectedConvId(matching[0]._id);
+                      }}
+                      className={`channel-pill ${chatChannelFilter === 'whatsapp-api' ? 'active' : ''}`}
+                    >
+                      <span>🟢 WA</span>
+                      <span className="pill-count-badge">{conversations.filter(c => c.source === 'whatsapp-api' || c.source === 'whatsapp-web').length}</span>
                     </button>
                     <button
                       onClick={() => {
@@ -1712,19 +1782,10 @@ export default function SuperAdminDashboard({
                         const matching = conversations.filter(c => c.source === 'instagram');
                         if (matching.length > 0) setSelectedConvId(matching[0]._id);
                       }}
-                      style={{ padding: '6px 2px', borderRadius: '6px', border: 'none', background: chatChannelFilter === 'instagram' ? '#a855f7' : 'transparent', color: chatChannelFilter === 'instagram' ? '#fff' : '#64748b', fontSize: '10.5px', fontWeight: 800, cursor: 'pointer' }}
+                      className={`channel-pill ${chatChannelFilter === 'instagram' ? 'active' : ''}`}
                     >
-                      📸 IG
-                    </button>
-                    <button
-                      onClick={() => {
-                        setChatChannelFilter('whatsapp-api');
-                        const matching = conversations.filter(c => c.source === 'whatsapp-api');
-                        if (matching.length > 0) setSelectedConvId(matching[0]._id);
-                      }}
-                      style={{ padding: '6px 2px', borderRadius: '6px', border: 'none', background: chatChannelFilter === 'whatsapp-api' ? '#16a34a' : 'transparent', color: chatChannelFilter === 'whatsapp-api' ? '#fff' : '#64748b', fontSize: '10.5px', fontWeight: 800, cursor: 'pointer' }}
-                    >
-                      🟢 WA
+                      <span>📸 IG</span>
+                      <span className="pill-count-badge">{conversations.filter(c => c.source === 'instagram').length}</span>
                     </button>
                     <button
                       onClick={() => {
@@ -1732,19 +1793,21 @@ export default function SuperAdminDashboard({
                         const matching = conversations.filter(c => c.source === 'facebook');
                         if (matching.length > 0) setSelectedConvId(matching[0]._id);
                       }}
-                      style={{ padding: '6px 2px', borderRadius: '6px', border: 'none', background: chatChannelFilter === 'facebook' ? '#1877f2' : 'transparent', color: chatChannelFilter === 'facebook' ? '#fff' : '#64748b', fontSize: '10.5px', fontWeight: 800, cursor: 'pointer' }}
+                      className={`channel-pill ${chatChannelFilter === 'facebook' ? 'active' : ''}`}
                     >
-                      f FB
+                      <span>👥 FB</span>
+                      <span className="pill-count-badge">{conversations.filter(c => c.source === 'facebook').length}</span>
                     </button>
                     <button
                       onClick={() => {
                         setChatChannelFilter('webchat');
-                        const matching = conversations.filter(c => c.source === 'webchat');
+                        const matching = conversations.filter(c => !c.source || c.source === 'webchat');
                         if (matching.length > 0) setSelectedConvId(matching[0]._id);
                       }}
-                      style={{ padding: '6px 2px', borderRadius: '6px', border: 'none', background: chatChannelFilter === 'webchat' ? '#3b82f6' : 'transparent', color: chatChannelFilter === 'webchat' ? '#fff' : '#64748b', fontSize: '10.5px', fontWeight: 800, cursor: 'pointer' }}
+                      className={`channel-pill ${chatChannelFilter === 'webchat' ? 'active' : ''}`}
                     >
-                      💬 Web
+                      <span>💬 Web</span>
+                      <span className="pill-count-badge">{conversations.filter(c => !c.source || c.source === 'webchat').length}</span>
                     </button>
                   </div>
 
@@ -1753,7 +1816,7 @@ export default function SuperAdminDashboard({
                     placeholder="Search name, phone, message..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
 
@@ -1764,6 +1827,11 @@ export default function SuperAdminDashboard({
                       const isSel = c._id === selectedConvId;
                       const vName = c.visitorId?.name || (typeof c.visitorId === 'string' ? c.visitorId : 'Visitor');
                       const hasUnread = Boolean(c.unreadCount && c.unreadCount > 0);
+                      const initial = (vName || 'V')[0]?.toUpperCase();
+                      const isWA = c.source === 'whatsapp-api' || c.source === 'whatsapp-web';
+                      const isIG = c.source === 'instagram';
+                      const isFB = c.source === 'facebook';
+
                       return (
                         <div
                           key={c._id}
@@ -1775,82 +1843,90 @@ export default function SuperAdminDashboard({
                             }
                           }}
                           style={{
-                            padding: '14px',
+                            padding: '12px 14px',
                             borderBottom: '1px solid #f1f5f9',
                             cursor: 'pointer',
-                            background: isSel ? '#eff6ff' : (hasUnread ? '#f8fafc' : '#ffffff'),
-                            borderLeft: isSel ? '4px solid #1d4ed8' : (hasUnread ? '4px solid #ef4444' : '4px solid transparent'),
+                            background: isSel ? '#fef2f2' : (hasUnread ? '#f8fafc' : '#ffffff'),
+                            borderLeft: isSel ? '4px solid #dc2626' : (hasUnread ? '4px solid #ef4444' : '4px solid transparent'),
                             display: 'flex',
-                            flexDirection: 'column',
-                            gap: '6px',
+                            gap: '12px',
+                            alignItems: 'center',
                             transition: 'background 0.15s ease'
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: c.source === 'instagram' ? '#a855f7' : c.source === 'whatsapp-api' ? '#16a34a' : c.source === 'facebook' ? '#1877f2' : '#3b82f6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '11px' }}>
-                                {c.source === 'instagram' ? 'IG' : c.source === 'whatsapp-api' ? 'WA' : c.source === 'facebook' ? 'FB' : 'LT'}
-                              </div>
-                              <span style={{ fontWeight: hasUnread ? 900 : 700, fontSize: '13px', color: hasUnread ? '#0f172a' : '#334155' }}>{vName}</span>
+                          {/* Avatar with Channel Overlay Badge */}
+                          <div className="avatar-badge-wrapper" style={{ position: 'relative', width: '42px', height: '42px', flexShrink: 0 }}>
+                            <div style={{
+                              width: '42px',
+                              height: '42px',
+                              borderRadius: '50%',
+                              background: '#f1f5f9',
+                              color: '#0f172a',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 800,
+                              fontSize: '15px'
+                            }}>
+                              {initial}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div
+                              className={`channel-badge-overlay ${isWA ? 'whatsapp' : isIG ? 'instagram' : isFB ? 'facebook' : 'webchat'}`}
+                              style={{
+                                position: 'absolute',
+                                bottom: '-2px',
+                                right: '-2px',
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '9px',
+                                border: '2px solid #ffffff'
+                              }}
+                            >
+                              {isWA ? '🟢' : isIG ? '📸' : isFB ? '👥' : '💬'}
+                            </div>
+                          </div>
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                              <span style={{ fontWeight: hasUnread ? 800 : 700, fontSize: '13.5px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {vName}
+                              </span>
+                              <span style={{ fontSize: '10.5px', color: hasUnread ? '#dc2626' : '#94a3b8', fontWeight: hasUnread ? 800 : 500 }}>
+                                {new Date(c.updatedAt || c.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '12px', color: hasUnread ? '#0f172a' : '#64748b', fontWeight: hasUnread ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '190px' }}>
+                                {c.lastMessageText || 'No message snippet'}
+                              </span>
                               {hasUnread && (
                                 <span style={{
-                                  background: '#ef4444',
+                                  background: '#dc2626',
                                   color: '#ffffff',
                                   padding: '1px 6px',
                                   borderRadius: '10px',
-                                  fontSize: '10.5px',
-                                  fontWeight: 900,
-                                  boxShadow: '0 2px 4px rgba(239, 68, 68, 0.4)'
+                                  fontSize: '10px',
+                                  fontWeight: 800
                                 }}>
                                   {c.unreadCount}
                                 </span>
                               )}
-                              <span style={{ fontSize: '10.5px', color: hasUnread ? '#ef4444' : '#94a3b8', fontWeight: hasUnread ? 800 : 500 }}>
-                                {new Date(c.updatedAt || c.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
                             </div>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <span style={{
-                              background: c.source === 'instagram' ? '#fdf2f8' : c.source === 'whatsapp-api' ? '#f0fdf4' : c.source === 'facebook' ? '#eff6ff' : '#f8fafc',
-                              color: c.source === 'instagram' ? '#be185d' : c.source === 'whatsapp-api' ? '#15803d' : c.source === 'facebook' ? '#1d4ed8' : '#475569',
-                              padding: '1px 6px',
-                              borderRadius: '4px',
-                              fontSize: '10px',
-                              fontWeight: 800
-                            }}>
-                              {c.source === 'instagram' ? '📸 Instagram' : c.source === 'whatsapp-api' ? '🟢 WhatsApp' : c.source === 'facebook' ? 'f Facebook' : '💬 Live Web'}
-                            </span>
-                            {c.tenantId?.name && (
-                              <span style={{ background: '#f1f5f9', color: '#334155', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
-                                🏢 {c.tenantId.name}
-                              </span>
-                            )}
-                            <span style={{
-                              fontSize: '12px',
-                              color: hasUnread ? '#0f172a' : '#64748b',
-                              fontWeight: hasUnread ? 700 : 400,
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              flex: 1
-                            }}>
-                              {c.lastMessageText || 'Chat started'}
-                            </span>
                           </div>
                         </div>
                       );
                     })
                   ) : (
-                    <div style={{ padding: '32px 20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
-                      No active conversations found. Send a message to your connected Instagram or Facebook page to see it here live!
+                    <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+                      No conversations found for filter
                     </div>
                   )}
                 </div>
-
               </div>
 
               {/* Center Pane: Active Message Stream */}
@@ -1897,13 +1973,71 @@ export default function SuperAdminDashboard({
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => setDetailsDrawerOpen(!detailsDrawerOpen)}
-                        style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        {detailsDrawerOpen ? 'Hide Details ◀' : 'Show Details ▶'}
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const vName = activeConv.visitorId?.name || (typeof activeConv.visitorId === 'string' ? activeConv.visitorId : 'Visitor');
+                              const vEmail = activeConv.visitorId?.email || '';
+                              const vPhone = activeConv.visitorId?.phoneNumber || '';
+                              const tId = activeConv.tenantId?._id || activeConv.tenantId;
+
+                              const res = await fetch(`${BACKEND_URL}/api/leads`, {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  Authorization: `Bearer ${token}`
+                                },
+                                body: JSON.stringify({
+                                  tenantId: tId,
+                                  name: vName,
+                                  email: vEmail,
+                                  phoneNumber: vPhone,
+                                  source: activeConv.source === 'whatsapp-api' ? 'whatsapp' : activeConv.source,
+                                  status: 'New',
+                                  conversationId: activeConv._id,
+                                  tags: ['Chat Conversion', activeConv.source],
+                                  initialNote: `Converted from live chat conversation (${activeConv.source}). Last message: "${activeConv.lastMessageText || ''}"`
+                                })
+                              });
+                              if (res.ok) {
+                                showToast('Converted to Lead successfully!', 'success');
+                                setActiveTab('leads');
+                              } else {
+                                const d = await res.json();
+                                showToast(d.error || 'Failed to convert to lead', 'error');
+                              }
+                            } catch (err) {
+                              showToast('Failed to convert to lead', 'error');
+                            }
+                          }}
+                          style={{
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            border: '1px solid #fecdd3',
+                            padding: '6px 14px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          title="Convert this chat into an LMS Lead record"
+                        >
+                          ⚡ Convert to Lead
+                        </button>
+
+                        <button
+                          onClick={() => setDetailsDrawerOpen(!detailsDrawerOpen)}
+                          style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          {detailsDrawerOpen ? 'Hide Details ◀' : 'Show Details ▶'}
+                        </button>
+                      </div>
                     </div>
+
 
                     {/* Messages Scroll View */}
                     <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>

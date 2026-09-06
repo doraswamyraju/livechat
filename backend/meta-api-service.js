@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Visitor, Conversation, Message, Integration, Tenant } from './models.js';
+import { Visitor, Conversation, Message, Integration, Tenant, Lead } from './models.js';
 import { dashboardNamespace } from './socket.js';
 
 
@@ -147,7 +147,7 @@ export async function handleMetaWebhook(req, res) {
 
 
 
-          // Extract messaging events from entry.messaging, entry.standby, or entry.changes
+          // Extract messaging events and leadgen changes from entry
           const messagingItems = [];
           if (Array.isArray(entry.messaging)) {
             messagingItems.push(...entry.messaging);
@@ -157,11 +157,15 @@ export async function handleMetaWebhook(req, res) {
           }
           if (Array.isArray(entry.changes)) {
             for (const change of entry.changes) {
-              if (change.value && (change.field === 'messages' || change.field === 'instagram_messages' || change.field === 'messages_instagram' || change.field === 'conversations')) {
+              if (change.field === 'leadgen' && change.value) {
+                console.log(`[MetaWebhook] Detected Meta LeadGen event for Tenant ${tenantId}:`, change.value);
+                await processMetaLeadgen(change.value, tenantId, pageAccessToken);
+              } else if (change.value && (change.field === 'messages' || change.field === 'instagram_messages' || change.field === 'messages_instagram' || change.field === 'conversations')) {
                 messagingItems.push(change.value);
               }
             }
           }
+
 
 
           // Process messages
@@ -284,3 +288,128 @@ export async function handleMetaWebhook(req, res) {
 
   return res.sendStatus(405);
 }
+
+/**
+ * Fetch lead details from Meta Graph API and create a Lead record
+ */
+export async function processMetaLeadgen(leadgenData, tenantId, pageAccessToken) {
+  try {
+    const leadgenId = leadgenData.leadgen_id || leadgenData.id;
+    const formId = leadgenData.form_id;
+    const adId = leadgenData.ad_id;
+    const adgroupId = leadgenData.adgroup_id;
+
+    if (!leadgenId) return null;
+
+    let leadName = 'Meta Ad Lead';
+    let leadEmail = '';
+    let leadPhone = '';
+    let leadCompany = '';
+    const formAnswers = {};
+    let campaignName = leadgenData.campaign_name || 'Meta Ad Campaign';
+    let adName = leadgenData.ad_name || (adId ? `Ad #${adId}` : 'Meta Instant Form Ad');
+
+    if (pageAccessToken) {
+      try {
+        const leadRes = await fetch(`https://graph.facebook.com/v26.0/${leadgenId}?access_token=${pageAccessToken}`);
+        if (leadRes.ok) {
+          const leadDetails = await leadRes.json();
+          if (Array.isArray(leadDetails.field_data)) {
+            for (const field of leadDetails.field_data) {
+              const val = Array.isArray(field.values) ? field.values[0] : field.values;
+              formAnswers[field.name] = val;
+
+              const fname = (field.name || '').toLowerCase();
+              if (fname.includes('name') || fname === 'full_name' || fname === 'first_name') {
+                leadName = val;
+              } else if (fname.includes('email')) {
+                leadEmail = val;
+              } else if (fname.includes('phone') || fname.includes('mobile')) {
+                leadPhone = val;
+              } else if (fname.includes('company') || fname.includes('org')) {
+                leadCompany = val;
+              }
+            }
+          }
+          if (leadDetails.ad_name) adName = leadDetails.ad_name;
+          if (leadDetails.campaign_name) campaignName = leadDetails.campaign_name;
+        }
+      } catch (err) {
+        console.warn('[MetaLeadgen] Failed to fetch graph details for leadgen:', leadgenId, err);
+      }
+    }
+
+    const objTenantId = mongoose.Types.ObjectId.isValid(tenantId) ? new mongoose.Types.ObjectId(tenantId) : tenantId;
+
+    // Check if lead already exists by leadgenId or email/phone
+    let existingLead = await Lead.findOne({
+      tenantId: objTenantId,
+      $or: [
+        { 'metaData.leadgenId': leadgenId },
+        ...(leadEmail ? [{ email: leadEmail }] : []),
+        ...(leadPhone ? [{ phoneNumber: leadPhone }] : [])
+      ]
+    });
+
+    if (existingLead) {
+      console.log(`[MetaLeadgen] Lead already exists (${existingLead._id}), updating metadata.`);
+      existingLead.metaData = {
+        ...existingLead.metaData,
+        leadgenId,
+        formId,
+        adId,
+        adName,
+        campaignId: adgroupId,
+        campaignName,
+        formAnswers
+      };
+      existingLead.updatedAt = new Date();
+      await existingLead.save();
+      return existingLead;
+    }
+
+    const newLead = new Lead({
+      tenantId: objTenantId,
+      name: leadName || 'Meta Lead',
+      email: leadEmail,
+      phoneNumber: leadPhone,
+      company: leadCompany,
+      source: 'meta-ads',
+      status: 'New',
+      dealValue: 0,
+      currency: 'INR',
+      score: 75,
+      metaData: {
+        leadgenId,
+        formId,
+        adId,
+        adName,
+        campaignId: adgroupId,
+        campaignName,
+        formAnswers
+      },
+      tags: ['Meta Ads', 'Instant Form', campaignName].filter(Boolean),
+      notes: [{
+        authorName: 'Meta Ads Auto-Capture',
+        text: `Captured automatically from Meta Lead Form "${formId || 'Default'}" via Ad "${adName}".`,
+        createdAt: new Date()
+      }]
+    });
+
+    await newLead.save();
+    console.log(`[MetaLeadgen] Auto-created new lead from Meta Ads: ${newLead.name} (${newLead._id}) for tenant ${tenantId}`);
+
+    // Real-time broadcast to dashboard and rooms
+    if (dashboardNamespace) {
+      const strTenantId = tenantId.toString();
+      dashboardNamespace.to(`tenant_${strTenantId}`).emit('new-lead', newLead);
+      dashboardNamespace.emit('new-lead', newLead);
+    }
+
+    return newLead;
+  } catch (err) {
+    console.error('[MetaLeadgen] Error processing leadgen event:', err);
+    return null;
+  }
+}
+

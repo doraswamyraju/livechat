@@ -12,6 +12,7 @@ struct LoginRequest: Codable {
 struct GoogleLoginRequest: Codable {
     let credential: String
 }
+
 struct UserProfile: Codable, Identifiable, Hashable {
     let id: String
     let name: String
@@ -118,8 +119,24 @@ struct VisitorDto: Codable, Identifiable, Equatable {
     var currentUrl: String?
     var isOnline: Bool
     var isMuted: Bool?
+    var source: String?
+    var channel: String?
     var firstSeen: String?
     var lastSeen: String?
+    
+    var resolvedChannel: String {
+        if let ch = channel, !ch.isEmpty { return ch }
+        if let src = source, !src.isEmpty { return src }
+        let lowName = name.lowercased()
+        if lowName.contains("whatsapp") || (phoneNumber != nil && !phoneNumber!.isEmpty) {
+            return "whatsapp"
+        } else if lowName.contains("insta") || lowName.contains("ig") {
+            return "instagram"
+        } else if lowName.contains("facebook") || lowName.contains("fb") {
+            return "facebook"
+        }
+        return "livechat"
+    }
 }
 
 struct ConversationDto: Codable, Identifiable, Equatable {
@@ -128,7 +145,15 @@ struct ConversationDto: Codable, Identifiable, Equatable {
     let visitorId: String
     var status: String
     var assignedAgentId: String?
+    var channel: String?
+    var lastMessage: String?
+    var unreadCount: Int?
     var updatedAt: String
+    
+    var resolvedChannel: String {
+        if let ch = channel, !ch.isEmpty { return ch }
+        return "livechat"
+    }
 }
 
 struct MessageDto: Codable, Identifiable, Equatable {
@@ -140,6 +165,71 @@ struct MessageDto: Codable, Identifiable, Equatable {
     let senderName: String
     let text: String
     let timestamp: String
+}
+
+// ============================================
+// LEAD MANAGEMENT SYSTEM DTOs
+// ============================================
+
+struct LeadNoteDto: Codable, Identifiable, Equatable {
+    var id: String { _id ?? UUID().uuidString }
+    let _id: String?
+    let text: String
+    let authorName: String?
+    let createdAt: String?
+}
+
+struct LeadDto: Codable, Identifiable, Equatable {
+    var id: String { _id }
+    let _id: String
+    var name: String
+    var email: String?
+    var phone: String?
+    var company: String?
+    var source: String // "livechat", "whatsapp", "instagram", "facebook", "meta_ads", "manual", "website"
+    var status: String // "New", "Contacted", "Qualified", "Proposal", "Won", "Lost"
+    var dealValue: Double?
+    var currency: String?
+    var score: Int?
+    var notes: [LeadNoteDto]?
+    var tags: [String]?
+    var assignedAgentId: String?
+    var assignedAgentName: String?
+    var conversationId: String?
+    var visitorId: String?
+    var createdAt: String?
+    var updatedAt: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case _id, name, email, phone, company, source, status, dealValue, currency, score, notes, tags, assignedAgentId, assignedAgentName, conversationId, visitorId, createdAt, updatedAt
+    }
+}
+
+struct CreateLeadRequest: Codable {
+    let name: String
+    let email: String?
+    let phone: String?
+    let company: String?
+    let source: String?
+    let status: String?
+    let dealValue: Double?
+    let currency: String?
+    let score: Int?
+    let notes: [String]?
+    let tags: [String]?
+    let assignedAgentId: String?
+    let conversationId: String?
+    let visitorId: String?
+}
+
+struct LeadStatsDto: Codable {
+    let totalLeads: Int
+    let newLeads: Int
+    let wonLeads: Int
+    let lostLeads: Int
+    let totalPipelineValue: Double
+    let wonValue: Double
+    let conversionRate: Double
 }
 
 struct FcmTokenRequest: Codable {

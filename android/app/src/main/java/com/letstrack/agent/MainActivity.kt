@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
@@ -59,30 +60,32 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-
             val context = androidx.compose.ui.platform.LocalContext.current
             val prefs = remember { context.getSharedPreferences("letstrack_prefs", android.content.Context.MODE_PRIVATE) }
             var currentTheme by remember {
-                mutableStateOf(prefs.getString("theme_mode", "dark") ?: "dark")
+                mutableStateOf(prefs.getString("theme_mode", "light") ?: "light")
             }
 
-            val colorScheme = if (currentTheme == "light") {
+            val isDark = currentTheme == "dark"
+            val colorScheme = if (!isDark) {
                 lightColorScheme(
                     primary = Color(0xFFDC2626), // Accent Red
                     onPrimary = Color.White,
-                    surface = Color(0xFFF1F5F9), // Light Premium gray surface
-                    onSurface = Color(0xFF0F172A), // Dark slate text
-                    background = Color(0xFFFFFFFF), // Pure White background
-                    onBackground = Color(0xFF0F172A)
+                    surface = Color.White,
+                    onSurface = Color(0xFF0F172A),
+                    background = Color(0xFFF8FAFC),
+                    onBackground = Color(0xFF0F172A),
+                    outline = Color(0xFFE2E8F0)
                 )
             } else {
                 darkColorScheme(
-                    primary = Color(0xFFDC2626), // Netflix Red Accent
+                    primary = Color(0xFFDC2626),
                     onPrimary = Color.White,
-                    surface = Color(0xFF121212), // Dark Premium surface
+                    surface = Color(0xFF121826),
                     onSurface = Color.White,
-                    background = Color(0xFF000000), // Pure Black background
-                    onBackground = Color.White
+                    background = Color(0xFF0A0F1D),
+                    onBackground = Color.White,
+                    outline = Color(0xFF263042)
                 )
             }
 
@@ -132,7 +135,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
-
         super.onNewIntent(intent)
         setIntent(intent)
         _intentFlow.value = intent
@@ -207,8 +209,9 @@ fun AppNavigator(
     var activeVisitorUrl by remember { mutableStateOf("") }
     var activeVisitorEmail by remember { mutableStateOf("") }
     var activeVisitorPhone by remember { mutableStateOf("") }
+    var activeChannel by remember { mutableStateOf("livechat") }
 
-    var initialDashboardTab by remember { mutableStateOf(0) }
+    var initialDashboardTab by remember { mutableStateOf(2) } // Default to Unified Inbox
     var pendingVisitorIdNotification by remember { mutableStateOf("") }
 
     // Read intent parameters on startup or intent updates
@@ -235,10 +238,14 @@ fun AppNavigator(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A))
+            .background(MaterialTheme.colorScheme.background)
     ) {
         when (currentScreen) {
-            "login" -> LoginView(onLoginSuccess = { currentScreen = "dashboard" })
+            "login" -> LoginView(
+                currentTheme = currentTheme,
+                onThemeToggle = { onThemeChange(if (currentTheme == "light") "dark" else "light") },
+                onLoginSuccess = { currentScreen = "dashboard" }
+            )
             
             "dashboard" -> DashboardScreen(
                 initialTab = initialDashboardTab,
@@ -246,7 +253,7 @@ fun AppNavigator(
                 onThemeChange = onThemeChange,
                 pendingVisitorIdNotification = pendingVisitorIdNotification,
                 onClearPendingVisitorNotification = { pendingVisitorIdNotification = "" },
-                onNavigateToChat = { convId, name, visId, country, city, device, url, email, phone ->
+                onNavigateToChat = { convId, name, visId, country, city, device, url, email, phone, ch ->
                     activeConversationId = convId
                     activeVisitorName = name
                     activeVisitorId = visId
@@ -256,6 +263,7 @@ fun AppNavigator(
                     activeVisitorUrl = url ?: "/"
                     activeVisitorEmail = email ?: ""
                     activeVisitorPhone = phone ?: ""
+                    activeChannel = ch ?: "livechat"
                     currentScreen = "chat"
                 },
                 onSignOut = {
@@ -280,6 +288,8 @@ fun AppNavigator(
                 initialUrl = activeVisitorUrl,
                 initialEmail = activeVisitorEmail,
                 initialPhone = activeVisitorPhone,
+                initialChannel = activeChannel,
+                currentTheme = currentTheme,
                 onNavigateBack = { currentScreen = "dashboard" }
             )
         }
@@ -287,75 +297,113 @@ fun AppNavigator(
 }
 
 @Composable
-fun LoginView(onLoginSuccess: () -> Unit) {
+fun LoginView(
+    currentTheme: String,
+    onThemeToggle: () -> Unit,
+    onLoginSuccess: () -> Unit
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    val isDark = currentTheme == "dark"
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
-            .padding(24.dp),
+            .background(MaterialTheme.colorScheme.background)
+            .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // App Logo with premium border
+        // Top right theme toggle button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            OutlinedButton(
+                onClick = onThemeToggle,
+                shape = RoundedCornerShape(20.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = if (isDark) "☀️ Light" else "🌙 Dark",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // App Logo
         Image(
             painter = painterResource(id = R.drawable.app_logo),
             contentDescription = "LetsTrack Logo",
             modifier = Modifier
-                .size(110.dp)
-                .clip(CircleShape)
-                .border(2.dp, Color(0xFFDC2626), CircleShape),
+                .size(88.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .border(2.dp, Color(0xFFDC2626).copy(alpha = 0.5f), RoundedCornerShape(22.dp)),
             contentScale = ContentScale.Crop
         )
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
             text = "LetsTrack",
-            fontSize = 32.sp,
+            fontSize = 28.sp,
             fontWeight = FontWeight.Black,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
-            text = "Real-time Mobile Tracking Console",
-            fontSize = 12.sp,
-            color = Color(0xFFEF4444), // Accent Red
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 2.dp, bottom = 32.dp)
+            text = "Omnichannel Customer Hub",
+            fontSize = 13.sp,
+            color = Color(0xFFDC2626),
+            fontWeight = FontWeight.Bold
         )
 
+        // Omnichannel Badges
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(top = 8.dp, bottom = 20.dp)
+        ) {
+            ChannelBadge(name = "WhatsApp", color = Color(0xFF25D366))
+            ChannelBadge(name = "Instagram", color = Color(0xFFE1306C))
+            ChannelBadge(name = "Facebook", color = Color(0xFF1877F2))
+            ChannelBadge(name = "LiveChat", color = Color(0xFFDC2626))
+        }
+
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
-            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(20.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, Color(0xFF262626), RoundedCornerShape(16.dp))
+                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // Email field
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Email Username") },
+                    label = { Text("Work Email") },
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedBorderColor = Color(0xFFDC2626),
-                        unfocusedBorderColor = Color(0xFF262626),
-                        focusedLabelColor = Color(0xFFDC2626),
-                        cursorColor = Color(0xFFDC2626)
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedLabelColor = Color(0xFFDC2626)
                     ),
                     singleLine = true
                 )
@@ -364,15 +412,15 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Password credential") },
+                    label = { Text("Password") },
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedBorderColor = Color(0xFFDC2626),
-                        unfocusedBorderColor = Color(0xFF262626),
-                        focusedLabelColor = Color(0xFFDC2626),
-                        cursorColor = Color(0xFFDC2626)
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedLabelColor = Color(0xFFDC2626)
                     ),
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -399,10 +447,8 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                                     val req = LoginRequest(email.trim(), password.trim())
                                     val res = NetworkClient.api.login(req)
                                     
-                                    // Save credentials in memory
                                     NetworkClient.setAuth(res.token, res.user, res.tenant)
                                     
-                                    // Save credentials to SharedPreferences
                                     val prefs = context.getSharedPreferences("letstrack_prefs", android.content.Context.MODE_PRIVATE)
                                     val gson = com.google.gson.Gson()
                                     prefs.edit()
@@ -411,7 +457,6 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                                         .putString("tenant_details", gson.toJson(res.tenant))
                                         .apply()
                                     
-                                    // Fetch and upload Firebase FCM Token for push notifications
                                     try {
                                         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                                             if (task.isSuccessful) {
@@ -444,8 +489,8 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(8.dp),
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFDC2626),
                         contentColor = Color.White
@@ -453,10 +498,45 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                     enabled = !isLoading
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp))
                     } else {
-                        Text("Sign In to Account", fontWeight = FontWeight.Bold)
+                        Text("Sign In to Workspace", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
+                }
+
+                // 1-Click Sandbox launcher
+                OutlinedButton(
+                    onClick = {
+                        email = "admin@vrhere.in"
+                        password = "password123"
+                        isLoading = true
+                        errorMessage = null
+                        coroutineScope.launch {
+                            try {
+                                val req = LoginRequest(email.trim(), password.trim())
+                                val res = NetworkClient.api.login(req)
+                                NetworkClient.setAuth(res.token, res.user, res.tenant)
+                                val prefs = context.getSharedPreferences("letstrack_prefs", android.content.Context.MODE_PRIVATE)
+                                val gson = com.google.gson.Gson()
+                                prefs.edit()
+                                    .putString("auth_token", res.token)
+                                    .putString("user_profile", gson.toJson(res.user))
+                                    .putString("tenant_details", gson.toJson(res.tenant))
+                                    .apply()
+                                isLoading = false
+                                onLoginSuccess()
+                            } catch (e: Exception) {
+                                errorMessage = "Demo login failed."
+                                isLoading = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF59E0B)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+                ) {
+                    Text("⚡ 1-Click Demo Sandbox", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
 
                 // Google Sign In Button
@@ -479,184 +559,159 @@ fun LoginView(onLoginSuccess: () -> Unit) {
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF333333)),
+                        .height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color.White
+                        contentColor = MaterialTheme.colorScheme.onSurface
                     ),
                     enabled = !isLoading
                 ) {
-                    Text("Continue with Google", fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Text("Continue with Google", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
 
                 var showResetDialog by remember { mutableStateOf(false) }
-                var resetEmail by remember { mutableStateOf("") }
-
-                var resetPassword by remember { mutableStateOf("") }
-                var resetLoading by remember { mutableStateOf(false) }
-                var resetMessage by remember { mutableStateOf("") }
-                var isResetSuccess by remember { mutableStateOf(false) }
 
                 TextButton(
                     onClick = { showResetDialog = true },
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
-                    Text("Forgot Password?", color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
+                    Text("Forgot Password?", color = Color(0xFFDC2626), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
 
                 if (showResetDialog) {
-                    AlertDialog(
-                        onDismissRequest = {
-                            if (!resetLoading) {
-                                showResetDialog = false
-                                resetEmail = ""
-                                resetPassword = ""
-                                resetMessage = ""
-                                isResetSuccess = false
-                            }
-                        },
-                        title = {
-                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Image(
-                                        painter = painterResource(id = R.drawable.app_logo),
-                                        contentDescription = "Logo",
-                                        modifier = Modifier
-                                            .size(50.dp)
-                                            .clip(CircleShape)
-                                            .border(1.dp, Color(0xFFDC2626), CircleShape)
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("Reset Password", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 20.sp)
-                                }
-                            }
-                        },
-                        containerColor = Color(0xFF121212),
-                        modifier = Modifier.border(1.dp, Color(0xFF262626), RoundedCornerShape(28.dp)),
-                        text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(
-                                    "Enter your registered email address and your desired new password.",
-                                    color = Color(0xFF94A3B8),
-                                    fontSize = 13.sp
-                                )
-
-                                OutlinedTextField(
-                                    value = resetEmail,
-                                    onValueChange = { resetEmail = it },
-                                    label = { Text("Email Address") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
-                                        focusedBorderColor = Color(0xFFDC2626),
-                                        unfocusedBorderColor = Color(0xFF262626),
-                                        focusedLabelColor = Color(0xFFDC2626),
-                                        cursorColor = Color(0xFFDC2626)
-                                    ),
-                                    singleLine = true,
-                                    enabled = !resetLoading && !isResetSuccess
-                                )
-
-                                OutlinedTextField(
-                                    value = resetPassword,
-                                    onValueChange = { resetPassword = it },
-                                    label = { Text("New Password") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
-                                        focusedBorderColor = Color(0xFFDC2626),
-                                        unfocusedBorderColor = Color(0xFF262626),
-                                        focusedLabelColor = Color(0xFFDC2626),
-                                        cursorColor = Color(0xFFDC2626)
-                                    ),
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                    singleLine = true,
-                                    enabled = !resetLoading && !isResetSuccess
-                                )
-
-                                if (resetMessage.isNotEmpty()) {
-                                    Text(
-                                        text = resetMessage,
-                                        color = if (isResetSuccess) Color(0xFF10B981) else Color(0xFFEF4444),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            if (!isResetSuccess) {
-                                Button(
-                                    onClick = {
-                                        if (resetEmail.trim().isNotEmpty() && resetPassword.trim().length >= 6) {
-                                            resetLoading = true
-                                            resetMessage = ""
-                                            coroutineScope.launch {
-                                                try {
-                                                    val req = com.letstrack.agent.network.ResetPasswordRequest(
-                                                        resetEmail.trim(),
-                                                        resetPassword.trim()
-                                                    )
-                                                    val res = NetworkClient.api.resetPassword(req)
-                                                    resetMessage = res.message
-                                                    isResetSuccess = true
-                                                    resetLoading = false
-                                                } catch (e: Exception) {
-                                                    e.printStackTrace()
-                                                    resetMessage = "Password reset failed. Verify email or connectivity."
-                                                    resetLoading = false
-                                                }
-                                            }
-                                        } else {
-                                            resetMessage = "Enter valid email and password (min 6 chars)."
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                                    enabled = !resetLoading
-                                ) {
-                                    if (resetLoading) {
-                                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
-                                    } else {
-                                        Text("Reset Password")
-                                    }
-                                }
-                            } else {
-                                Button(
-                                    onClick = {
-                                        showResetDialog = false
-                                        resetEmail = ""
-                                        resetPassword = ""
-                                        resetMessage = ""
-                                        isResetSuccess = false
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
-                                ) {
-                                    Text("Close")
-                                }
-                            }
-                        },
-                        dismissButton = {
-                            if (!resetLoading && !isResetSuccess) {
-                                TextButton(
-                                    onClick = {
-                                        showResetDialog = false
-                                        resetEmail = ""
-                                        resetPassword = ""
-                                        resetMessage = ""
-                                        isResetSuccess = false
-                                    }
-                                ) {
-                                    Text("Cancel", color = Color(0xFF94A3B8))
-                                }
-                            }
-                        }
+                    ResetPasswordModal(
+                        onDismiss = { showResetDialog = false }
                     )
                 }
             }
         }
     }
+}
+
+@Composable
+fun ChannelBadge(name: String, color: Color) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(color, CircleShape)
+            )
+            Text(
+                text = name,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+fun ResetPasswordModal(onDismiss: () -> Unit) {
+    val coroutineScope = rememberCoroutineScope()
+    var resetEmail by remember { mutableStateOf("") }
+    var resetPassword by remember { mutableStateOf("") }
+    var resetLoading by remember { mutableStateOf(false) }
+    var resetMessage by remember { mutableStateOf("") }
+    var isResetSuccess by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = { if (!resetLoading) onDismiss() },
+        title = {
+            Text("Reset Password", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp)
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Enter your registered email and new password.",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 13.sp
+                )
+
+                OutlinedTextField(
+                    value = resetEmail,
+                    onValueChange = { resetEmail = it },
+                    label = { Text("Email Address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !resetLoading && !isResetSuccess
+                )
+
+                OutlinedTextField(
+                    value = resetPassword,
+                    onValueChange = { resetPassword = it },
+                    label = { Text("New Password") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    singleLine = true,
+                    enabled = !resetLoading && !isResetSuccess
+                )
+
+                if (resetMessage.isNotEmpty()) {
+                    Text(
+                        text = resetMessage,
+                        color = if (isResetSuccess) Color(0xFF10B981) else Color(0xFFEF4444),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (!isResetSuccess) {
+                Button(
+                    onClick = {
+                        if (resetEmail.trim().isNotEmpty() && resetPassword.trim().length >= 6) {
+                            resetLoading = true
+                            resetMessage = ""
+                            coroutineScope.launch {
+                                try {
+                                    val req = com.letstrack.agent.network.ResetPasswordRequest(
+                                        resetEmail.trim(),
+                                        resetPassword.trim()
+                                    )
+                                    val res = NetworkClient.api.resetPassword(req)
+                                    resetMessage = res.message
+                                    isResetSuccess = true
+                                    resetLoading = false
+                                } catch (e: Exception) {
+                                    resetMessage = "Password reset failed."
+                                    resetLoading = false
+                                }
+                            }
+                        } else {
+                            resetMessage = "Enter valid email and 6+ char password."
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                    enabled = !resetLoading
+                ) {
+                    Text("Reset Password")
+                }
+            } else {
+                Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))) {
+                    Text("Close")
+                }
+            }
+        },
+        dismissButton = {
+            if (!resetLoading && !isResetSuccess) {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = Color(0xFF94A3B8))
+                }
+            }
+        }
+    )
 }

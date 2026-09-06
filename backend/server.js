@@ -11,7 +11,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 
-import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, UpsellPitch, Integration, Payment, AuditLog } from './models.js';
+import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, UpsellPitch, Integration, Payment, AuditLog, Lead } from './models.js';
+
 import { initializeSocket, emitToDashboard, emitToVisitor } from './socket.js';
 import { 
   initializeWhatsAppClient, 
@@ -1051,7 +1052,316 @@ app.delete('/api/upsell-pitches/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================
+// LEAD MANAGEMENT SYSTEM (LMS) & CRM ENDPOINTS
+// ============================================
+
+// 12e. Get Leads with filtering & search
+app.get('/api/leads', authenticateToken, async (req, res) => {
+  try {
+    const { status, source, assignedAgentId, search, tenantId } = req.query;
+    
+    // Resolve effective tenantId (SuperAdmin can query specific tenant or default to assigned)
+    let targetTenantId = req.user.tenantId;
+    if (req.user.role === 'SuperAdmin' && tenantId) {
+      targetTenantId = tenantId;
+    }
+
+    const query = {};
+    if (targetTenantId) {
+      query.tenantId = targetTenantId;
+    }
+
+    if (status && status !== 'All') {
+      query.status = status;
+    }
+    if (source && source !== 'All') {
+      query.source = source;
+    }
+    if (assignedAgentId && assignedAgentId !== 'All') {
+      query.assignedAgentId = assignedAgentId;
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      query.$or = [
+        { name: searchRegex },
+        { email: searchRegex },
+        { phoneNumber: searchRegex },
+        { company: searchRegex },
+        { 'metaData.campaignName': searchRegex },
+        { 'metaData.adName': searchRegex }
+      ];
+    }
+
+    const leads = await Lead.find(query)
+      .populate('assignedAgentId', 'name email avatarUrl role status')
+      .populate('conversationId', 'lastMessageText unreadCount source updatedAt')
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    res.status(200).json({ leads });
+  } catch (err) {
+    console.error('Error fetching leads:', err);
+    res.status(500).json({ error: 'Failed to fetch leads' });
+  }
+});
+
+// 12f. Get Lead Analytics & Pipeline Stats
+app.get('/api/leads/stats', authenticateToken, async (req, res) => {
+  try {
+    const { tenantId } = req.query;
+    let targetTenantId = req.user.tenantId;
+    if (req.user.role === 'SuperAdmin' && tenantId) {
+      targetTenantId = tenantId;
+    }
+
+    const query = {};
+    if (targetTenantId) query.tenantId = targetTenantId;
+
+    const leads = await Lead.find(query);
+
+    const stages = {
+      New: 0,
+      Contacted: 0,
+      Qualified: 0,
+      Proposal: 0,
+      Won: 0,
+      Lost: 0
+    };
+
+    const sources = {
+      'meta-ads': 0,
+      'chat': 0,
+      'whatsapp': 0,
+      'instagram': 0,
+      'facebook': 0,
+      'website': 0,
+      'manual': 0
+    };
+
+    let totalDealValue = 0;
+    let wonDealValue = 0;
+
+    for (const lead of leads) {
+      if (stages[lead.status] !== undefined) {
+        stages[lead.status]++;
+      }
+      if (sources[lead.source] !== undefined) {
+        sources[lead.source]++;
+      }
+      const val = Number(lead.dealValue) || 0;
+      totalDealValue += val;
+      if (lead.status === 'Won') {
+        wonDealValue += val;
+      }
+    }
+
+    const totalLeads = leads.length;
+    const conversionRate = totalLeads > 0 ? ((stages.Won / totalLeads) * 100).toFixed(1) : '0.0';
+
+    res.status(200).json({
+      totalLeads,
+      stages,
+      sources,
+      totalDealValue,
+      wonDealValue,
+      conversionRate
+    });
+  } catch (err) {
+    console.error('Error fetching lead stats:', err);
+    res.status(500).json({ error: 'Failed to fetch lead stats' });
+  }
+});
+
+// 12g. Create Lead (Manual or Converted from Chat)
+app.post('/api/leads', authenticateToken, async (req, res) => {
+  try {
+    const {
+      name,
+      email,
+      phoneNumber,
+      company,
+      source = 'manual',
+      status = 'New',
+      dealValue = 0,
+      currency = 'INR',
+      score = 50,
+      assignedAgentId,
+      conversationId,
+      visitorId,
+      tags = [],
+      metaData = {},
+      initialNote
+    } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Lead name is required' });
+    }
+
+    const tenantId = req.body.tenantId || req.user.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant context required' });
+    }
+
+    const notes = [];
+    if (initialNote) {
+      notes.push({
+        authorId: req.user.userId,
+        authorName: req.user.name || 'Agent',
+        text: initialNote,
+        createdAt: new Date()
+      });
+    }
+
+    // If converted from conversation, link conversation and record audit
+    if (conversationId) {
+      notes.push({
+        authorId: req.user.userId,
+        authorName: req.user.name || 'System',
+        text: `Lead converted directly from live conversation #${conversationId}.`,
+        createdAt: new Date()
+      });
+    }
+
+    const lead = new Lead({
+      tenantId,
+      name,
+      email: email || '',
+      phoneNumber: phoneNumber || '',
+      company: company || '',
+      source,
+      status,
+      dealValue: Number(dealValue) || 0,
+      currency,
+      score: Number(score) || 50,
+      assignedAgentId: assignedAgentId || req.user.userId,
+      conversationId: conversationId || null,
+      visitorId: visitorId || '',
+      tags,
+      metaData,
+      notes
+    });
+
+    await lead.save();
+    const populated = await Lead.findById(lead._id).populate('assignedAgentId', 'name email avatarUrl role status');
+
+    // Broadcast lead creation to dashboard sockets
+    if (req.user.tenantId) {
+      emitToDashboard(req.user.tenantId.toString(), 'new-lead', populated);
+    }
+
+    res.status(201).json({ lead: populated, message: 'Lead created successfully' });
+  } catch (err) {
+    console.error('Error creating lead:', err);
+    res.status(500).json({ error: 'Failed to create lead' });
+  }
+});
+
+// 12h. Update Lead
+app.patch('/api/leads/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      email,
+      phoneNumber,
+      company,
+      status,
+      dealValue,
+      currency,
+      score,
+      assignedAgentId,
+      tags
+    } = req.body;
+
+    const lead = await Lead.findById(id);
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+    // Status transition audit note
+    if (status && status !== lead.status) {
+      lead.notes.push({
+        authorId: req.user.userId,
+        authorName: req.user.name || 'Agent',
+        text: `Stage changed from "${lead.status}" to "${status}".`,
+        createdAt: new Date()
+      });
+      lead.status = status;
+    }
+
+    if (name !== undefined) lead.name = name;
+    if (email !== undefined) lead.email = email;
+    if (phoneNumber !== undefined) lead.phoneNumber = phoneNumber;
+    if (company !== undefined) lead.company = company;
+    if (dealValue !== undefined) lead.dealValue = Number(dealValue);
+    if (currency !== undefined) lead.currency = currency;
+    if (score !== undefined) lead.score = Number(score);
+    if (assignedAgentId !== undefined) lead.assignedAgentId = assignedAgentId || null;
+    if (tags !== undefined) lead.tags = tags;
+    lead.updatedAt = new Date();
+
+    await lead.save();
+    const populated = await Lead.findById(lead._id).populate('assignedAgentId', 'name email avatarUrl role status');
+
+    if (lead.tenantId) {
+      emitToDashboard(lead.tenantId.toString(), 'lead-updated', populated);
+    }
+
+    res.status(200).json({ lead: populated, message: 'Lead updated successfully' });
+  } catch (err) {
+    console.error('Error updating lead:', err);
+    res.status(500).json({ error: 'Failed to update lead' });
+  }
+});
+
+// 12i. Add Note to Lead
+app.post('/api/leads/:id/notes', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text } = req.body;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Note text cannot be empty' });
+    }
+
+    const lead = await Lead.findById(id);
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+    const newNote = {
+      authorId: req.user.userId,
+      authorName: req.user.name || 'Agent',
+      text: text.trim(),
+      createdAt: new Date()
+    };
+
+    lead.notes.push(newNote);
+    lead.updatedAt = new Date();
+    await lead.save();
+
+    res.status(201).json({ note: newNote, message: 'Note added successfully' });
+  } catch (err) {
+    console.error('Error adding note to lead:', err);
+    res.status(500).json({ error: 'Failed to add note' });
+  }
+});
+
+// 12j. Delete Lead
+app.delete('/api/leads/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const lead = await Lead.findById(id);
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+    await lead.deleteOne();
+    res.status(200).json({ message: 'Lead deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting lead:', err);
+    res.status(500).json({ error: 'Failed to delete lead' });
+  }
+});
+
 // 13. Update Profile
+
 app.put('/api/auth/profile', authenticateToken, async (req, res) => {
   const { name, avatarUrl, password } = req.body;
   const updateData = {};

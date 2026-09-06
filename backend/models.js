@@ -219,6 +219,51 @@ const AuditLogSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// 11. Lead Model (CRM & Lead Management System)
+const LeadSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+  name: { type: String, required: true },
+  email: { type: String, default: '' },
+  phoneNumber: { type: String, default: '' },
+  company: { type: String, default: '' },
+  source: { 
+    type: String, 
+    enum: ['meta-ads', 'chat', 'whatsapp', 'instagram', 'facebook', 'website', 'manual'], 
+    default: 'manual',
+    index: true
+  },
+  status: { 
+    type: String, 
+    enum: ['New', 'Contacted', 'Qualified', 'Proposal', 'Won', 'Lost'], 
+    default: 'New',
+    index: true 
+  },
+  dealValue: { type: Number, default: 0 },
+  currency: { type: String, default: 'INR' },
+  score: { type: Number, default: 50 },
+  assignedAgentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  conversationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Conversation', default: null },
+  visitorId: { type: String, default: '' },
+  tags: [{ type: String }],
+  metaData: {
+    leadgenId: { type: String, default: '' },
+    formId: { type: String, default: '' },
+    adId: { type: String, default: '' },
+    adName: { type: String, default: '' },
+    campaignId: { type: String, default: '' },
+    campaignName: { type: String, default: '' },
+    formAnswers: { type: mongoose.Schema.Types.Mixed, default: {} }
+  },
+  notes: [{
+    authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    authorName: { type: String, default: 'System' },
+    text: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+  }],
+  createdAt: { type: Date, default: Date.now, index: true },
+  updatedAt: { type: Date, default: Date.now }
+});
+
 export const Tenant = mongoose.model('Tenant', TenantSchema);
 export const User = mongoose.model('User', UserSchema);
 export const Visitor = mongoose.model('Visitor', VisitorSchema);
@@ -230,3 +275,5 @@ export const UpsellPitch = mongoose.model('UpsellPitch', UpsellPitchSchema);
 export const Integration = mongoose.model('Integration', IntegrationSchema);
 export const Payment = mongoose.model('Payment', PaymentSchema);
 export const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
+export const Lead = mongoose.model('Lead', LeadSchema);
+

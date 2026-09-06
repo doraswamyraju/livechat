@@ -13,166 +13,273 @@ struct LoginView: View {
     
     // Reset password dialog state
     @State private var showResetDialog = false
-    @State private var resetEmail = ""
-    @State private var resetPassword = ""
-    @State private var resetMessage = ""
-    @State private var isResetSuccess = false
-    @State private var resetLoading = false
     
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            theme.backgroundColor.ignoresSafeArea()
+            
+            // Subtle ambient background gradient
+            VStack {
+                Circle()
+                    .fill(theme.primaryColor.opacity(theme.isDark ? 0.15 : 0.08))
+                    .frame(width: 320, height: 320)
+                    .blur(radius: 80)
+                    .offset(x: -80, y: -120)
+                Spacer()
+                Circle()
+                    .fill(Color(red: 239/255, green: 68/255, blue: 68/255).opacity(theme.isDark ? 0.12 : 0.06))
+                    .frame(width: 300, height: 300)
+                    .blur(radius: 80)
+                    .offset(x: 100, y: 100)
+            }
+            .ignoresSafeArea()
             
             ScrollView {
-                VStack(spacing: 24) {
-                    Spacer(minLength: 40)
+                VStack(spacing: 20) {
+                    Spacer(minLength: 24)
                     
-                    // App Logo
-                    Image("app_logo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 110, height: 110)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(theme.primaryColor, lineWidth: 2))
-                        .shadow(color: theme.primaryColor.opacity(0.3), radius: 10)
+                    // Theme toggle on top right
+                    HStack {
+                        Spacer()
+                        Button(action: {
+                            theme.themeMode = theme.isDark ? "light" : "dark"
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: theme.isDark ? "sun.max.fill" : "moon.fill")
+                                    .foregroundColor(theme.isDark ? .yellow : theme.primaryColor)
+                                Text(theme.isDark ? "Light" : "Dark")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(theme.surfaceColor)
+                            .cornerRadius(20)
+                            .overlay(RoundedRectangle(cornerRadius: 20).stroke(theme.borderColor, lineWidth: 1))
+                            .shadow(color: Color.black.opacity(0.05), radius: 4)
+                        }
+                    }
+                    .padding(.horizontal, 24)
                     
-                    VStack(spacing: 4) {
-                        Text("LetsTrack")
-                            .font(.system(size: 32, weight: .black))
-                            .foregroundColor(.white)
+                    // App Logo & Brand Header
+                    VStack(spacing: 12) {
+                        Image("app_logo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 88, height: 88)
+                            .clipShape(RoundedRectangle(cornerRadius: 22))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 22)
+                                    .stroke(theme.primaryColor.opacity(0.4), lineWidth: 2)
+                            )
+                            .shadow(color: theme.primaryColor.opacity(0.25), radius: 16, y: 8)
                         
-                        Text("Real-time Mobile Tracking Console")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(theme.secondaryColor)
+                        VStack(spacing: 4) {
+                            Text("LetsTrack")
+                                .font(.system(size: 30, weight: .black))
+                                .foregroundColor(theme.onSurfaceColor)
+                            
+                            Text("Omnichannel Customer Communication Hub")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(theme.primaryColor)
+                        }
+                        
+                        // Omnichannel channel pills
+                        HStack(spacing: 8) {
+                            channelBadge(title: "WhatsApp", icon: "message.fill", color: Color(red: 37/255, green: 211/255, blue: 102/255))
+                            channelBadge(title: "Instagram", icon: "camera.fill", color: Color(red: 225/255, green: 48/255, blue: 108/255))
+                            channelBadge(title: "Facebook", icon: "person.2.fill", color: Color(red: 24/255, green: 119/255, blue: 242/255))
+                            channelBadge(title: "LiveChat", icon: "bubble.left.and.bubble.right.fill", color: theme.primaryColor)
+                        }
+                        .padding(.top, 4)
                     }
                     
-                    // Form Card
+                    // Main Login Card
                     VStack(spacing: 16) {
                         // Email field
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Email Username")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(theme.primaryColor)
+                            Text("Work Email")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
                             
-                            TextField("", text: $email)
+                            TextField("name@company.com", text: $email)
                                 .keyboardType(.emailAddress)
                                 .autocapitalization(.none)
                                 .disableAutocorrection(true)
                                 .padding()
-                                .background(Color.black)
-                                .foregroundColor(.white)
-                                .cornerRadius(8)
+                                .background(theme.inputBackground)
+                                .foregroundColor(theme.onSurfaceColor)
+                                .cornerRadius(12)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color(red: 38/255, green: 38/255, blue: 38/255), lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(theme.borderColor, lineWidth: 1)
                                 )
                         }
                         
                         // Password field
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Password credential")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(theme.primaryColor)
+                            Text("Password")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
                             
-                            SecureField("", text: $password)
+                            SecureField("Enter your password", text: $password)
                                 .autocapitalization(.none)
                                 .disableAutocorrection(true)
                                 .padding()
-                                .background(Color.black)
-                                .foregroundColor(.white)
-                                .cornerRadius(8)
+                                .background(theme.inputBackground)
+                                .foregroundColor(theme.onSurfaceColor)
+                                .cornerRadius(12)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color(red: 38/255, green: 38/255, blue: 38/255), lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(theme.borderColor, lineWidth: 1)
                                 )
                         }
                         
                         if let error = errorMessage {
-                            Text(error)
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(theme.secondaryColor)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(theme.secondaryColor)
+                                    .font(.system(size: 13))
+                                Text(error)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(theme.secondaryColor)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         
                         // Submit Button
                         Button(action: performLogin) {
-                            HStack {
+                            HStack(spacing: 8) {
                                 if isLoading {
                                     ProgressView()
                                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                 } else {
-                                    Text("Sign In to Account")
-                                        .fontWeight(.bold)
+                                    Text("Sign In to Workspace")
+                                        .font(.system(size: 15, weight: .bold))
+                                    Image(systemName: "arrow.right")
+                                        .font(.system(size: 14, weight: .bold))
                                 }
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(theme.primaryColor)
+                            .frame(height: 48)
+                            .background(
+                                LinearGradient(
+                                    colors: [theme.primaryColor, theme.secondaryColor],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
                             .foregroundColor(.white)
-                            .cornerRadius(8)
+                            .cornerRadius(12)
+                            .shadow(color: theme.primaryColor.opacity(0.35), radius: 8, y: 4)
                         }
                         .disabled(isLoading || isGoogleLoading)
                         
                         // Divider / Or
                         HStack {
-                            Rectangle().frame(height: 1).foregroundColor(Color(red: 38/255, green: 38/255, blue: 38/255))
+                            Rectangle().frame(height: 1).foregroundColor(theme.borderColor)
                             Text("OR")
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundColor(theme.textGrayColor)
                                 .padding(.horizontal, 8)
-                            Rectangle().frame(height: 1).foregroundColor(Color(red: 38/255, green: 38/255, blue: 38/255))
+                            Rectangle().frame(height: 1).foregroundColor(theme.borderColor)
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 2)
                         
                         // Continue with Google Button
                         Button(action: performGoogleSignIn) {
-                            HStack(spacing: 12) {
+                            HStack(spacing: 10) {
                                 if isGoogleLoading {
                                     ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                                        .progressViewStyle(CircularProgressViewStyle(tint: theme.onSurfaceColor))
                                 } else {
                                     GoogleLogoView()
-                                        .frame(width: 20, height: 20)
+                                        .frame(width: 18, height: 18)
                                     
                                     Text("Continue with Google")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(Color(red: 30/255, green: 30/255, blue: 30/255))
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(theme.onSurfaceColor)
                                 }
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
-                            .background(Color.white)
-                            .cornerRadius(8)
-                            .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+                            .frame(height: 46)
+                            .background(theme.surfaceColor)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(theme.borderColor, lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(theme.isDark ? 0.3 : 0.05), radius: 4, y: 2)
                         }
                         .disabled(isLoading || isGoogleLoading)
                         
+                        // 1-Click Demo Sandbox Launcher
+                        Button(action: fillDemoCredentials) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "sparkles")
+                                    .foregroundColor(Color(red: 245/255, green: 158/255, blue: 11/255))
+                                Text("⚡ 1-Click Demo Sandbox")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .background(theme.inputBackground)
+                            .cornerRadius(10)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color(red: 245/255, green: 158/255, blue: 11/255).opacity(0.4), lineWidth: 1)
+                            )
+                        }
+                        
                         // Forgot password button
-
                         Button(action: { showResetDialog = true }) {
                             Text("Forgot Password?")
                                 .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(theme.secondaryColor)
+                                .foregroundColor(theme.primaryColor)
                         }
-                        .padding(.top, 8)
+                        .padding(.top, 4)
                     }
-                    .padding(20)
-                    .background(Color(red: 18/255, green: 18/255, blue: 18/255))
-                    .cornerRadius(16)
+                    .padding(22)
+                    .background(theme.surfaceColor)
+                    .cornerRadius(20)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color(red: 38/255, green: 38/255, blue: 38/255), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(theme.borderColor, lineWidth: 1)
                     )
+                    .shadow(color: Color.black.opacity(theme.isDark ? 0.4 : 0.06), radius: 16, y: 8)
                     
                     Spacer()
                 }
-                .padding(24)
+                .padding(.horizontal, 20)
             }
         }
         .sheet(isPresented: $showResetDialog) {
             ResetPasswordSheet(isPresented: $showResetDialog)
                 .environmentObject(theme)
         }
+    }
+    
+    private func channelBadge(title: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+            Text(title)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(theme.onSurfaceColor)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(theme.surfaceColor)
+        .cornerRadius(12)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    private func fillDemoCredentials() {
+        email = "admin@vrhere.in"
+        password = "password123"
+        performLogin()
     }
     
     private func performLogin() {
@@ -297,123 +404,92 @@ struct GoogleLogoView: View {
     }
 }
 
-
 // MARK: - Reset Password Sheet Modal
 struct ResetPasswordSheet: View {
     @Binding var isPresented: Bool
     @EnvironmentObject var theme: ThemeManager
     
-    @State private var email = ""
-    @State private var password = ""
+    @State private var resetEmail = ""
+    @State private var resetPassword = ""
     @State private var resetMessage = ""
-    @State private var isSuccess = false
-    @State private var isLoading = false
+    @State private var isResetSuccess = false
+    @State private var resetLoading = false
     
     var body: some View {
         ZStack {
-            Color(red: 18/255, green: 18/255, blue: 18/255).ignoresSafeArea()
+            theme.backgroundColor.ignoresSafeArea()
             
             VStack(spacing: 20) {
-                // Header
-                VStack(spacing: 8) {
-                    Image("app_logo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 50, height: 50)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(theme.primaryColor, lineWidth: 1))
-                    
-                    Text("Reset Password")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.white)
-                }
-                .padding(.top, 24)
-                
-                Text("Enter your registered email address and your desired new password.")
-                    .font(.system(size: 13))
-                    .foregroundColor(theme.textGrayColor)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                Text("Reset Password")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(theme.onSurfaceColor)
+                    .padding(.top, 24)
                 
                 VStack(spacing: 16) {
-                    // Email input
-                    TextField("Email Address", text: $email)
-                        .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
-                        .padding()
-                        .background(Color.black)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color(red: 38/255, green: 38/255, blue: 38/255), lineWidth: 1)
-                        )
-                        .disabled(isLoading || isSuccess)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Registered Work Email")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        
+                        TextField("admin@company.com", text: $resetEmail)
+                            .keyboardType(.emailAddress)
+                            .autocapitalization(.none)
+                            .padding(12)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                    }
                     
-                    // Password input
-                    SecureField("New Password", text: $password)
-                        .autocapitalization(.none)
-                        .padding()
-                        .background(Color.black)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color(red: 38/255, green: 38/255, blue: 38/255), lineWidth: 1)
-                        )
-                        .disabled(isLoading || isSuccess)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("New Password")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        
+                        SecureField("Minimum 6 characters", text: $resetPassword)
+                            .autocapitalization(.none)
+                            .padding(12)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                    }
+                    
+                    if !resetMessage.isEmpty {
+                        Text(resetMessage)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(isResetSuccess ? Color.green : theme.secondaryColor)
+                    }
                 }
                 .padding(.horizontal)
                 
-                if !resetMessage.isEmpty {
-                    Text(resetMessage)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(isSuccess ? Color.green : theme.secondaryColor)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                
                 Spacer()
                 
-                // Confirm Actions
                 HStack(spacing: 12) {
-                    if !isSuccess {
-                        Button(action: { isPresented = false }) {
-                            Text("Cancel")
-                                .fontWeight(.semibold)
-                                .foregroundColor(theme.textGrayColor)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 44)
-                        }
-                        .disabled(isLoading)
-                        
-                        Button(action: performReset) {
-                            HStack {
-                                if isLoading {
-                                    ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                } else {
-                                    Text("Reset Password")
-                                        .fontWeight(.bold)
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 44)
-                            .background(theme.primaryColor)
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                        }
-                        .disabled(isLoading)
-                    } else {
-                        Button(action: { isPresented = false }) {
-                            Text("Close")
-                                .fontWeight(.bold)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 44)
-                                .background(theme.primaryColor)
-                                .foregroundColor(.white)
-                                .cornerRadius(8)
-                        }
+                    Button("Cancel") {
+                        isPresented = false
                     }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(theme.textGrayColor)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    
+                    Button(action: performReset) {
+                        HStack {
+                            if resetLoading {
+                                ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Text("Update Password")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(theme.primaryColor)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                    .disabled(resetLoading)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 24)
@@ -422,30 +498,32 @@ struct ResetPasswordSheet: View {
     }
     
     private func performReset() {
-        guard !email.trimmingCharacters(in: .whitespaces).isEmpty,
-              password.trimmingCharacters(in: .whitespaces).count >= 6 else {
-            resetMessage = "Enter valid email and password (min 6 chars)."
+        guard !resetEmail.trimmingCharacters(in: .whitespaces).isEmpty,
+              !resetPassword.trimmingCharacters(in: .whitespaces).isEmpty else {
+            resetMessage = "Please enter both fields."
+            isResetSuccess = false
             return
         }
         
-        isLoading = true
+        resetLoading = true
         resetMessage = ""
         
         Task {
             do {
-                let response = try await NetworkClient.shared.resetPassword(request: ResetPasswordRequest(
-                    email: email.trimmingCharacters(in: .whitespaces),
-                    newPassword: password.trimmingCharacters(in: .whitespaces)
+                let res = try await NetworkClient.shared.resetPassword(request: ResetPasswordRequest(
+                    email: resetEmail.trimmingCharacters(in: .whitespaces),
+                    newPassword: resetPassword.trimmingCharacters(in: .whitespaces)
                 ))
                 await MainActor.run {
-                    resetMessage = response.message
-                    isSuccess = true
-                    isLoading = false
+                    isResetSuccess = true
+                    resetMessage = res.message
+                    resetLoading = false
                 }
             } catch {
                 await MainActor.run {
+                    isResetSuccess = false
                     resetMessage = error.localizedDescription
-                    isLoading = false
+                    resetLoading = false
                 }
             }
         }

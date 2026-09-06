@@ -18,6 +18,7 @@ struct ChatView: View {
     // Conversation properties
     @State private var assignedAgentId: String? = nil
     @State private var status = "Unassigned"
+    @State private var channel = "livechat"
     
     // Visitor metadata
     @State private var visitorCountry = "Unknown"
@@ -34,6 +35,8 @@ struct ChatView: View {
     @State private var isDetailsExpanded = false
     @State private var showEditDialog = false
     @State private var showAssignMenu = false
+    @State private var showCreateLeadDialog = false
+    @State private var leadCreatedToast = false
     
     @State private var quickRepliesList: [QuickReplyDto] = []
     
@@ -56,6 +59,21 @@ struct ChatView: View {
             // Expandable details panel drawer
             expandableDetailsPanel
             
+            // Lead Created Banner
+            if leadCreatedToast {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Lead successfully created and linked to this chat!")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.green.opacity(0.12))
+            }
+            
             // Message logs viewport
             ScrollViewReader { proxy in
                 ScrollView {
@@ -72,7 +90,7 @@ struct ChatView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 16)
                 }
-                .background(Color.black)
+                .background(theme.backgroundColor)
                 .onChange(of: messagesList) { _ in
                     scrollToBottom(proxy: proxy)
                 }
@@ -90,7 +108,7 @@ struct ChatView: View {
             // Input panel
             chatInputPanel
         }
-        .background(Color.black.ignoresSafeArea())
+        .background(theme.backgroundColor.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .sheet(isPresented: $showEditDialog) {
             EditVisitorSheet(
@@ -109,101 +127,161 @@ struct ChatView: View {
             )
             .environmentObject(theme)
         }
+        .sheet(isPresented: $showCreateLeadDialog) {
+            CreateLeadSheet(
+                isPresented: $showCreateLeadDialog,
+                onLeadCreated: { _ in
+                    withAnimation { leadCreatedToast = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                        withAnimation { leadCreatedToast = false }
+                    }
+                },
+                name: visitorName,
+                email: visitorEmail,
+                phone: visitorPhone,
+                company: "",
+                source: channel,
+                status: "New",
+                dealValue: "",
+                note: "Converted from active \(channel) conversation",
+                conversationId: conversationId,
+                visitorId: visitorId
+            )
+            .environmentObject(theme)
+        }
         .onAppear(perform: loadChatLogs)
         .onDisappear(perform: cleanupSubscriptions)
     }
     
     // Custom Chat navigation bar
     private var customNavBarHeader: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // Back button
             Button(action: onNavigateBack) {
                 Image(systemName: "chevron.left")
-                    .foregroundColor(.white)
-                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(theme.onSurfaceColor)
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 32, height: 32)
             }
             
             // Visitor info badge click to Edit
             Button(action: { showEditDialog = true }) {
                 HStack(spacing: 8) {
-                    Image("app_logo")
-                        .resizable()
-                        .frame(width: 32, height: 32)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(theme.primaryColor, lineWidth: 1))
+                    ZStack(alignment: .bottomTrailing) {
+                        Circle()
+                            .fill(LinearGradient(
+                                colors: [theme.primaryColor.opacity(0.2), theme.primaryColor.opacity(0.4)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ))
+                            .frame(width: 36, height: 36)
+                            .overlay(
+                                Text(String(visitorName.prefix(1)).uppercased())
+                                    .font(.system(size: 15, weight: .black))
+                                    .foregroundColor(theme.primaryColor)
+                            )
+                        
+                        Circle()
+                            .fill(theme.getChannelColor(channel))
+                            .frame(width: 12, height: 12)
+                            .overlay(Circle().stroke(theme.surfaceColor, lineWidth: 1.5))
+                    }
                     
                     VStack(alignment: .leading, spacing: 2) {
                         Text(visitorMuted ? "\(visitorName) 🔇" : visitorName)
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.white)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                            .lineLimit(1)
                         
-                        Text(isVisitorTyping ? "typing..." : "Connected via Widget (Tap to Edit)")
-                            .font(.system(size: 10))
-                            .foregroundColor(isVisitorTyping ? theme.secondaryColor : .gray)
+                        Text(isVisitorTyping ? "typing..." : "via \(channel.capitalized)")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(isVisitorTyping ? theme.secondaryColor : theme.textGrayColor)
                     }
                 }
             }
             
             Spacer()
             
+            // Convert to Lead Action Button
+            Button(action: { showCreateLeadDialog = true }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 10, weight: .bold))
+                    Text("Lead")
+                        .font(.system(size: 11, weight: .bold))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(
+                    LinearGradient(
+                        colors: [Color(red: 245/255, green: 158/255, blue: 11/255), Color(red: 217/255, green: 119/255, blue: 6/255)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(8)
+                .shadow(color: Color(red: 245/255, green: 158/255, blue: 11/255).opacity(0.3), radius: 4)
+            }
+            
             // Claim / Release / Reassign buttons
-            HStack(spacing: 6) {
-                if isAdmin {
-                    Menu {
-                        Button("General Queue (Unassigned)") {
-                            socketManager.assignChat(conversationId: conversationId, agentId: nil)
-                        }
-                        
-                        ForEach(socketManager.agentsList) { agent in
-                            Button(action: {
-                                socketManager.assignChat(conversationId: conversationId, agentId: agent.id)
-                            }) {
-                                HStack {
-                                    Text("\(agent.name) (\(agent.role))")
-                                    if assignedAgentId == agent.id {
-                                        Image(systemName: "checkmark")
-                                    }
+            if isAdmin {
+                Menu {
+                    Button("General Queue (Unassigned)") {
+                        socketManager.assignChat(conversationId: conversationId, agentId: nil)
+                    }
+                    
+                    ForEach(socketManager.agentsList) { agent in
+                        Button(action: {
+                            socketManager.assignChat(conversationId: conversationId, agentId: agent.id)
+                        }) {
+                            HStack {
+                                Text("\(agent.name) (\(agent.role))")
+                                if assignedAgentId == agent.id {
+                                    Image(systemName: "checkmark")
                                 }
                             }
                         }
-                    } label: {
-                        let currentAssignee = socketManager.agentsList.first(where: { $0.id == assignedAgentId })?.name ?? "Assign 👤"
-                        Text(currentAssignee)
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color(red: 30/255, green: 41/255, blue: 59/255))
-                            .cornerRadius(8)
                     }
-                }
-                
-                if assignedAgentId == selfId {
-                    Button("Release") {
-                        socketManager.assignChat(conversationId: conversationId, agentId: nil)
-                    }
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(theme.primaryColor)
-                    .cornerRadius(8)
-                } else {
-                    Button("Claim") {
-                        socketManager.assignChat(conversationId: conversationId, agentId: selfId)
-                    }
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(theme.primaryColor)
-                    .cornerRadius(8)
+                } label: {
+                    let currentAssignee = socketManager.agentsList.first(where: { $0.id == assignedAgentId })?.name ?? "Assign"
+                    Text(currentAssignee)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(theme.inputBackground)
+                        .cornerRadius(8)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
                 }
             }
+            
+            if assignedAgentId == selfId {
+                Button("Release") {
+                    socketManager.assignChat(conversationId: conversationId, agentId: nil)
+                }
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(theme.primaryColor)
+                .cornerRadius(8)
+            } else {
+                Button("Claim") {
+                    socketManager.assignChat(conversationId: conversationId, agentId: selfId)
+                }
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(theme.primaryColor)
+                .cornerRadius(8)
+            }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
-        .background(Color(red: 18/255, green: 18/255, blue: 18/255))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(theme.surfaceColor)
+        .overlay(Rectangle().frame(height: 1).foregroundColor(theme.borderColor), alignment: .bottom)
     }
     
     // Details expandable panel
@@ -213,9 +291,9 @@ struct ChatView: View {
                 withAnimation { isDetailsExpanded.toggle() }
             }) {
                 HStack {
-                    Text("Visitor Info & Navigation Options")
+                    Text("Visitor & Channel Insights")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(theme.secondaryColor)
+                        .foregroundColor(theme.primaryColor)
                     
                     Spacer()
                     
@@ -236,20 +314,20 @@ struct ChatView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("LOCATION")
                                 .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.gray)
+                                .foregroundColor(theme.textGrayColor)
                             Text("🗺️ \(visitorCity), \(visitorCountry)")
                                 .font(.system(size: 13))
-                                .foregroundColor(.white)
+                                .foregroundColor(theme.onSurfaceColor)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text("DEVICE")
                                 .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.gray)
+                                .foregroundColor(theme.textGrayColor)
                             Text(visitorDevice.lowercased() == "mobile" ? "📱 Mobile" : (visitorDevice.lowercased() == "tablet" ? "📟 Tablet" : "💻 Desktop"))
                                 .font(.system(size: 13))
-                                .foregroundColor(.white)
+                                .foregroundColor(theme.onSurfaceColor)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -258,20 +336,20 @@ struct ChatView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("EMAIL")
                                 .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.gray)
+                                .foregroundColor(theme.textGrayColor)
                             Text(visitorEmail.isEmpty ? "None" : visitorEmail)
                                 .font(.system(size: 13))
-                                .foregroundColor(.white)
+                                .foregroundColor(theme.onSurfaceColor)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text("PHONE")
                                 .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.gray)
+                                .foregroundColor(theme.textGrayColor)
                             Text(visitorPhone.isEmpty ? "None" : visitorPhone)
                                 .font(.system(size: 13))
-                                .foregroundColor(.white)
+                                .foregroundColor(theme.onSurfaceColor)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -279,32 +357,10 @@ struct ChatView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("CURRENTLY VIEWING")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.gray)
+                            .foregroundColor(theme.textGrayColor)
                         Text(visitorUrl)
                             .font(.system(size: 12, design: .monospaced))
-                            .foregroundColor(theme.secondaryColor)
-                    }
-                    
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("FIRST SEEN")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.gray)
-                            Text(visitorFirstSeen.isEmpty ? "Never" : formatTimestampFull(isoString: visitorFirstSeen))
-                                .font(.system(size: 13))
-                                .foregroundColor(.white)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("LAST ACTIVE")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.gray)
-                            Text(visitorLastActive.isEmpty ? "Never" : formatTimestampFull(isoString: visitorLastActive))
-                                .font(.system(size: 13))
-                                .foregroundColor(.white)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                            .foregroundColor(theme.primaryColor)
                     }
                 }
                 .padding(14)
@@ -329,11 +385,11 @@ struct ChatView: View {
                     .foregroundColor(theme.secondaryColor)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
-                    .background(Color(red: 43/255, green: 7/255, blue: 7/255))
-                    .cornerRadius(20)
+                    .background(theme.primaryColor.opacity(0.1))
+                    .cornerRadius(16)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .stroke(Color(red: 127/255, green: 29/255, blue: 29/255), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(theme.primaryColor.opacity(0.2), lineWidth: 1)
                     )
                 Spacer()
             }
@@ -342,22 +398,23 @@ struct ChatView: View {
             HStack {
                 if isSelf { Spacer() }
                 
-                VStack(alignment: isSelf ? .trailing : .leading, spacing: 2) {
+                VStack(alignment: isSelf ? .trailing : .leading, spacing: 3) {
                     Text("\(msg.senderName) • \(formatTimestamp(isoString: msg.timestamp))")
                         .font(.system(size: 10))
                         .foregroundColor(theme.textGrayColor)
                     
                     Text(formatMessageText(text: msg.text))
                         .font(.system(size: 14))
-                        .foregroundColor(.white)
+                        .foregroundColor(isSelf ? .white : theme.onSurfaceColor)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(isSelf ? theme.primaryColor : Color(red: 30/255, green: 30/255, blue: 30/255))
-                        .cornerRadius(12)
+                        .background(isSelf ? theme.primaryColor : theme.surfaceColor)
+                        .cornerRadius(14)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(isSelf ? Color(red: 127/255, green: 29/255, blue: 29/255) : theme.borderColor, lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(isSelf ? Color.clear : theme.borderColor, lineWidth: 1)
                         )
+                        .shadow(color: Color.black.opacity(isSelf ? 0.2 : (theme.isDark ? 0.3 : 0.04)), radius: 4, y: 2)
                 }
                 
                 if !isSelf { Spacer() }
@@ -374,10 +431,10 @@ struct ChatView: View {
                 
                 Text("•••")
                     .font(.system(size: 14))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.onSurfaceColor)
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color(red: 30/255, green: 30/255, blue: 30/255))
+                    .padding(.vertical, 8)
+                    .background(theme.surfaceColor)
                     .cornerRadius(12)
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.borderColor, lineWidth: 1))
             }
@@ -394,7 +451,7 @@ struct ChatView: View {
                     if quickRepliesList.isEmpty {
                         Text("No quick replies configured.")
                             .font(.system(size: 11))
-                            .foregroundColor(.gray)
+                            .foregroundColor(theme.textGrayColor)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                     } else {
@@ -402,10 +459,10 @@ struct ChatView: View {
                             Button(action: { chatInput = qr.text }) {
                                 Text("\(qr.shortcut): \(qr.text)")
                                     .font(.system(size: 11))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(theme.onSurfaceColor)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
-                                    .background(Color(red: 30/255, green: 30/255, blue: 30/255))
+                                    .background(theme.surfaceColor)
                                     .cornerRadius(16)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 16)
@@ -418,7 +475,7 @@ struct ChatView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
             }
-            .background(Color(red: 18/255, green: 18/255, blue: 18/255))
+            .background(theme.surfaceColor)
         }
     }
     
@@ -429,9 +486,10 @@ struct ChatView: View {
             HStack(spacing: 8) {
                 TextField("Reply back to customer...", text: $chatInput)
                     .padding(10)
-                    .background(Color.black)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
+                    .background(theme.inputBackground)
+                    .foregroundColor(theme.onSurfaceColor)
+                    .cornerRadius(10)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
                 
                 Button(action: sendMessage) {
                     Image(systemName: "paperplane.fill")
@@ -439,11 +497,12 @@ struct ChatView: View {
                         .padding(10)
                         .background(theme.primaryColor)
                         .clipShape(Circle())
+                        .shadow(color: theme.primaryColor.opacity(0.3), radius: 4, y: 2)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(Color(red: 18/255, green: 18/255, blue: 18/255))
+            .background(theme.surfaceColor)
         }
     }
     
@@ -462,13 +521,12 @@ struct ChatView: View {
     }
     
     private func loadChatLogs() {
-        // Find conversation details
         if let conversation = socketManager.conversationsList.first(where: { $0.id == conversationId }) {
             self.assignedAgentId = conversation.assignedAgentId
             self.status = conversation.status
+            self.channel = conversation.resolvedChannel
         }
         
-        // REST history pulls
         Task {
             if let list = try? await NetworkClient.shared.getMessages(conversationId: conversationId) {
                 await MainActor.run { self.messagesList = list }
@@ -489,11 +547,13 @@ struct ChatView: View {
                     self.visitorMuted = visitor.isMuted ?? false
                     self.visitorFirstSeen = visitor.firstSeen ?? ""
                     self.visitorLastActive = visitor.lastSeen ?? ""
+                    if self.channel == "livechat" {
+                        self.channel = visitor.resolvedChannel
+                    }
                 }
             }
         }
         
-        // Sockets real-time observations
         socketManager.visitorMessagePublisher
             .filter { $0.conversationId == conversationId }
             .receive(on: RunLoop.main)
@@ -562,61 +622,60 @@ struct EditVisitorSheet: View {
     
     var body: some View {
         ZStack {
-            Color(red: 30/255, green: 41/255, blue: 59/255).ignoresSafeArea()
+            theme.backgroundColor.ignoresSafeArea()
             
             VStack(spacing: 20) {
-                Text("Edit Visitor Details")
+                Text("Edit Customer Profile")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.onSurfaceColor)
                     .padding(.top, 24)
                 
                 VStack(spacing: 16) {
-                    // Name
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Full Name")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
                         TextField("", text: $currentName)
                             .padding(12)
-                            .background(Color.black)
-                            .foregroundColor(.white)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
                             .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
                     }
                     
-                    // Email
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Email Address")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
                         TextField("", text: $currentEmail)
                             .keyboardType(.emailAddress)
                             .autocapitalization(.none)
                             .padding(12)
-                            .background(Color.black)
-                            .foregroundColor(.white)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
                             .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
                     }
                     
-                    // Phone
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Phone Number")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
                         TextField("", text: $currentPhone)
                             .keyboardType(.phonePad)
                             .padding(12)
-                            .background(Color.black)
-                            .foregroundColor(.white)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
                             .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
                     }
                     
-                    // Mute Toggle
                     Toggle(isOn: $currentMuted) {
-                        Text("Mute & Suppress Alerts")
-                            .font(.system(size: 14))
-                            .foregroundColor(.white)
+                        Text("Mute Notifications")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(theme.onSurfaceColor)
                     }
-                    .tint(theme.secondaryColor)
+                    .tint(theme.primaryColor)
                     .padding(.vertical, 8)
                 }
                 .padding(.horizontal)
@@ -624,26 +683,22 @@ struct EditVisitorSheet: View {
                 Spacer()
                 
                 HStack(spacing: 12) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
-                    .fontWeight(.semibold)
-                    .foregroundColor(.gray)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
+                    Button("Cancel") { isPresented = false }
+                        .foregroundColor(theme.textGrayColor)
+                        .frame(maxWidth: .infinity)
                     
                     Button(action: saveVisitorDetails) {
                         HStack {
                             if isLoading {
                                 ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
                             } else {
-                                Text("Save")
+                                Text("Save Changes")
                                     .fontWeight(.bold)
                             }
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 44)
-                        .background(theme.secondaryColor)
+                        .background(theme.primaryColor)
                         .foregroundColor(.white)
                         .cornerRadius(8)
                     }

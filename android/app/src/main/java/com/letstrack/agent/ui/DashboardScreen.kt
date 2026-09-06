@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -33,20 +35,18 @@ import org.json.JSONObject
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
-    initialTab: Int = 0,
+    initialTab: Int = 2,
     currentTheme: String,
     onThemeChange: (String) -> Unit,
     pendingVisitorIdNotification: String = "",
     onClearPendingVisitorNotification: () -> Unit = {},
-    onNavigateToChat: (String, String, String, String?, String?, String?, String?, String?, String?) -> Unit,
+    onNavigateToChat: (String, String, String, String?, String?, String?, String?, String?, String?, String?) -> Unit,
     onSignOut: () -> Unit
 ) {
     val isAdmin = NetworkClient.currentUser?.role == "Admin"
-    val settingsTabIndex = if (isAdmin) 4 else 3
-    val teamTabIndex = if (isAdmin) 3 else -1
-
-    var selectedTab by remember { mutableStateOf(initialTab) } // 0: Metrics, 1: Visitors, 2: Inbox, 3: Team (Admin), 4: Settings
+    var selectedTab by remember { mutableStateOf(initialTab) } // 0: Metrics, 1: Radar, 2: Inbox, 3: Leads, 4: Team, 5: Settings
     val coroutineScope = rememberCoroutineScope()
+    val isDark = currentTheme == "dark"
 
     // State holdings updated from WS and REST
     var analytics by remember { mutableStateOf<AnalyticsResponse?>(null) }
@@ -60,7 +60,6 @@ fun DashboardScreen(
     DisposableEffect(Unit) {
         val socket = NetworkClient.getSocketInstance()
 
-        // 1. Full database state sync on connection
         socket.on("dashboard-sync") { args ->
             try {
                 val dataObj = args[0] as JSONObject
@@ -82,7 +81,9 @@ fun DashboardScreen(
                                 deviceType = if (obj.has("deviceType")) obj.getString("deviceType") else "Desktop",
                                 currentUrl = if (obj.has("currentUrl") && !obj.isNull("currentUrl")) obj.getString("currentUrl") else null,
                                 isOnline = if (obj.has("isOnline")) obj.getBoolean("isOnline") else false,
-                                isMuted = if (obj.has("isMuted")) obj.getBoolean("isMuted") else false
+                                isMuted = if (obj.has("isMuted")) obj.getBoolean("isMuted") else false,
+                                source = if (obj.has("source") && !obj.isNull("source")) obj.getString("source") else null,
+                                channel = if (obj.has("channel") && !obj.isNull("channel")) obj.getString("channel") else null
                             )
                         )
                     } catch (e: Exception) {
@@ -113,6 +114,7 @@ fun DashboardScreen(
                                 visitorId = vId,
                                 status = if (obj.has("status")) obj.getString("status") else "Unassigned",
                                 assignedAgentId = assignedId,
+                                channel = if (obj.has("channel") && !obj.isNull("channel")) obj.getString("channel") else null,
                                 updatedAt = if (obj.has("updatedAt")) obj.getString("updatedAt") else ""
                             )
                         )
@@ -144,7 +146,6 @@ fun DashboardScreen(
                 agentsList = aList
                 NetworkClient.cachedAgents = aList
 
-                // Self sync status
                 aList.find { it.id == NetworkClient.currentUser?.id }?.let {
                     selfStatus = it.status
                 }
@@ -153,7 +154,6 @@ fun DashboardScreen(
             }
         }
 
-        // 2. Real-time visitor connected
         socket.on("visitor-connected") { args ->
             val obj = args[0] as JSONObject
             val visitor = VisitorDto(
@@ -166,12 +166,13 @@ fun DashboardScreen(
                 deviceType = obj.getString("deviceType"),
                 currentUrl = if (obj.has("currentUrl")) obj.getString("currentUrl") else null,
                 isOnline = obj.getBoolean("isOnline"),
-                isMuted = if (obj.has("isMuted")) obj.getBoolean("isMuted") else false
+                isMuted = if (obj.has("isMuted")) obj.getBoolean("isMuted") else false,
+                source = if (obj.has("source") && !obj.isNull("source")) obj.getString("source") else null,
+                channel = if (obj.has("channel") && !obj.isNull("channel")) obj.getString("channel") else null
             )
             visitorsList = visitorsList.filter { it._id != visitor._id } + visitor
         }
 
-        // 3. Visitor navigated paths
         socket.on("visitor-navigated") { args ->
             val data = args[0] as JSONObject
             val vId = data.getString("visitorId")
@@ -181,7 +182,6 @@ fun DashboardScreen(
             }
         }
 
-        // 4. Visitor goes offline
         socket.on("visitor-disconnected") { args ->
             val data = args[0] as JSONObject
             val vId = data.getString("visitorId")
@@ -190,112 +190,92 @@ fun DashboardScreen(
             }
         }
 
-        // 5. Chat Assigned notification updates
         socket.on("chat-assigned-update") { args ->
-            val data = args[0] as JSONObject
-            val convObj = data.getJSONObject("conversation")
-            val cId = convObj.getString("_id")
-            val status = convObj.getString("status")
-            val assignedId = if (convObj.has("assignedAgentId") && !convObj.isNull("assignedAgentId")) {
-                convObj.getJSONObject("assignedAgentId").getString("_id")
-            } else null
+            try {
+                val data = args[0] as JSONObject
+                val convObj = data.getJSONObject("conversation")
+                val convId = convObj.getString("_id")
+                val status = convObj.getString("status")
+                val assignedId = if (convObj.has("assignedAgentId") && !convObj.isNull("assignedAgentId")) {
+                    val aObj = convObj.get("assignedAgentId")
+                    if (aObj is JSONObject) aObj.getString("_id") else aObj.toString()
+                } else null
 
-            conversationsList = conversationsList.map {
-                if (it._id == cId) it.copy(status = status, assignedAgentId = assignedId) else it
+                conversationsList = conversationsList.map {
+                    if (it._id == convId) it.copy(status = status, assignedAgentId = assignedId) else it
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
 
-        // 6. Sync staff status changes
         socket.on("agent-status-changed") { args ->
-            val data = args[0] as JSONObject
-            val aId = data.getString("agentId")
-            val status = data.getString("status")
-            agentsList = agentsList.map {
-                if (it.id == aId) it.copy(status = status) else it
-            }
-            NetworkClient.cachedAgents = agentsList
-            if (aId == NetworkClient.currentUser?.id) {
-                selfStatus = status
+            try {
+                val data = args[0] as JSONObject
+                val aId = data.getString("agentId")
+                val status = data.getString("status")
+                agentsList = agentsList.map {
+                    if (it.id == aId) it.copy(status = status) else it
+                }
+                NetworkClient.cachedAgents = agentsList
+                if (aId == NetworkClient.currentUser?.id) {
+                    selfStatus = status
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
 
-        // 7. Sync new visitor messages and queue updates
         socket.on("visitor-msg") { args ->
             try {
                 val data = args[0] as JSONObject
                 val convObj = data.getJSONObject("conversation")
-                val visitorObj = data.getJSONObject("visitor")
+                val visObj = data.getJSONObject("visitor")
+                val msgObj = data.getJSONObject("message")
 
-                val visitor = VisitorDto(
-                    _id = visitorObj.getString("_id"),
-                    name = visitorObj.getString("name"),
-                    email = if (visitorObj.has("email") && !visitorObj.isNull("email")) visitorObj.getString("email") else null,
-                    phoneNumber = if (visitorObj.has("phoneNumber") && !visitorObj.isNull("phoneNumber")) visitorObj.getString("phoneNumber") else null,
-                    country = visitorObj.getString("country"),
-                    city = visitorObj.getString("city"),
-                    deviceType = visitorObj.getString("deviceType"),
-                    currentUrl = if (visitorObj.has("currentUrl") && !visitorObj.isNull("currentUrl")) visitorObj.getString("currentUrl") else null,
-                    isOnline = visitorObj.getBoolean("isOnline")
-                )
-
-                val assignedId = if (convObj.has("assignedAgentId") && !convObj.isNull("assignedAgentId")) {
-                    val agentObj = convObj.get("assignedAgentId")
-                    if (agentObj is JSONObject) agentObj.getString("_id") else agentObj.toString()
-                } else null
-
-                val conversation = ConversationDto(
+                val conv = ConversationDto(
                     _id = convObj.getString("_id"),
-                    visitorId = visitor._id,
+                    visitorId = visObj.getString("_id"),
                     status = convObj.getString("status"),
-                    assignedAgentId = assignedId,
-                    updatedAt = convObj.getString("updatedAt")
+                    assignedAgentId = if (convObj.has("assignedAgentId") && !convObj.isNull("assignedAgentId")) convObj.getString("assignedAgentId") else null,
+                    channel = if (convObj.has("channel") && !convObj.isNull("channel")) convObj.getString("channel") else null,
+                    lastMessage = msgObj.getString("text"),
+                    updatedAt = convObj.optString("updatedAt", "")
                 )
 
-                visitorsList = visitorsList.filter { it._id != visitor._id } + visitor
-                conversationsList = conversationsList.filter { it._id != conversation._id } + conversation
+                val vis = VisitorDto(
+                    _id = visObj.getString("_id"),
+                    name = visObj.getString("name"),
+                    email = if (visObj.has("email") && !visObj.isNull("email")) visObj.getString("email") else null,
+                    phoneNumber = if (visObj.has("phoneNumber") && !visObj.isNull("phoneNumber")) visObj.getString("phoneNumber") else null,
+                    country = visObj.optString("country", "Unknown"),
+                    city = visObj.optString("city", "Unknown"),
+                    deviceType = visObj.optString("deviceType", "Desktop"),
+                    currentUrl = visObj.optString("currentUrl", null),
+                    isOnline = visObj.optBoolean("isOnline", true),
+                    isMuted = visObj.optBoolean("isMuted", false),
+                    source = visObj.optString("source", null),
+                    channel = visObj.optString("channel", null)
+                )
+
+                visitorsList = visitorsList.filter { it._id != vis._id } + vis
+                conversationsList = conversationsList.filter { it._id != conv._id } + conv
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
 
-        // 8. Dynamic proactive conversation creation listener
-        socket.on("conversation-created") { args ->
-            try {
-                val obj = args[0] as JSONObject
-                val assignedId = if (obj.has("assignedAgentId") && !obj.isNull("assignedAgentId")) {
-                    val agentObj = obj.get("assignedAgentId")
-                    if (agentObj is JSONObject) agentObj.getString("_id") else agentObj.toString()
-                } else null
-
-                val newConv = ConversationDto(
-                    _id = obj.getString("_id"),
-                    visitorId = if (obj.get("visitorId") is JSONObject) obj.getJSONObject("visitorId").getString("_id") else obj.getString("visitorId"),
-                    status = obj.getString("status"),
-                    assignedAgentId = assignedId,
-                    updatedAt = obj.getString("updatedAt")
-                )
-                conversationsList = conversationsList.filter { it._id != newConv._id } + newConv
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        // 9. Navigation to proactively initiated conversation on success
         socket.on("start-conversation-success") { args ->
             try {
-                val dataObj = args[0] as JSONObject
-                val obj = dataObj.getJSONObject("conversation")
-                val assignedId = if (obj.has("assignedAgentId") && !obj.isNull("assignedAgentId")) {
-                    val agentObj = obj.get("assignedAgentId")
-                    if (agentObj is JSONObject) agentObj.getString("_id") else agentObj.toString()
-                } else null
-
+                val data = args[0] as JSONObject
+                val convObj = data.getJSONObject("conversation")
                 val newConv = ConversationDto(
-                    _id = obj.getString("_id"),
-                    visitorId = if (obj.get("visitorId") is JSONObject) obj.getJSONObject("visitorId").getString("_id") else obj.getString("visitorId"),
-                    status = obj.getString("status"),
-                    assignedAgentId = assignedId,
-                    updatedAt = obj.getString("updatedAt")
+                    _id = convObj.getString("_id"),
+                    visitorId = convObj.getString("visitorId"),
+                    status = convObj.getString("status"),
+                    assignedAgentId = if (convObj.has("assignedAgentId") && !convObj.isNull("assignedAgentId")) convObj.getString("assignedAgentId") else null,
+                    channel = if (convObj.has("channel") && !convObj.isNull("channel")) convObj.getString("channel") else null,
+                    updatedAt = convObj.optString("updatedAt", "")
                 )
                 conversationsList = conversationsList.filter { it._id != newConv._id } + newConv
 
@@ -310,7 +290,8 @@ fun DashboardScreen(
                         visitor.deviceType,
                         visitor.currentUrl,
                         visitor.email,
-                        visitor.phoneNumber
+                        visitor.phoneNumber,
+                        newConv.resolvedChannel
                     )
                 }
             } catch (e: Exception) {
@@ -318,7 +299,6 @@ fun DashboardScreen(
             }
         }
 
-        // Establish WS handshakes
         NetworkClient.connectSocket()
 
         onDispose {
@@ -329,7 +309,6 @@ fun DashboardScreen(
             socket.off("chat-assigned-update")
             socket.off("agent-status-changed")
             socket.off("visitor-msg")
-            socket.off("conversation-created")
             socket.off("start-conversation-success")
         }
     }
@@ -349,15 +328,14 @@ fun DashboardScreen(
                     visitor?.deviceType,
                     visitor?.currentUrl,
                     visitor?.email,
-                    visitor?.phoneNumber
+                    visitor?.phoneNumber,
+                    conv.resolvedChannel
                 )
                 onClearPendingVisitorNotification()
-            } else {
-                if (visitorsList.isNotEmpty()) {
-                    val data = JSONObject().put("visitorId", pendingVisitorIdNotification)
-                    NetworkClient.getSocketInstance().emit("start-conversation", data)
-                    onClearPendingVisitorNotification()
-                }
+            } else if (visitorsList.isNotEmpty()) {
+                val data = JSONObject().put("visitorId", pendingVisitorIdNotification)
+                NetworkClient.getSocketInstance().emit("start-conversation", data)
+                onClearPendingVisitorNotification()
             }
         }
     }
@@ -375,561 +353,336 @@ fun DashboardScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Modern Top Bar
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 2.dp,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(
                             painter = painterResource(id = R.drawable.app_logo),
                             contentDescription = "Logo",
                             modifier = Modifier
                                 .size(36.dp)
-                                .clip(CircleShape)
-                                .border(1.dp, Color(0xFFDC2626), CircleShape)
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(1.dp, Color(0xFFDC2626).copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
+                            contentScale = ContentScale.Crop
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = NetworkClient.currentTenant?.name ?: "LetsTrack console",
-                                fontSize = 16.sp,
+                                text = NetworkClient.currentTenant?.name ?: "LetsTrack",
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (isAdmin) "Administrator Workspace" else "Agent Workstation Console",
-                                fontSize = 10.sp,
-                                color = Color(0xFFEF4444) // Accent Red
+                                text = if (isAdmin) "SuperAdmin Console" else "Agent Workstation",
+                                fontSize = 11.sp,
+                                color = Color(0xFFDC2626),
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
-                },
-                actions = {
-                    // Status badge button
-                    Button(
-                        onClick = { showStatusDialog = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1E1E1E),
-                            contentColor = Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .border(1.dp, Color(0xFF262626), RoundedCornerShape(20.dp))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(getStatusColor(selfStatus))
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(selfStatus, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
 
-                    // Sign Out
-                    IconButton(onClick = onSignOut) {
-                        Icon(Icons.Default.ExitToApp, contentDescription = "Sign Out", tint = Color(0xFFDC2626))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF121212)
-                )
-            )
-        },
-        bottomBar = {
-            NavigationBar(
-                containerColor = Color(0xFF121212),
-                tonalElevation = 0.dp
-            ) {
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Star, contentDescription = "Metrics") },
-                    label = { Text("Metrics") },
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        selectedTextColor = Color(0xFFEF4444),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray,
-                        indicatorColor = Color(0xFFDC2626)
-                    )
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.LocationOn, contentDescription = "Traffic") },
-                    label = { Text("Traffic") },
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        selectedTextColor = Color(0xFFEF4444),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray,
-                        indicatorColor = Color(0xFFDC2626)
-                    )
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Email, contentDescription = "Inbox") },
-                    label = { Text("Inbox") },
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        selectedTextColor = Color(0xFFEF4444),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray,
-                        indicatorColor = Color(0xFFDC2626)
-                    )
-                )
-                if (isAdmin) {
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Person, contentDescription = "Team") },
-                        label = { Text("Team") },
-                        selected = selectedTab == 3,
-                        onClick = { selectedTab = 3 },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color.White,
-                            selectedTextColor = Color(0xFFEF4444),
-                            unselectedIconColor = Color.Gray,
-                            unselectedTextColor = Color.Gray,
-                            indicatorColor = Color(0xFFDC2626)
-                        )
-                    )
-                }
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings") },
-                    selected = selectedTab == settingsTabIndex,
-                    onClick = { selectedTab = settingsTabIndex },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        selectedTextColor = Color(0xFFEF4444),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray,
-                        indicatorColor = Color(0xFFDC2626)
-                    )
-                )
-            }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color.Black) // Premium solid black background
-        ) {
-            when (selectedTab) {
-                0 -> MetricsTab(
-                    onlineVisitorsCount = visitorsList.filter { it.isOnline }.size,
-                    activeChatsCount = conversationsList.filter { it.status == "Active" }.size,
-                    queueSizeCount = conversationsList.filter { it.status == "Unassigned" }.size,
-                    agents = agentsList
-                ) { tabIndex ->
-                    selectedTab = tabIndex
-                }
-                1 -> TrafficTab(visitorsList) { visitor ->
-                    val conv = conversationsList.find { it.visitorId == visitor._id }
-                    if (conv != null) {
-                        onNavigateToChat(
-                            conv._id,
-                            visitor.name,
-                            visitor._id,
-                            visitor.country,
-                            visitor.city,
-                            visitor.deviceType,
-                            visitor.currentUrl,
-                            visitor.email,
-                            visitor.phoneNumber
-                        )
-                    } else {
-                        // Proactively start conversation for this visitor
-                        val data = JSONObject().put("visitorId", visitor._id)
-                        NetworkClient.getSocketInstance().emit("start-conversation", data)
-                    }
-                }
-                2 -> InboxTab(conversationsList, visitorsList) { conv ->
-                    val visitor = visitorsList.find { it._id == conv.visitorId }
-                    val visitorName = visitor?.name ?: "Visitor"
-                    val visitorId = visitor?._id ?: conv.visitorId
-                    onNavigateToChat(
-                        conv._id,
-                        visitorName,
-                        visitorId,
-                        visitor?.country,
-                        visitor?.city,
-                        visitor?.deviceType,
-                        visitor?.currentUrl,
-                        visitor?.email,
-                        visitor?.phoneNumber
-                    )
-                }
-                3 -> {
-                    if (isAdmin) {
-                        TeamTab(
-                            agents = agentsList,
-                            onAgentAdded = { newAgent ->
-                                agentsList = agentsList + newAgent
-                                NetworkClient.cachedAgents = agentsList
-                            }
-                        )
-                    } else {
-                        SettingsTab(
-                            currentTheme = currentTheme,
-                            onThemeChange = onThemeChange
-                        )
-                    }
-                }
-                4 -> {
-                    if (isAdmin) {
-                        SettingsTab(
-                            currentTheme = currentTheme,
-                            onThemeChange = onThemeChange
-                        )
-                    }
-                }
-            }
-        }
-
-        // Status Changer Dialog
-        if (showStatusDialog) {
-            AlertDialog(
-                onDismissRequest = { showStatusDialog = false },
-                title = { Text("Update Live Presence Status", color = Color.White) },
-                containerColor = Color(0xFF121212),
-                modifier = Modifier.border(1.dp, Color(0xFF262626), RoundedCornerShape(28.dp)),
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatusRow("Online", selfStatus) {
-                            coroutineScope.launch {
-                                NetworkClient.getSocketInstance().emit("agent-status-update", JSONObject().put("status", "Online"))
-                            }
-                            showStatusDialog = false
-                        }
-                        StatusRow("Away", selfStatus) {
-                            coroutineScope.launch {
-                                NetworkClient.getSocketInstance().emit("agent-status-update", JSONObject().put("status", "Away"))
-                            }
-                            showStatusDialog = false
-                        }
-                        StatusRow("Offline", selfStatus) {
-                            coroutineScope.launch {
-                                NetworkClient.getSocketInstance().emit("agent-status-update", JSONObject().put("status", "Offline"))
-                            }
-                            showStatusDialog = false
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showStatusDialog = false }) { Text("Dismiss", color = Color(0xFFDC2626)) }
-                }
-            )
-        }
-    }
-}
-
-@Composable
-fun StatusRow(status: String, current: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 12.dp, horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .clip(CircleShape)
-                .background(getStatusColor(status))
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = status,
-            fontSize = 15.sp,
-            fontWeight = if (status == current) FontWeight.Bold else FontWeight.Normal,
-            color = if (status == current) Color(0xFFDC2626) else Color.White
-        )
-        if (status == current) {
-            Spacer(modifier = Modifier.weight(1f))
-            Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color(0xFFDC2626))
-        }
-    }
-}
-
-// ------------------------------------------
-// METRICS TAB
-// ------------------------------------------
-@Composable
-fun MetricsTab(
-    onlineVisitorsCount: Int,
-    activeChatsCount: Int,
-    queueSizeCount: Int,
-    agents: List<UserProfile>,
-    onTabSelect: (Int) -> Unit
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text("Operational Health Overview", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                MetricItemCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Online Guests",
-                    value = onlineVisitorsCount.toString(),
-                    color1 = Color(0xFFDC2626),
-                    color2 = Color(0xFF450A0A),
-                    onClick = { onTabSelect(1) }
-                )
-                MetricItemCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Active Chats",
-                    value = activeChatsCount.toString(),
-                    color1 = Color(0xFFDC2626),
-                    color2 = Color(0xFF450A0A),
-                    onClick = { onTabSelect(2) }
-                )
-            }
-        }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                MetricItemCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Queue Size",
-                    value = queueSizeCount.toString(),
-                    color1 = Color(0xFFDC2626),
-                    color2 = Color(0xFF450A0A),
-                    onClick = { onTabSelect(2) }
-                )
-                MetricItemCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Total Staff",
-                    value = agents.size.toString(),
-                    color1 = Color(0xFFDC2626),
-                    color2 = Color(0xFF450A0A),
-                    onClick = {}
-                )
-            }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Active Employees Status", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        }
-
-        items(agents) { agent ->
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.border(1.dp, Color(0xFF262626), RoundedCornerShape(10.dp))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF262626)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(agent.name[0].toString(), color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(agent.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text(agent.role, color = Color(0xFFEF4444), fontSize = 11.sp)
-                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color.Black)
-                            .border(1.dp, Color(0xFF262626), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(getStatusColor(agent.status))
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(agent.status, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        // Theme Toggle
+                        IconButton(
+                            onClick = { onThemeChange(if (isDark) "light" else "dark") },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Text(if (isDark) "☀️" else "🌙", fontSize = 14.sp)
+                        }
+
+                        // Presence Status Button
+                        Surface(
+                            onClick = { showStatusDialog = true },
+                            color = MaterialTheme.colorScheme.surface,
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(getStatusColor(selfStatus), CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = selfStatus,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        // Sign Out
+                        IconButton(onClick = onSignOut, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                Icons.Default.ExitToApp,
+                                contentDescription = "Sign Out",
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
-        }
-    }
-}
 
-@Composable
-fun MetricItemCard(
-    modifier: Modifier = Modifier,
-    title: String,
-    value: String,
-    color1: Color,
-    color2: Color,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier.clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
-    ) {
-        Box(
-            modifier = Modifier
-                .background(Brush.horizontalGradient(listOf(color1, color2)))
-                .padding(16.dp)
-                .fillMaxWidth()
-        ) {
-            Column {
-                Text(title, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(value, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-            }
-        }
-    }
-}
-
-// ------------------------------------------
-// TRAFFIC TAB
-// ------------------------------------------
-@Composable
-fun TrafficTab(visitors: List<VisitorDto>, onOpenChat: (VisitorDto) -> Unit) {
-    val onlineVisitors = visitors.filter { it.isOnline }
-    val offlineVisitors = visitors.filter { !it.isOnline }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text("Live Site Traffic Logs", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        }
-
-        if (visitors.isEmpty()) {
-            item {
-                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    Text("No visitors currently active.", color = Color(0xFF94A3B8), fontSize = 14.sp)
+            // Tab Content
+            Box(modifier = Modifier.weight(1f)) {
+                when (selectedTab) {
+                    0 -> OverviewTabContent(
+                        analytics = analytics,
+                        onNavigateToTab = { selectedTab = it }
+                    )
+                    1 -> RadarTabContent(
+                        visitorsList = visitorsList,
+                        onOpenChat = { vis ->
+                            val conv = conversationsList.find { it.visitorId == vis._id }
+                            if (conv != null) {
+                                onNavigateToChat(
+                                    conv._id, vis.name, vis._id, vis.country, vis.city,
+                                    vis.deviceType, vis.currentUrl, vis.email, vis.phoneNumber, conv.resolvedChannel
+                                )
+                            } else {
+                                val data = JSONObject().put("visitorId", vis._id)
+                                NetworkClient.getSocketInstance().emit("start-conversation", data)
+                            }
+                        }
+                    )
+                    2 -> UnifiedInboxTabContent(
+                        conversationsList = conversationsList,
+                        visitorsList = visitorsList,
+                        onSelectConversation = { conv, vis ->
+                            onNavigateToChat(
+                                conv._id, vis.name, vis._id, vis.country, vis.city,
+                                vis.deviceType, vis.currentUrl, vis.email, vis.phoneNumber, conv.resolvedChannel
+                            )
+                        }
+                    )
+                    3 -> LeadsTabContent(
+                        onOpenChat = { convId, name, visId ->
+                            val vis = visitorsList.find { it._id == visId }
+                            onNavigateToChat(
+                                convId, name, visId, vis?.country, vis?.city,
+                                vis?.deviceType, vis?.currentUrl, vis?.email, vis?.phoneNumber, "livechat"
+                            )
+                        }
+                    )
+                    4 -> if (isAdmin) TeamTabContent(agentsList = agentsList) else SettingsTabContent(isDark = isDark, onThemeChange = onThemeChange)
+                    5 -> SettingsTabContent(isDark = isDark, onThemeChange = onThemeChange)
                 }
             }
+
+            // Bottom space to avoid overlapping with floating dock
+            Spacer(modifier = Modifier.height(76.dp))
         }
 
-        if (onlineVisitors.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Active Online Visitors (${onlineVisitors.size})",
-                    color = Color(0xFF10B981),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                )
-            }
-            items(onlineVisitors) { visitor ->
-                VisitorCard(visitor, onOpenChat)
-            }
-        }
+        // Floating Glassmorphic Dock
+        FloatingDock(
+            selectedTab = selectedTab,
+            isAdmin = isAdmin,
+            isDark = isDark,
+            unassignedCount = conversationsList.count { it.status == "Unassigned" },
+            onSelectTab = { selectedTab = it },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 12.dp, start = 16.dp, end = 16.dp)
+        )
 
-        if (offlineVisitors.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Offline / Inactive Sessions (${offlineVisitors.size})",
-                    color = Color(0xFF94A3B8),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-                )
-            }
-            items(offlineVisitors) { visitor ->
-                VisitorCard(visitor, onOpenChat)
-            }
+        // Presence Changer Modal
+        if (showStatusDialog) {
+            PresenceDialog(
+                currentStatus = selfStatus,
+                onSelectStatus = { newStatus ->
+                    val data = JSONObject().put("status", newStatus)
+                    NetworkClient.getSocketInstance().emit("agent-status-update", data)
+                    showStatusDialog = false
+                },
+                onDismiss = { showStatusDialog = false }
+            )
         }
     }
 }
 
+// MARK: - Floating Glassmorphic Dock Component
 @Composable
-fun VisitorCard(visitor: VisitorDto, onOpenChat: (VisitorDto) -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier
-            .clickable { onOpenChat(visitor) }
-            .border(1.dp, Color(0xFF262626), RoundedCornerShape(12.dp))
+fun FloatingDock(
+    selectedTab: Int,
+    isAdmin: Boolean,
+    isDark: Boolean,
+    unassignedCount: Int,
+    onSelectTab: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 16.dp,
+                shape = RoundedCornerShape(28.dp),
+                ambientColor = Color.Black.copy(alpha = 0.2f),
+                spotColor = Color.Black.copy(alpha = 0.3f)
+            ),
+        shape = RoundedCornerShape(28.dp),
+        color = if (isDark) Color(0xFF141C2C).copy(alpha = 0.9f) else Color.White.copy(alpha = 0.92f),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            Brush.linearGradient(
+                colors = listOf(Color(0xFFDC2626).copy(alpha = 0.4f), if (isDark) Color(0xFF263042) else Color(0xFFE2E8F0))
+            )
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(if (visitor.isOnline) Color(0xFF10B981) else Color(0xFF64748B))
+            DockItem(icon = Icons.Default.Assessment, label = "Overview", index = 0, isSelected = selectedTab == 0, onClick = { onSelectTab(0) })
+            DockItem(icon = Icons.Default.Sensors, label = "Radar", index = 1, isSelected = selectedTab == 1, onClick = { onSelectTab(1) })
+            DockItem(
+                icon = Icons.Default.ChatBubble,
+                label = "Inbox",
+                index = 2,
+                isSelected = selectedTab == 2,
+                badgeCount = unassignedCount,
+                onClick = { onSelectTab(2) }
             )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(visitor.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(
-                    text = "📍 ${visitor.city}, ${visitor.country}",
-                    color = Color(0xFF94A3B8),
-                    fontSize = 11.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Url: ${visitor.currentUrl ?: "/"}",
-                    color = Color(0xFFEF4444),
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Last active: ${formatVisitorLastActive(visitor.lastSeen)}",
-                    color = Color.Gray,
-                    fontSize = 10.sp
-                )
+            DockItem(icon = Icons.Default.AssignmentInd, label = "Leads", index = 3, isSelected = selectedTab == 3, onClick = { onSelectTab(3) })
+            if (isAdmin) {
+                DockItem(icon = Icons.Default.Group, label = "Team", index = 4, isSelected = selectedTab == 4, onClick = { onSelectTab(4) })
             }
-            IconButton(onClick = { onOpenChat(visitor) }) {
-                Icon(Icons.Default.Send, contentDescription = "Open Chat", tint = Color(0xFFDC2626))
-            }
+            DockItem(icon = Icons.Default.Settings, label = "Settings", index = if (isAdmin) 5 else 4, isSelected = selectedTab == (if (isAdmin) 5 else 4), onClick = { onSelectTab(if (isAdmin) 5 else 4) })
         }
     }
 }
 
-// ------------------------------------------
-// INBOX TAB
-// ------------------------------------------
 @Composable
-fun InboxTab(
-    conversations: List<ConversationDto>,
-    visitors: List<VisitorDto>,
-    onSelectChat: (ConversationDto) -> Unit
+fun DockItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    index: Int,
+    isSelected: Bool = false,
+    badgeCount: Int = 0,
+    onClick: () -> Unit
 ) {
-    // Sort conversations descending by updatedAt to ensure latest chat/visitor shows on top
-    val sortedConversations = conversations.sortedByDescending { it.updatedAt }
-    
-    val unassignedChats = sortedConversations.filter { it.status == "Unassigned" }
-    val activeChats = sortedConversations.filter { it.status == "Active" }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+    ) {
+        Box(contentAlignment = Alignment.TopEnd) {
+            Surface(
+                color = if (isSelected) Color(0xFFDC2626) else Color.Transparent,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.size(width = 44.dp, height = 30.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        tint = if (isSelected) Color.White else Color(0xFF94A3B8),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            if (badgeCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .offset(x = 4.dp, y = (-4).dp)
+                        .background(Color.Red, CircleShape)
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = "$badgeCount",
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) Color(0xFFDC2626) else Color(0xFF94A3B8),
+            modifier = Modifier.padding(top = 2.dp)
+        )
+    }
+}
+
+// MARK: - UNIFIED INBOX TAB CONTENT (Exact match to reference screenshot)
+@Composable
+fun UnifiedInboxTabContent(
+    conversationsList: List<ConversationDto>,
+    visitorsList: List<VisitorDto>,
+    onSelectConversation: (ConversationDto, VisitorDto) -> Unit
+) {
+    var selectedChannel by remember { mutableStateOf("all") }
+    var searchText by remember { mutableStateOf("") }
+
+    // Dynamic counts
+    val channelCounts = remember(conversationsList, visitorsList) {
+        val counts = mutableMapOf("all" to 0, "whatsapp" to 0, "instagram" to 0, "facebook" to 0, "livechat" to 0)
+        for (conv in conversationsList) {
+            val vis = visitorsList.find { it._id == conv.visitorId }
+            val ch = (conv.channel ?: vis?.resolvedChannel ?: "livechat").lowercase()
+            counts["all"] = (counts["all"] ?: 0) + 1
+            if (ch.contains("whatsapp")) counts["whatsapp"] = (counts["whatsapp"] ?: 0) + 1
+            else if (ch.contains("instagram") || ch.contains("ig")) counts["instagram"] = (counts["instagram"] ?: 0) + 1
+            else if (ch.contains("facebook") || ch.contains("fb")) counts["facebook"] = (counts["facebook"] ?: 0) + 1
+            else counts["livechat"] = (counts["livechat"] ?: 0) + 1
+        }
+        counts
+    }
+
+    val filteredList = remember(conversationsList, visitorsList, selectedChannel, searchText) {
+        conversationsList.sortedByDescending { it.updatedAt }.filter { conv ->
+            val vis = visitorsList.find { it._id == conv.visitorId }
+            val ch = (conv.channel ?: vis?.resolvedChannel ?: "livechat").lowercase()
+            val vName = vis?.name?.lowercase() ?: ""
+
+            if (selectedChannel != "all") {
+                if (selectedChannel == "whatsapp" && !ch.contains("whatsapp")) return@filter false
+                if (selectedChannel == "instagram" && !(ch.contains("instagram") || ch.contains("ig"))) return@filter false
+                if (selectedChannel == "facebook" && !(ch.contains("facebook") || ch.contains("fb"))) return@filter false
+                if (selectedChannel == "livechat" && (ch.contains("whatsapp") || ch.contains("instagram") || ch.contains("facebook"))) return@filter false
+            }
+
+            if (searchText.isNotEmpty()) {
+                val q = searchText.lowercase()
+                val matchName = vName.contains(q)
+                val matchMsg = (conv.lastMessage ?: "").lowercase().contains(q)
+                if (!matchName && !matchMsg) return@filter false
+            }
+
+            true
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -937,44 +690,159 @@ fun InboxTab(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("Inbox Conversations Queue", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        }
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Unified Inbox",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "All conversations. One place.",
+                        fontSize = 13.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
 
-        if (conversations.isEmpty()) {
-            item {
-                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    Text("No chats in queue.", color = Color(0xFF94A3B8), fontSize = 14.sp)
+                Surface(
+                    color = Color(0xFFDC2626).copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "${filteredList.size} Active",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFDC2626),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
                 }
             }
         }
 
-        if (activeChats.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Active Chats In Progress (${activeChats.size})",
-                    color = Color(0xFF10B981),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                )
-            }
-            items(activeChats) { conv ->
-                ConversationCard(conv, visitors, onSelectChat)
+        item {
+            // Search field
+            OutlinedTextField(
+                value = searchText,
+                onValueChange = { searchText = it },
+                placeholder = { Text("Search chats, visitors, messages...", fontSize = 13.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = Color(0xFF94A3B8)) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedBorderColor = Color(0xFFDC2626),
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                ),
+                singleLine = true
+            )
+        }
+
+        item {
+            // Channel Filter Pills with Live Counts
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                item {
+                    ChannelPillItem(id = "all", label = "All", color = Color(0xFFDC2626), count = channelCounts["all"] ?: 0, isSelected = selectedChannel == "all", onClick = { selectedChannel = "all" })
+                }
+                item {
+                    ChannelPillItem(id = "whatsapp", label = "WhatsApp", color = Color(0xFF25D366), count = channelCounts["whatsapp"] ?: 0, isSelected = selectedChannel == "whatsapp", onClick = { selectedChannel = "whatsapp" })
+                }
+                item {
+                    ChannelPillItem(id = "instagram", label = "Instagram", color = Color(0xFFE1306C), count = channelCounts["instagram"] ?: 0, isSelected = selectedChannel == "instagram", onClick = { selectedChannel = "instagram" })
+                }
+                item {
+                    ChannelPillItem(id = "facebook", label = "Facebook", color = Color(0xFF1877F2), count = channelCounts["facebook"] ?: 0, isSelected = selectedChannel == "facebook", onClick = { selectedChannel = "facebook" })
+                }
+                item {
+                    ChannelPillItem(id = "livechat", label = "LiveChat", color = Color(0xFF64748B), count = channelCounts["livechat"] ?: 0, isSelected = selectedChannel == "livechat", onClick = { selectedChannel = "livechat" })
+                }
             }
         }
 
-        if (unassignedChats.isNotEmpty()) {
+        if (filteredList.isEmpty()) {
             item {
-                Text(
-                    text = "Pending Unassigned Queue (${unassignedChats.size})",
-                    color = Color(0xFFEF4444),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 40.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Inbox, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(44.dp))
+                    Text("No conversations found", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Incoming chats will appear here automatically.", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                }
             }
-            items(unassignedChats) { conv ->
-                ConversationCard(conv, visitors, onSelectChat)
+        } else {
+            items(filteredList) { conv ->
+                val vis = visitorsList.find { it._id == conv.visitorId } ?: VisitorDto(
+                    _id = conv.visitorId,
+                    name = "Customer",
+                    email = null,
+                    country = "Unknown",
+                    city = "Unknown",
+                    deviceType = "Desktop",
+                    currentUrl = null,
+                    isOnline = true
+                )
+
+                ConversationCard(conv = conv, visitor = vis, onClick = { onSelectConversation(conv, vis) })
+            }
+        }
+    }
+}
+
+@Composable
+fun ChannelPillItem(
+    id: String,
+    label: String,
+    color: Color,
+    count: Int,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        color = if (isSelected) Color(0xFFDC2626) else MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(color, CircleShape)
+            )
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+            )
+            Surface(
+                color = if (isSelected) Color.Black.copy(alpha = 0.2f) else MaterialTheme.colorScheme.background,
+                shape = CircleShape
+            ) {
+                Text(
+                    text = "$count",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
             }
         }
     }
@@ -983,534 +851,366 @@ fun InboxTab(
 @Composable
 fun ConversationCard(
     conv: ConversationDto,
-    visitors: List<VisitorDto>,
-    onSelectChat: (ConversationDto) -> Unit
+    visitor: VisitorDto,
+    onClick: () -> Unit
 ) {
-    val visitor = visitors.find { it._id == conv.visitorId }
-    val visitorName = visitor?.name ?: "VisitorSession"
+    val ch = (conv.channel ?: visitor.resolvedChannel).lowercase()
+    val chColor = getChannelBrandingColor(ch)
     val isUnassigned = conv.status == "Unassigned"
 
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (isUnassigned) Color(0xFF2B0707) else Color(0xFF121212)
-        ),
-        shape = RoundedCornerShape(12.dp),
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier
-            .clickable { onSelectChat(conv) }
-            .border(1.dp, if (isUnassigned) Color(0xFF7F1D1D) else Color(0xFF262626), RoundedCornerShape(12.dp))
+            .fillMaxWidth()
+            .border(1.dp, if (isUnassigned) Color(0xFFDC2626).copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(if (isUnassigned) Color(0xFFDC2626) else Color(0xFF262626)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (isUnassigned) "❓" else "💬",
-                    fontSize = 16.sp
+            // Avatar with bottom-right channel badge overlay
+            Box(contentAlignment = Alignment.BottomEnd) {
+                Surface(
+                    color = Color(0xFFDC2626).copy(alpha = 0.15f),
+                    shape = CircleShape,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = visitor.name.take(1).uppercase(),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFFDC2626)
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .background(chColor, CircleShape)
+                        .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(visitorName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(
-                    text = if (isUnassigned) "Queued • Unassigned" else "In Progress • Active",
-                    color = if (isUnassigned) Color(0xFFEF4444) else Color(0xFF94A3B8),
-                    fontSize = 11.sp
-                )
-            }
-            Icon(
-                Icons.Default.PlayArrow,
-                contentDescription = "Arrow",
-                tint = if (isUnassigned) Color(0xFFEF4444) else Color.Gray
-            )
-        }
-    }
-}
 
-// ------------------------------------------
-// UTILITY
-// ------------------------------------------
-fun getStatusColor(status: String): Color {
-    return when (status) {
-        "Online" -> Color(0xFF10B981)
-        "Away" -> Color(0xFFF59E0B)
-        else -> Color(0xFF64748B) // Offline
-    }
-}
-
-// ------------------------------------------
-// TEAM TAB
-// ------------------------------------------
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TeamTab(
-    agents: List<UserProfile>,
-    onAgentAdded: (UserProfile) -> Unit
-) {
-    val coroutineScope = rememberCoroutineScope()
-    var showAddDialog by remember { mutableStateOf(false) }
-
-    var newName by remember { mutableStateOf("") }
-    var newEmail by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf("") }
-    var isSuccess by remember { mutableStateOf(false) }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text("Operational Staff Team", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text("Real-time organization registry", color = Color.Gray, fontSize = 12.sp)
-                    }
-                    Button(
-                        onClick = {
-                            newName = ""
-                            newEmail = ""
-                            newPassword = ""
-                            statusMessage = ""
-                            isSuccess = false
-                            showAddDialog = true
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("+ Add Agent", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-            }
-
-            if (agents.isEmpty()) {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                        Text("No team members registered yet.", color = Color(0xFF94A3B8), fontSize = 14.sp)
-                    }
-                }
-            }
-
-            items(agents) { agent ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.border(1.dp, Color(0xFF262626), RoundedCornerShape(10.dp))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF262626)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(agent.name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(agent.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text(agent.email, color = Color.Gray, fontSize = 11.sp)
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = agent.role,
-                                color = if (agent.role == "Admin") Color(0xFFEF4444) else Color(0xFF64748B),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color.Black)
-                                    .border(1.dp, Color(0xFF262626), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(getStatusColor(agent.status))
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(agent.status, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (showAddDialog) {
-            AlertDialog(
-                onDismissRequest = { if (!isLoading) showAddDialog = false },
-                title = { Text("Register New Organization Agent", color = Color.White, fontWeight = FontWeight.Bold) },
-                containerColor = Color(0xFF121212),
-                modifier = Modifier.border(1.dp, Color(0xFF262626), RoundedCornerShape(28.dp)),
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            "Provide account details to generate a new live chat employee console profile.",
-                            color = Color(0xFF94A3B8),
-                            fontSize = 12.sp
+                            text = visitor.name,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-
-                        OutlinedTextField(
-                            value = newName,
-                            onValueChange = { newName = it },
-                            label = { Text("Agent Display Name") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFFDC2626),
-                                unfocusedBorderColor = Color(0xFF262626),
-                                focusedLabelColor = Color(0xFFDC2626)
-                            ),
-                            singleLine = true,
-                            enabled = !isLoading && !isSuccess
-                        )
-
-                        OutlinedTextField(
-                            value = newEmail,
-                            onValueChange = { newEmail = it },
-                            label = { Text("Email Address") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFFDC2626),
-                                unfocusedBorderColor = Color(0xFF262626),
-                                focusedLabelColor = Color(0xFFDC2626)
-                            ),
-                            singleLine = true,
-                            enabled = !isLoading && !isSuccess
-                        )
-
-                        OutlinedTextField(
-                            value = newPassword,
-                            onValueChange = { newPassword = it },
-                            label = { Text("Password credential") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFFDC2626),
-                                unfocusedBorderColor = Color(0xFF262626),
-                                focusedLabelColor = Color(0xFFDC2626)
-                            ),
-                            singleLine = true,
-                            enabled = !isLoading && !isSuccess
-                        )
-
-                        if (statusMessage.isNotEmpty()) {
-                            Text(
-                                text = statusMessage,
-                                color = if (isSuccess) Color(0xFF10B981) else Color(0xFFEF4444),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    if (isSuccess) {
-                        Button(
-                            onClick = { showAddDialog = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
-                        ) {
-                            Text("Done")
-                        }
-                    } else {
-                        Button(
-                            onClick = {
-                                if (newName.trim().isEmpty() || newEmail.trim().isEmpty() || newPassword.trim().isEmpty()) {
-                                    statusMessage = "All fields are required."
-                                    return@Button
-                                }
-                                isLoading = true
-                                statusMessage = ""
-                                coroutineScope.launch {
-                                    try {
-                                        val req = RegisterAgentRequest(newName.trim(), newEmail.trim(), newPassword.trim())
-                                        val res = NetworkClient.api.registerAgent(NetworkClient.getAuthHeader(), req)
-                                        isSuccess = true
-                                        statusMessage = "Agent successfully registered!"
-                                        onAgentAdded(res.agent)
-                                    } catch (e: Exception) {
-                                        e.printStackTrace()
-                                        statusMessage = "Registration failed. Email might already exist."
-                                    } finally {
-                                        isLoading = false
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                            enabled = !isLoading
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
-                            } else {
-                                Text("Register")
+                        if (isUnassigned) {
+                            Surface(color = Color(0xFFDC2626), shape = RoundedCornerShape(6.dp)) {
+                                Text(
+                                    text = "NEW",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
                             }
                         }
                     }
-                },
-                dismissButton = {
-                    if (!isSuccess) {
-                        TextButton(
-                            onClick = { showAddDialog = false },
-                            enabled = !isLoading
-                        ) {
-                            Text("Cancel", color = Color.Gray)
-                        }
-                    }
+
+                    Text(
+                        text = formatRelative(conv.updatedAt),
+                        fontSize = 11.sp,
+                        color = Color(0xFF94A3B8)
+                    )
                 }
-            )
+
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "via ${ch.replaceFirstChar { it.uppercase() }}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = chColor
+                    )
+                    Text("•", fontSize = 10.sp, color = Color(0xFF94A3B8))
+                    Text(
+                        text = conv.lastMessage ?: (visitor.currentUrl?.let { "Browsing $it" } ?: "Active conversation"),
+                        fontSize = 12.sp,
+                        color = Color(0xFF94A3B8),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
         }
     }
 }
 
-// ------------------------------------------
-// SETTINGS TAB
-// ------------------------------------------
-@OptIn(ExperimentalMaterial3Api::class)
+// MARK: - LEADS TAB CONTENT (Full LMS)
 @Composable
-fun SettingsTab(
-    currentTheme: String,
-    onThemeChange: (String) -> Unit
+fun LeadsTabContent(
+    onOpenChat: (String, String, String) -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-
-    var nameInput by remember { mutableStateOf(NetworkClient.currentUser?.name ?: "") }
-    var passwordInput by remember { mutableStateOf("") }
-    var emailReadonly by remember { mutableStateOf(NetworkClient.currentUser?.email ?: "") }
-
+    var leadsList by remember { mutableStateOf<List<LeadDto>>(emptyList()) }
+    var leadStats by remember { mutableStateOf<LeadStatsDto?>(null) }
     var isLoading by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf("") }
-    var isSuccess by remember { mutableStateOf(false) }
+    var selectedStatus by remember { mutableStateOf("All") }
+    var searchText by remember { mutableStateOf("") }
+    var showCreateModal by remember { mutableStateOf(false) }
+    var selectedLead by remember { mutableStateOf<LeadDto?>(null) }
+
+    val coroutineScope = rememberCoroutineScope()
+    val statuses = listOf("All", "New", "Contacted", "Qualified", "Proposal", "Won", "Lost")
+
+    LaunchedEffect(Unit) {
+        isLoading = true
+        try {
+            val fetched = NetworkClient.api.getLeads(NetworkClient.getAuthHeader())
+            leadsList = fetched.leads
+            leadStats = NetworkClient.api.getLeadStats(NetworkClient.getAuthHeader())
+            isLoading = false
+        } catch (e: Exception) {
+            isLoading = false
+        }
+    }
+
+    val filteredLeads = remember(leadsList, selectedStatus, searchText) {
+        leadsList.filter { lead ->
+            if (selectedStatus != "All" && lead.status != selectedStatus) return@filter false
+            if (searchText.isNotEmpty()) {
+                val q = searchText.lowercase()
+                val matchName = lead.name.lowercase().contains(q)
+                val matchCompany = (lead.company ?: "").lowercase().contains(q)
+                if (!matchName && !matchCompany) return@filter false
+            }
+            true
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("Console Workspace Settings", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text("Customize preferences and manage your employee profile", color = Color.Gray, fontSize = 12.sp)
-        }
-
-        // 1. Theme Configuration Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color(0xFF262626), RoundedCornerShape(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Workspace Theme Selection", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Toggle dynamic palette presets for the mobile interface", color = Color.Gray, fontSize = 11.sp)
-                    Spacer(modifier = Modifier.height(14.dp))
+                Column {
+                    Text(
+                        text = "Lead Management",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Meta Ads, Chats & Inbound Opportunities",
+                        fontSize = 13.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = { onThemeChange("dark") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .border(
-                                    1.dp,
-                                    if (currentTheme == "dark") Color(0xFFDC2626) else Color.Transparent,
-                                    RoundedCornerShape(8.dp)
-                                ),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (currentTheme == "dark") Color(0xFF2B0707) else Color(0xFF1E1E1E),
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("🎬 Dark Mode", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        Button(
-                            onClick = { onThemeChange("light") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .border(
-                                    1.dp,
-                                    if (currentTheme == "light") Color(0xFFDC2626) else Color.Transparent,
-                                    RoundedCornerShape(8.dp)
-                                ),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (currentTheme == "light") Color(0xFFE2E8F0) else Color(0xFF1E1E1E),
-                                contentColor = if (currentTheme == "light") Color.Black else Color.White
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("☀️ Light Mode", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
+                Button(
+                    onClick = { showCreateModal = true },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("New Lead", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        // 2. Profile Details Form
+        // Stat Carousel
+        leadStats?.let { stats ->
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    item { LeadStatCard(title = "Total Leads", value = "${stats.totalLeads}", color = Color(0xFFDC2626)) }
+                    item { LeadStatCard(title = "New Leads", value = "${stats.newLeads}", color = Color(0xFFF59E0B)) }
+                    item { LeadStatCard(title = "Pipeline Value", value = "$${stats.totalPipelineValue.toInt()}", color = Color(0xFF10B981)) }
+                    item { LeadStatCard(title = "Won Deals", value = "${stats.wonLeads}", color = Color(0xFF3B82F6)) }
+                }
+            }
+        }
+
+        // Search bar
         item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+            OutlinedTextField(
+                value = searchText,
+                onValueChange = { searchText = it },
+                placeholder = { Text("Search leads, companies...", fontSize = 13.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF94A3B8)) },
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color(0xFF262626), RoundedCornerShape(12.dp))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Employee Profile Configuration", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text("Update login credentials and console details.", color = Color.Gray, fontSize = 11.sp)
-                    HorizontalDivider(color = Color(0xFF262626), thickness = 1.dp)
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedBorderColor = Color(0xFFDC2626),
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                ),
+                singleLine = true
+            )
+        }
 
-                    // Email (Disabled)
-                    OutlinedTextField(
-                        value = emailReadonly,
-                        onValueChange = {},
-                        label = { Text("Registered Email (Read-only)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.Gray,
-                            unfocusedTextColor = Color.Gray,
-                            disabledBorderColor = Color(0xFF262626),
-                            disabledLabelColor = Color.Gray
-                        ),
-                        singleLine = true,
-                        enabled = false
-                    )
-
-                    // Full Name
-                    OutlinedTextField(
-                        value = nameInput,
-                        onValueChange = { nameInput = it },
-                        label = { Text("Display Name") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFFDC2626),
-                            unfocusedBorderColor = Color(0xFF262626),
-                            focusedLabelColor = Color(0xFFDC2626)
-                        ),
-                        singleLine = true,
-                        enabled = !isLoading
-                    )
-
-                    // Password update (optional)
-                    OutlinedTextField(
-                        value = passwordInput,
-                        onValueChange = { passwordInput = it },
-                        label = { Text("Change Password (Leave blank to keep current)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFFDC2626),
-                            unfocusedBorderColor = Color(0xFF262626),
-                            focusedLabelColor = Color(0xFFDC2626)
-                        ),
-                        singleLine = true,
-                        enabled = !isLoading
-                    )
-
-                    if (statusMessage.isNotEmpty()) {
+        // Status Tabs
+        item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(statuses) { st ->
+                    Surface(
+                        onClick = { selectedStatus = st },
+                        color = if (selectedStatus == st) Color(0xFFDC2626) else MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedStatus == st) Color.Transparent else MaterialTheme.colorScheme.outline)
+                    ) {
                         Text(
-                            text = statusMessage,
-                            color = if (isSuccess) Color(0xFF10B981) else Color(0xFFEF4444),
+                            text = st,
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 4.dp)
+                            fontWeight = if (selectedStatus == st) FontWeight.Bold else FontWeight.SemiBold,
+                            color = if (selectedStatus == st) Color.White else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                         )
                     }
+                }
+            }
+        }
 
-                    // Save Button
-                    Button(
-                        onClick = {
-                            if (nameInput.trim().isEmpty()) {
-                                statusMessage = "Name cannot be empty."
-                                isSuccess = false
-                                return@Button
-                            }
-                            isLoading = true
-                            statusMessage = ""
-                            isSuccess = false
+        if (isLoading) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFFDC2626))
+                }
+            }
+        } else if (filteredLeads.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.PersonOutline, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(40.dp))
+                    Text("No leads found", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+        } else {
+            items(filteredLeads) { lead ->
+                LeadRowCard(lead = lead, onClick = { selectedLead = lead })
+            }
+        }
+    }
 
-                            coroutineScope.launch {
-                                try {
-                                    val req = UpdateProfileRequest(
-                                        name = nameInput.trim(),
-                                        avatarUrl = null,
-                                        password = if (passwordInput.isNotEmpty()) passwordInput.trim() else null
-                                    )
-                                    val updatedUser = NetworkClient.api.updateProfile(NetworkClient.getAuthHeader(), req)
-                                    NetworkClient.currentUser = updatedUser
+    if (showCreateModal) {
+        CreateLeadDialog(
+            onDismiss = { showCreateModal = false },
+            onCreated = { newLead ->
+                leadsList = listOf(newLead) + leadsList
+                showCreateModal = false
+            }
+        )
+    }
 
-                                    // Save changes locally in persistent SharedPreferences
-                                    val prefs = context.getSharedPreferences("letstrack_prefs", android.content.Context.MODE_PRIVATE)
-                                    val gson = com.google.gson.Gson()
-                                    prefs.edit()
-                                        .putString("user_profile", gson.toJson(updatedUser))
-                                        .apply()
+    selectedLead?.let { lead ->
+        LeadDetailDialog(
+            lead = lead,
+            onDismiss = { selectedLead = null },
+            onUpdated = { updated ->
+                leadsList = leadsList.map { if (it._id == updated._id) updated else it }
+                selectedLead = updated
+            }
+        )
+    }
+}
 
-                                    isSuccess = true
-                                    statusMessage = "Profile updated successfully!"
-                                    passwordInput = ""
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                    statusMessage = "Profile update failed. Try again."
-                                    isSuccess = false
-                                } finally {
-                                    isLoading = false
-                                }
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                        enabled = !isLoading
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
-                        } else {
-                            Text("Save Configurations", fontWeight = FontWeight.Bold)
+@Composable
+fun LeadStatCard(title: String, value: String, color: Color) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .width(130.dp)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8))
+            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+@Composable
+fun LeadRowCard(lead: LeadDto, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(lead.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    if (!lead.company.isNullOrEmpty()) {
+                        Text(lead.company, fontSize = 12.sp, color = Color(0xFF94A3B8))
+                    }
+                }
+
+                Surface(
+                    color = getLeadStatusColor(lead.status).copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = lead.status,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = getLeadStatusColor(lead.status),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Surface(
+                    color = getChannelBrandingColor(lead.source).copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = lead.source.replaceFirstChar { it.uppercase() },
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = getChannelBrandingColor(lead.source),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+
+                lead.dealValue?.let { valAmt ->
+                    if (valAmt > 0) {
+                        Surface(
+                            color = Color(0xFF10B981).copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "$${valAmt.toInt()}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            )
                         }
                     }
                 }
@@ -1519,15 +1219,425 @@ fun SettingsTab(
     }
 }
 
-fun formatVisitorLastActive(isoString: String?): String {
-    if (isoString.isNullOrEmpty()) return "Never"
-    return try {
-        val instant = java.time.Instant.parse(isoString)
-        val formatter = java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy, h:mm a")
-            .withZone(java.time.ZoneId.systemDefault())
-        formatter.format(instant)
-    } catch (e: Exception) {
-        isoString
+// MARK: - RADAR TAB CONTENT
+@Composable
+fun RadarTabContent(
+    visitorsList: List<VisitorDto>,
+    onOpenChat: (VisitorDto) -> Unit
+) {
+    val onlineVisitors = visitorsList.filter { it.isOnline }
+    val offlineVisitors = visitorsList.filter { !it.isOnline }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Column {
+                Text("Live Visitor Radar", fontSize = 24.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                Text("Real-time browsing sessions & page tracking", fontSize = 13.sp, color = Color(0xFF94A3B8))
+            }
+        }
+
+        if (visitorsList.isEmpty()) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                    Text("No active visitors online.", color = Color(0xFF94A3B8))
+                }
+            }
+        } else {
+            if (onlineVisitors.isNotEmpty()) {
+                item {
+                    Text("Active Online (${onlineVisitors.size})", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                }
+                items(onlineVisitors) { vis ->
+                    VisitorCard(visitor = vis, onClick = { onOpenChat(vis) })
+                }
+            }
+
+            if (offlineVisitors.isNotEmpty()) {
+                item {
+                    Text("Recent Sessions (${offlineVisitors.size})", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8), modifier = Modifier.padding(top = 8.dp))
+                }
+                items(offlineVisitors) { vis ->
+                    VisitorCard(visitor = vis, onClick = { onOpenChat(vis) })
+                }
+            }
+        }
     }
 }
 
+@Composable
+fun VisitorCard(visitor: VisitorDto, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(if (visitor.isOnline) Color(0xFF10B981) else Color(0xFF94A3B8), CircleShape)
+            )
+
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(visitor.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text("📍 ${visitor.city}, ${visitor.country}", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                Text(visitor.currentUrl ?: "/", fontSize = 11.sp, color = Color(0xFFDC2626), maxLines = 1)
+            }
+
+            Icon(Icons.Default.Send, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+// MARK: - OVERVIEW TAB CONTENT
+@Composable
+fun OverviewTabContent(
+    analytics: AnalyticsResponse?,
+    onNavigateToTab: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Column {
+            Text("Workspace Overview", fontSize = 24.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+            Text("Live traffic metrics and omni-channel activity", fontSize = 13.sp, color = Color(0xFF94A3B8))
+        }
+
+        analytics?.let { stats ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MetricBox(title = "Active Chats", value = "${stats.activeConversations}", color = Color(0xFFDC2626), modifier = Modifier.weight(1f))
+                MetricBox(title = "Unassigned", value = "${stats.unassignedConversations}", color = Color(0xFFEF4444), modifier = Modifier.weight(1f))
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MetricBox(title = "Live Visitors", value = "${stats.onlineVisitors}", color = Color(0xFF10B981), modifier = Modifier.weight(1f))
+                MetricBox(title = "Total Chats", value = "${stats.totalChats}", color = Color(0xFF3B82F6), modifier = Modifier.weight(1f))
+            }
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(
+                onClick = { onNavigateToTab(2) },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                modifier = Modifier.weight(1f).height(44.dp)
+            ) {
+                Text("Open Inbox", fontWeight = FontWeight.Bold)
+            }
+
+            OutlinedButton(
+                onClick = { onNavigateToTab(3) },
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f).height(44.dp)
+            ) {
+                Text("View Leads", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}
+
+@Composable
+fun MetricBox(title: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8))
+            Text(value, fontSize = 24.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+// MARK: - TEAM TAB CONTENT
+@Composable
+fun TeamTabContent(agentsList: List<UserProfile>) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text("Team & Agents", fontSize = 24.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+        }
+        items(agentsList) { agent ->
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(modifier = Modifier.size(10.dp).background(getStatusColor(agent.status), CircleShape))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(agent.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("${agent.email} • ${agent.role}", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                    }
+                    Text(agent.status, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = getStatusColor(agent.status))
+                }
+            }
+        }
+    }
+}
+
+// MARK: - SETTINGS TAB CONTENT
+@Composable
+fun SettingsTabContent(
+    isDark: Boolean,
+    onThemeChange: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text("Workspace Settings", fontSize = 24.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Theme Appearance", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = { onThemeChange("light") },
+                        colors = ButtonDefaults.buttonColors(containerColor = if (!isDark) Color(0xFFDC2626) else MaterialTheme.colorScheme.background),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("☀️ Light Mode", color = if (!isDark) Color.White else MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = { onThemeChange("dark") },
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isDark) Color(0xFFDC2626) else MaterialTheme.colorScheme.background),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("🌙 Dark Mode", color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - MODALS & DIALOGS
+@Composable
+fun PresenceDialog(
+    currentStatus: String,
+    onSelectStatus: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Update Presence Status", fontWeight = FontWeight.Bold) },
+        containerColor = MaterialTheme.colorScheme.surface,
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Online", "Away", "Offline").forEach { st ->
+                    Surface(
+                        onClick = { onSelectStatus(st) },
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.size(10.dp).background(getStatusColor(st), CircleShape))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(st, fontWeight = if (st == currentStatus) FontWeight.Bold else FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+fun CreateLeadDialog(
+    onDismiss: () -> Unit,
+    onCreated: (LeadDto) -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    var name by remember { mutableStateOf("") }
+    var company by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var source by remember { mutableStateOf("manual") }
+    var status by remember { mutableStateOf("New") }
+    var dealValue by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New Lead Opportunity", fontWeight = FontWeight.Bold) },
+        containerColor = MaterialTheme.colorScheme.surface,
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Customer Name *") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = company, onValueChange = { company = it }, label = { Text("Company") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = dealValue, onValueChange = { dealValue = it }, label = { Text("Deal Value ($)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.trim().isNotEmpty()) {
+                        isLoading = true
+                        coroutineScope.launch {
+                            try {
+                                val req = CreateLeadRequest(
+                                    name = name.trim(),
+                                    company = company.trim().takeIf { it.isNotEmpty() },
+                                    email = email.trim().takeIf { it.isNotEmpty() },
+                                    phone = phone.trim().takeIf { it.isNotEmpty() },
+                                    source = source,
+                                    status = status,
+                                    dealValue = dealValue.toDoubleOrNull()
+                                )
+                                val res = NetworkClient.api.createLead(NetworkClient.getAuthHeader(), req)
+                                onCreated(res)
+                            } catch (e: Exception) {
+                                isLoading = false
+                            }
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                enabled = !isLoading
+            ) {
+                Text("Create")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = Color(0xFF94A3B8)) }
+        }
+    )
+}
+
+@Composable
+fun LeadDetailDialog(
+    lead: LeadDto,
+    onDismiss: () -> Unit,
+    onUpdated: (LeadDto) -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    var currentStatus by remember { mutableStateOf(lead.status) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(lead.name, fontWeight = FontWeight.Bold) },
+        containerColor = MaterialTheme.colorScheme.surface,
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (!lead.company.isNullOrEmpty()) {
+                    Text("Company: ${lead.company}", color = Color(0xFF94A3B8), fontSize = 13.sp)
+                }
+                Text("Source: ${lead.source}", fontSize = 13.sp)
+                lead.dealValue?.let { Text("Deal Value: $$it", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981)) }
+                
+                Text("Pipeline Status:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("New", "Qualified", "Won", "Lost").forEach { st ->
+                        Surface(
+                            onClick = {
+                                currentStatus = st
+                                coroutineScope.launch {
+                                    try {
+                                        val updated = NetworkClient.api.updateLead(
+                                            NetworkClient.getAuthHeader(),
+                                            lead._id,
+                                            mapOf("status" to st)
+                                        )
+                                        onUpdated(updated)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+                            },
+                            color = if (currentStatus == st) Color(0xFFDC2626) else MaterialTheme.colorScheme.background,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(st, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (currentStatus == st) Color.White else MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+// Helpers
+fun getStatusColor(status: String): Color {
+    return when (status) {
+        "Online" -> Color(0xFF10B981)
+        "Away" -> Color(0xFFF59E0B)
+        else -> Color(0xFF94A3B8)
+    }
+}
+
+fun getLeadStatusColor(status: String): Color {
+    return when (status) {
+        "New" -> Color(0xFF3B82F6)
+        "Contacted" -> Color(0xFFF59E0B)
+        "Qualified" -> Color(0xFF8B5CF6)
+        "Proposal" -> Color(0xFF6366F1)
+        "Won" -> Color(0xFF10B981)
+        "Lost" -> Color(0xFFEF4444)
+        else -> Color(0xFFDC2626)
+    }
+}
+
+fun getChannelBrandingColor(channel: String): Color {
+    return when (channel.lowercase()) {
+        "whatsapp" -> Color(0xFF25D366)
+        "instagram" -> Color(0xFFE1306C)
+        "facebook" -> Color(0xFF1877F2)
+        "meta_ads", "meta ads" -> Color(0xFF0081FB)
+        else -> Color(0xFFDC2626)
+    }
+}
+
+fun formatRelative(iso: String): String {
+    if (iso.isEmpty()) return ""
+    return "now"
+}
