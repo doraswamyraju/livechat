@@ -1056,15 +1056,13 @@ app.delete('/api/upsell-pitches/:id', authenticateToken, async (req, res) => {
 // LEAD MANAGEMENT SYSTEM (LMS) & CRM ENDPOINTS
 // ============================================
 
-// 12e. Get Leads with filtering & search
+// 12e. Get Leads (with search, status filter, source filter, pagination)
 app.get('/api/leads', authenticateToken, async (req, res) => {
   try {
-    const { status, source, assignedAgentId, search, tenantId } = req.query;
-    
-    // Resolve effective tenantId (SuperAdmin can query specific tenant or default to assigned)
+    const { status, source, search, tenantId, page = 1, limit = 50 } = req.query;
     let targetTenantId = req.user.tenantId;
-    if (req.user.role === 'SuperAdmin' && tenantId) {
-      targetTenantId = tenantId;
+    if (req.user.role === 'SuperAdmin') {
+      targetTenantId = tenantId || null;
     }
 
     const query = {};
@@ -1075,32 +1073,32 @@ app.get('/api/leads', authenticateToken, async (req, res) => {
     if (status && status !== 'All') {
       query.status = status;
     }
+
     if (source && source !== 'All') {
       query.source = source;
     }
-    if (assignedAgentId && assignedAgentId !== 'All') {
-      query.assignedAgentId = assignedAgentId;
-    }
 
     if (search) {
-      const searchRegex = new RegExp(search.trim(), 'i');
+      const regex = new RegExp(search, 'i');
       query.$or = [
-        { name: searchRegex },
-        { email: searchRegex },
-        { phoneNumber: searchRegex },
-        { company: searchRegex },
-        { 'metaData.campaignName': searchRegex },
-        { 'metaData.adName': searchRegex }
+        { name: regex },
+        { email: regex },
+        { phoneNumber: regex },
+        { company: regex },
+        { 'metaData.campaignName': regex }
       ];
     }
 
+    const skip = (Number(page) - 1) * Number(limit);
+    const total = await Lead.countDocuments(query);
     const leads = await Lead.find(query)
       .populate('assignedAgentId', 'name email avatarUrl role status')
-      .populate('conversationId', 'lastMessageText unreadCount source updatedAt')
+      .populate('tenantId', 'name domain')
       .sort({ createdAt: -1 })
-      .limit(200);
+      .skip(skip)
+      .limit(Number(limit));
 
-    res.status(200).json({ leads });
+    res.status(200).json({ leads, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
   } catch (err) {
     console.error('Error fetching leads:', err);
     res.status(500).json({ error: 'Failed to fetch leads' });
@@ -1112,8 +1110,8 @@ app.get('/api/leads/stats', authenticateToken, async (req, res) => {
   try {
     const { tenantId } = req.query;
     let targetTenantId = req.user.tenantId;
-    if (req.user.role === 'SuperAdmin' && tenantId) {
-      targetTenantId = tenantId;
+    if (req.user.role === 'SuperAdmin') {
+      targetTenantId = tenantId || null;
     }
 
     const query = {};
@@ -1195,51 +1193,64 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
       initialNote
     } = req.body;
 
-    if (!name) {
+    if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Lead name is required' });
     }
 
-    const tenantId = req.body.tenantId || req.user.tenantId;
-    if (!tenantId) {
+    let targetTenantId = req.body.tenantId || req.user.tenantId;
+    if (!targetTenantId) {
+      const firstTenant = await Tenant.findOne().sort({ createdAt: 1 });
+      if (firstTenant) {
+        targetTenantId = firstTenant._id;
+      }
+    }
+
+    if (!targetTenantId) {
       return res.status(400).json({ error: 'Tenant context required' });
     }
 
+    const validAuthorId = (req.user.userId && mongoose.Types.ObjectId.isValid(req.user.userId)) ? req.user.userId : null;
     const notes = [];
-    if (initialNote) {
+    if (initialNote && initialNote.trim()) {
       notes.push({
-        authorId: req.user.userId,
+        authorId: validAuthorId,
         authorName: req.user.name || 'Agent',
-        text: initialNote,
+        text: initialNote.trim(),
         createdAt: new Date()
       });
     }
 
     // If converted from conversation, link conversation and record audit
-    if (conversationId) {
+    const validConvId = (conversationId && mongoose.Types.ObjectId.isValid(conversationId)) ? conversationId : null;
+    if (validConvId) {
       notes.push({
-        authorId: req.user.userId,
+        authorId: validAuthorId,
         authorName: req.user.name || 'System',
         text: `Lead converted directly from live conversation #${conversationId}.`,
         createdAt: new Date()
       });
     }
 
+    const validAgentId = (assignedAgentId && mongoose.Types.ObjectId.isValid(assignedAgentId)) 
+      ? assignedAgentId 
+      : (validAuthorId || null);
+
     const lead = new Lead({
-      tenantId,
-      name,
-      email: email || '',
-      phoneNumber: phoneNumber || '',
-      company: company || '',
-      source,
-      status,
+      tenantId: targetTenantId,
+      name: name.trim(),
+      email: email ? email.trim() : '',
+      phoneNumber: phoneNumber ? phoneNumber.trim() : '',
+      company: company ? company.trim() : '',
+      source: ['meta-ads', 'chat', 'whatsapp', 'instagram', 'facebook', 'website', 'manual'].includes(source) ? source : 'manual',
+      status: ['New', 'Contacted', 'Qualified', 'Proposal', 'Won', 'Lost'].includes(status) ? status : 'New',
       dealValue: Number(dealValue) || 0,
-      currency,
+      currency: currency || 'INR',
       score: Number(score) || 50,
-      assignedAgentId: assignedAgentId || req.user.userId,
-      conversationId: conversationId || null,
+      assignedAgentId: validAgentId,
+      conversationId: validConvId,
       visitorId: visitorId || '',
-      tags,
-      metaData,
+      tags: Array.isArray(tags) ? tags : [],
+      metaData: metaData || {},
       notes
     });
 
@@ -1247,14 +1258,14 @@ app.post('/api/leads', authenticateToken, async (req, res) => {
     const populated = await Lead.findById(lead._id).populate('assignedAgentId', 'name email avatarUrl role status');
 
     // Broadcast lead creation to dashboard sockets
-    if (req.user.tenantId) {
-      emitToDashboard(req.user.tenantId.toString(), 'new-lead', populated);
+    if (targetTenantId) {
+      emitToDashboard(targetTenantId.toString(), 'new-lead', populated);
     }
 
     res.status(201).json({ lead: populated, message: 'Lead created successfully' });
   } catch (err) {
     console.error('Error creating lead:', err);
-    res.status(500).json({ error: 'Failed to create lead' });
+    res.status(500).json({ error: err.message || 'Failed to create lead' });
   }
 });
 
@@ -1278,10 +1289,12 @@ app.patch('/api/leads/:id', authenticateToken, async (req, res) => {
     const lead = await Lead.findById(id);
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
 
+    const validAuthorId = (req.user.userId && mongoose.Types.ObjectId.isValid(req.user.userId)) ? req.user.userId : null;
+
     // Status transition audit note
     if (status && status !== lead.status) {
       lead.notes.push({
-        authorId: req.user.userId,
+        authorId: validAuthorId,
         authorName: req.user.name || 'Agent',
         text: `Stage changed from "${lead.status}" to "${status}".`,
         createdAt: new Date()
@@ -1289,15 +1302,17 @@ app.patch('/api/leads/:id', authenticateToken, async (req, res) => {
       lead.status = status;
     }
 
-    if (name !== undefined) lead.name = name;
-    if (email !== undefined) lead.email = email;
-    if (phoneNumber !== undefined) lead.phoneNumber = phoneNumber;
-    if (company !== undefined) lead.company = company;
-    if (dealValue !== undefined) lead.dealValue = Number(dealValue);
+    if (name !== undefined) lead.name = name.trim();
+    if (email !== undefined) lead.email = email.trim();
+    if (phoneNumber !== undefined) lead.phoneNumber = phoneNumber.trim();
+    if (company !== undefined) lead.company = company.trim();
+    if (dealValue !== undefined) lead.dealValue = Number(dealValue) || 0;
     if (currency !== undefined) lead.currency = currency;
-    if (score !== undefined) lead.score = Number(score);
-    if (assignedAgentId !== undefined) lead.assignedAgentId = assignedAgentId || null;
-    if (tags !== undefined) lead.tags = tags;
+    if (score !== undefined) lead.score = Number(score) || 50;
+    if (assignedAgentId !== undefined) {
+      lead.assignedAgentId = (assignedAgentId && mongoose.Types.ObjectId.isValid(assignedAgentId)) ? assignedAgentId : null;
+    }
+    if (tags !== undefined) lead.tags = Array.isArray(tags) ? tags : [];
     lead.updatedAt = new Date();
 
     await lead.save();
@@ -1310,7 +1325,7 @@ app.patch('/api/leads/:id', authenticateToken, async (req, res) => {
     res.status(200).json({ lead: populated, message: 'Lead updated successfully' });
   } catch (err) {
     console.error('Error updating lead:', err);
-    res.status(500).json({ error: 'Failed to update lead' });
+    res.status(500).json({ error: err.message || 'Failed to update lead' });
   }
 });
 
@@ -1327,8 +1342,9 @@ app.post('/api/leads/:id/notes', authenticateToken, async (req, res) => {
     const lead = await Lead.findById(id);
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
 
+    const validAuthorId = (req.user.userId && mongoose.Types.ObjectId.isValid(req.user.userId)) ? req.user.userId : null;
     const newNote = {
-      authorId: req.user.userId,
+      authorId: validAuthorId,
       authorName: req.user.name || 'Agent',
       text: text.trim(),
       createdAt: new Date()

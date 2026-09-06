@@ -165,13 +165,25 @@ export default function LeadManagementSystem({
   // Create Lead
   const handleCreateLead = async (e) => {
     e.preventDefault();
-    if (!formData.name) return showToast?.('Lead name is required', 'error');
+    if (!formData.name || !formData.name.trim()) return showToast?.('Lead name is required', 'error');
 
     try {
       const payload = {
-        ...formData,
+        name: formData.name.trim(),
+        email: formData.email ? formData.email.trim() : '',
+        phoneNumber: formData.phoneNumber ? formData.phoneNumber.trim() : '',
+        company: formData.company ? formData.company.trim() : '',
+        source: formData.source || 'manual',
+        status: formData.status || 'New',
+        dealValue: Number(formData.dealValue) || 0,
+        currency: formData.currency || 'INR',
+        initialNote: formData.initialNote ? formData.initialNote.trim() : '',
         tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : []
       };
+
+      if (formData.assignedAgentId && formData.assignedAgentId.trim()) {
+        payload.assignedAgentId = formData.assignedAgentId.trim();
+      }
       if (targetTenantId) payload.tenantId = targetTenantId;
 
       const res = await fetch(`${BACKEND_URL}/api/leads`, {
@@ -203,10 +215,11 @@ export default function LeadManagementSystem({
         fetchStats();
         showToast?.('Lead created successfully', 'success');
       } else {
-        const errData = await res.json();
+        const errData = await res.json().catch(() => ({}));
         showToast?.(errData.error || 'Failed to create lead', 'error');
       }
     } catch (err) {
+      console.error('Error creating lead:', err);
       showToast?.('Failed to create lead', 'error');
     }
   };
