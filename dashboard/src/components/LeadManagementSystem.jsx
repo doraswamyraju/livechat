@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 export default function LeadManagementSystem({
   token,
@@ -11,12 +11,20 @@ export default function LeadManagementSystem({
   const [leads, setLeads] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState('kanban'); // 'kanban' | 'table'
   
-  // Filters
+  // Primary default view is TABLE VIEW as requested
+  const [viewMode, setViewMode] = useState('table'); // 'table' | 'kanban'
+  
+  // Filters & Sorting
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterSource, setFilterSource] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
+
+  // Bulk Selection
+  const [selectedLeadIds, setSelectedLeadIds] = useState([]);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   // Selected Lead Drawer & Modals
   const [selectedLead, setSelectedLead] = useState(null);
@@ -38,6 +46,8 @@ export default function LeadManagementSystem({
     assignedAgentId: '',
     initialNote: ''
   });
+
+  const STAGES = ['New', 'Contacted', 'Qualified', 'Proposal', 'Won', 'Lost'];
 
   // Fetch Leads and Stats
   const fetchLeads = async () => {
@@ -109,9 +119,15 @@ export default function LeadManagementSystem({
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
-  // Handle Status Transition
+  // Handle Status Transition (Inline & Drawer)
   const handleUpdateStatus = async (leadId, newStatus) => {
     try {
+      // Optimistic update
+      setLeads(prev => prev.map(l => l._id === leadId ? { ...l, status: newStatus } : l));
+      if (selectedLead?._id === leadId) {
+        setSelectedLead(prev => ({ ...prev, status: newStatus }));
+      }
+
       const res = await fetch(`${BACKEND_URL}/api/leads/${leadId}`, {
         method: 'PATCH',
         headers: {
@@ -127,9 +143,13 @@ export default function LeadManagementSystem({
           setSelectedLead(data.lead);
         }
         fetchStats();
-        showToast?.(`Lead status moved to ${newStatus}`, 'success');
+        showToast?.(`Lead status updated to ${newStatus}`, 'success');
+      } else {
+        fetchLeads(); // revert
+        showToast?.('Failed to update status', 'error');
       }
     } catch (err) {
+      fetchLeads();
       showToast?.('Failed to update status', 'error');
     }
   };
@@ -146,7 +166,7 @@ export default function LeadManagementSystem({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ text: newNoteText })
+        body: JSON.stringify({ text: newNoteText.trim() })
       });
       if (res.ok) {
         const data = await res.json();
@@ -155,7 +175,7 @@ export default function LeadManagementSystem({
           notes: [...(prev.notes || []), data.note]
         }));
         setNewNoteText('');
-        showToast?.('Note added to lead timeline', 'success');
+        showToast?.('Note added to timeline', 'success');
       }
     } catch (err) {
       showToast?.('Failed to add note', 'error');
@@ -224,7 +244,217 @@ export default function LeadManagementSystem({
     }
   };
 
-  const STAGES = ['New', 'Contacted', 'Qualified', 'Proposal', 'Won', 'Lost'];
+  // Delete Lead
+  const handleDeleteLead = async (leadId) => {
+    if (!window.confirm('Are you sure you want to delete this lead? This action cannot be undone.')) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/leads/${leadId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setLeads(prev => prev.filter(l => l._id !== leadId));
+        setSelectedLead(null);
+        setSelectedLeadIds(prev => prev.filter(id => id !== leadId));
+        fetchStats();
+        showToast?.('Lead deleted successfully', 'success');
+      }
+    } catch (err) {
+      showToast?.('Failed to delete lead', 'error');
+    }
+  };
+
+  // Bulk Status Update
+  const handleBulkStatusUpdate = async (newStatus) => {
+    if (selectedLeadIds.length === 0) return;
+    try {
+      setBulkActionLoading(true);
+      const res = await fetch(`${BACKEND_URL}/api/leads/bulk-status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          leadIds: selectedLeadIds,
+          status: newStatus
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast?.(`Moved ${selectedLeadIds.length} leads to ${newStatus}`, 'success');
+        setSelectedLeadIds([]);
+        fetchLeads();
+        fetchStats();
+      } else {
+        showToast?.('Failed to update selected leads', 'error');
+      }
+    } catch (err) {
+      showToast?.('Error during bulk update', 'error');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Bulk Delete
+  const handleBulkDelete = async () => {
+    if (selectedLeadIds.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete all ${selectedLeadIds.length} selected leads?`)) return;
+    try {
+      setBulkActionLoading(true);
+      const res = await fetch(`${BACKEND_URL}/api/leads/bulk-delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          leadIds: selectedLeadIds
+        })
+      });
+      if (res.ok) {
+        showToast?.(`Deleted ${selectedLeadIds.length} leads`, 'success');
+        setSelectedLeadIds([]);
+        fetchLeads();
+        fetchStats();
+      } else {
+        showToast?.('Failed to delete selected leads', 'error');
+      }
+    } catch (err) {
+      showToast?.('Error during bulk deletion', 'error');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Selection helpers
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedLeadIds(sortedLeads.map(l => l._id));
+    } else {
+      setSelectedLeadIds([]);
+    }
+  };
+
+  const handleToggleSelectLead = (id, e) => {
+    e.stopPropagation();
+    setSelectedLeadIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  // Calculate Lead Score & Temperature
+  const getLeadScoreInfo = (lead) => {
+    let score = lead.score || 50;
+    if (lead.dealValue > 50000) score += 20;
+    else if (lead.dealValue > 10000) score += 10;
+    if (lead.phoneNumber && lead.email) score += 10;
+    if (lead.source === 'meta-ads') score += 15;
+    if (lead.status === 'Won') score = 100;
+    if (lead.status === 'Lost') score = 10;
+    score = Math.min(Math.max(score, 5), 100);
+
+    if (score >= 80) return { label: '🔥 Hot', color: '#ef4444', bg: '#fef2f2', border: '#fecaca', score };
+    if (score >= 50) return { label: '⚡ Warm', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', score };
+    return { label: '❄️ Cold', color: '#64748b', bg: '#f8fafc', border: '#e2e8f0', score };
+  };
+
+  // CSV Export Utility
+  const handleExportCSV = () => {
+    const leadsToExport = selectedLeadIds.length > 0 
+      ? leads.filter(l => selectedLeadIds.includes(l._id))
+      : leads;
+
+    if (leadsToExport.length === 0) {
+      showToast?.('No leads to export', 'error');
+      return;
+    }
+
+    const headers = ['Lead Name', 'Phone', 'Email', 'Company', 'Source', 'Stage', 'Deal Value (INR)', 'Lead Score', 'Assigned Agent', 'Campaign Name', 'Ad Name', 'Created At'];
+    
+    const rows = leadsToExport.map(l => [
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${(l.phoneNumber || '').replace(/"/g, '""')}"`,
+      `"${(l.email || '').replace(/"/g, '""')}"`,
+      `"${(l.company || '').replace(/"/g, '""')}"`,
+      `"${l.source || 'manual'}"`,
+      `"${l.status || 'New'}"`,
+      l.dealValue || 0,
+      getLeadScoreInfo(l).score,
+      `"${(l.assignedAgentId?.name || 'Unassigned').replace(/"/g, '""')}"`,
+      `"${(l.metaData?.campaignName || '').replace(/"/g, '""')}"`,
+      `"${(l.metaData?.adName || '').replace(/"/g, '""')}"`,
+      `"${new Date(l.createdAt).toLocaleString()}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `LetsTrack_Leads_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast?.(`Exported ${leadsToExport.length} leads to CSV`, 'success');
+  };
+
+  // Sorting
+  const sortedLeads = useMemo(() => {
+    return [...leads].sort((a, b) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+
+      if (sortField === 'score') {
+        valA = getLeadScoreInfo(a).score;
+        valB = getLeadScoreInfo(b).score;
+      } else if (sortField === 'dealValue') {
+        valA = Number(a.dealValue) || 0;
+        valB = Number(b.dealValue) || 0;
+      } else if (sortField === 'createdAt') {
+        valA = new Date(a.createdAt).getTime();
+        valB = new Date(b.createdAt).getTime();
+      } else if (typeof valA === 'string') {
+        valA = valA.toLowerCase();
+        valB = (valB || '').toLowerCase();
+      }
+
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [leads, sortField, sortOrder]);
+
+  const toggleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  // Quick Communication Triggers
+  const openWhatsApp = (phone, name, e) => {
+    e?.stopPropagation();
+    if (!phone) return showToast?.('No phone number recorded for this lead', 'error');
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const message = encodeURIComponent(`Hi ${name || 'there'}, thank you for contacting us via LetsTrack! How can we assist you today?`);
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+  };
+
+  const openCall = (phone, e) => {
+    e?.stopPropagation();
+    if (!phone) return showToast?.('No phone number recorded', 'error');
+    window.location.href = `tel:${phone}`;
+  };
+
+  const openEmail = (email, name, e) => {
+    e?.stopPropagation();
+    if (!email) return showToast?.('No email address recorded', 'error');
+    const subject = encodeURIComponent(`Inquiry Follow-up - LetsTrack`);
+    const body = encodeURIComponent(`Hi ${name || 'there'},\n\nFollowing up on your inquiry with us.\n\nBest regards,\nLetsTrack Team`);
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  };
 
   const getSourceBadge = (source) => {
     switch (source) {
@@ -241,6 +471,17 @@ export default function LeadManagementSystem({
         return <span className="lead-source-chip chat">💬 LiveChat</span>;
       default:
         return <span className="lead-source-chip manual">📝 Manual</span>;
+    }
+  };
+
+  const getStageColor = (stage) => {
+    switch (stage) {
+      case 'Won': return { bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0' };
+      case 'Lost': return { bg: '#fef2f2', text: '#dc2626', border: '#fecaca' };
+      case 'Proposal': return { bg: '#faf5ff', text: '#9333ea', border: '#e9d5ff' };
+      case 'Qualified': return { bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe' };
+      case 'Contacted': return { bg: '#fffbeb', text: '#d97706', border: '#fde68a' };
+      default: return { bg: 'var(--bg-tertiary)', text: 'var(--text-primary)', border: 'var(--border-color)' };
     }
   };
 
@@ -277,111 +518,627 @@ export default function LeadManagementSystem({
       </div>
 
       {/* 2. Toolbar & Controls */}
-      <div className="lms-toolbar glass-card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '280px' }}>
-          <input
-            type="text"
-            placeholder="Search lead by name, phone, email, campaign, ad..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%',
-              maxWidth: '340px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-primary)',
-              color: 'var(--text-primary)',
-              fontSize: '13px'
-            }}
-          />
+      <div className="lms-toolbar glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        
+        {/* Top Filter & Action Bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '10px' }}>
+          
+          {/* Search Box */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '280px' }}>
+            <div style={{ position: 'relative', width: '100%', maxWidth: '360px' }}>
+              <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '13px' }}>🔍</span>
+              <input
+                type="text"
+                placeholder="Search by name, phone, email, ad campaign..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px 8px 32px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px'
+                }}
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
-          {/* Source Filter */}
-          <select
-            value={filterSource}
-            onChange={(e) => setFilterSource(e.target.value)}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-primary)',
-              color: 'var(--text-primary)',
-              fontSize: '12.5px',
-              fontWeight: 600
-            }}
-          >
-            <option value="All">All Sources</option>
-            <option value="meta-ads">📢 Meta Ads</option>
-            <option value="whatsapp">🟢 WhatsApp API</option>
-            <option value="instagram">📸 Instagram DM</option>
-            <option value="facebook">👥 Facebook</option>
-            <option value="chat">💬 LiveChat</option>
-            <option value="manual">📝 Manual Entry</option>
-          </select>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* View Toggle */}
-          <div style={{ display: 'flex', background: 'var(--bg-primary)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            <button
-              onClick={() => setViewMode('kanban')}
+            {/* Source Filter */}
+            <select
+              value={filterSource}
+              onChange={(e) => setFilterSource(e.target.value)}
               style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                border: 'none',
-                background: viewMode === 'kanban' ? 'var(--primary)' : 'transparent',
-                color: viewMode === 'kanban' ? '#fff' : 'var(--text-secondary)',
-                fontSize: '12px',
-                fontWeight: 700,
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                fontSize: '12.5px',
+                fontWeight: 600,
                 cursor: 'pointer'
               }}
             >
-              📋 Kanban Pipeline
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                border: 'none',
-                background: viewMode === 'table' ? 'var(--primary)' : 'transparent',
-                color: viewMode === 'table' ? '#fff' : 'var(--text-secondary)',
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              📑 Table View
-            </button>
+              <option value="All">🌐 All Sources</option>
+              <option value="meta-ads">📢 Meta Ads</option>
+              <option value="whatsapp">🟢 WhatsApp API</option>
+              <option value="instagram">📸 Instagram DM</option>
+              <option value="facebook">👥 Facebook</option>
+              <option value="chat">💬 LiveChat</option>
+              <option value="manual">📝 Manual Entry</option>
+            </select>
           </div>
 
+          {/* Right Action Controls: View Switcher, CSV Export & Add Lead */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            
+            {/* View Toggle (Table Primary) */}
+            <div style={{ display: 'flex', background: 'var(--bg-primary)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <button
+                onClick={() => setViewMode('table')}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: viewMode === 'table' ? 'var(--primary)' : 'transparent',
+                  color: viewMode === 'table' ? '#fff' : 'var(--text-secondary)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                📊 Table View
+              </button>
+              <button
+                onClick={() => setViewMode('kanban')}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: viewMode === 'kanban' ? 'var(--primary)' : 'transparent',
+                  color: viewMode === 'kanban' ? '#fff' : 'var(--text-secondary)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                📋 Kanban Board
+              </button>
+            </div>
+
+            {/* CSV Export */}
+            <button
+              onClick={handleExportCSV}
+              style={{
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                padding: '8px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title="Export leads to CSV spreadsheet"
+            >
+              📥 Export CSV
+            </button>
+
+            {/* Add Lead Button */}
+            <button
+              onClick={() => setShowAddModal(true)}
+              style={{
+                background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                fontSize: '12.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)'
+              }}
+            >
+              ➕ Add Lead
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Stage Filter Tabs */}
+        <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', borderTop: '1px solid var(--border-light)', paddingTop: '10px' }}>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => setFilterStatus('All')}
             style={{
-              background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '8px 16px',
-              fontSize: '12.5px',
+              padding: '5px 12px',
+              borderRadius: '20px',
+              border: '1px solid',
+              borderColor: filterStatus === 'All' ? 'var(--primary)' : 'var(--border-color)',
+              background: filterStatus === 'All' ? 'var(--primary)' : 'var(--bg-primary)',
+              color: filterStatus === 'All' ? '#fff' : 'var(--text-secondary)',
+              fontSize: '11.5px',
               fontWeight: 700,
               cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)'
+              whiteSpace: 'nowrap'
             }}
           >
-            ➕ Add Lead
+            All Leads ({stats?.totalLeads ?? leads.length})
           </button>
+          {STAGES.map(stage => {
+            const count = stats?.stages?.[stage] ?? leads.filter(l => l.status === stage).length;
+            const isSelected = filterStatus === stage;
+            return (
+              <button
+                key={stage}
+                onClick={() => setFilterStatus(stage)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '20px',
+                  border: '1px solid',
+                  borderColor: isSelected ? 'var(--primary)' : 'var(--border-color)',
+                  background: isSelected ? 'var(--primary)' : 'var(--bg-primary)',
+                  color: isSelected ? '#fff' : 'var(--text-secondary)',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                <span>{stage}</span>
+                <span style={{ 
+                  background: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-tertiary)',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  fontSize: '10px'
+                }}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
+
       </div>
 
-      {/* 3. Main View Area (Kanban or Table) */}
-      {viewMode === 'kanban' ? (
+      {/* 3. Bulk Actions Floating Bar (when items selected) */}
+      {selectedLeadIds.length > 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+          color: '#fff',
+          borderRadius: '10px',
+          padding: '10px 18px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          animation: 'fadeIn 0.2s ease-in-out'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontWeight: 800, fontSize: '13px', background: 'var(--primary)', padding: '3px 9px', borderRadius: '12px' }}>
+              ✓ {selectedLeadIds.length} Selected
+            </span>
+            <span style={{ fontSize: '12px', color: '#cbd5e1' }}>Bulk Actions:</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Move Stage Selector */}
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleBulkStatusUpdate(e.target.value);
+                  e.target.value = '';
+                }
+              }}
+              disabled={bulkActionLoading}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                background: '#334155',
+                color: '#fff',
+                border: '1px solid #475569',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <option value="" disabled>Move Stage To...</option>
+              {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+
+            {/* Export Selected to CSV */}
+            <button
+              onClick={handleExportCSV}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                background: '#334155',
+                color: '#fff',
+                border: '1px solid #475569',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              📥 Export Selected
+            </button>
+
+            {/* Bulk Delete */}
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkActionLoading}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                background: '#ef4444',
+                color: '#fff',
+                border: 'none',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              🗑️ Delete Selected
+            </button>
+
+            {/* Clear Selection */}
+            <button
+              onClick={() => setSelectedLeadIds([])}
+              style={{
+                padding: '6px 10px',
+                borderRadius: '6px',
+                background: 'transparent',
+                color: '#94a3b8',
+                border: 'none',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Main View Area (Primary TABLE VIEW or Kanban) */}
+      {viewMode === 'table' ? (
+        /* ================= PRIMARY TABLE VIEW ================= */
+        <div style={{ background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12.5px' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-primary)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.03em' }}>
+                  
+                  {/* Select All Checkbox */}
+                  <th style={{ padding: '12px 14px', width: '38px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={sortedLeads.length > 0 && selectedLeadIds.length === sortedLeads.length}
+                      onChange={handleSelectAll}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
+
+                  {/* Lead Name */}
+                  <th 
+                    onClick={() => toggleSort('name')}
+                    style={{ padding: '12px 16px', cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    Lead Name {sortField === 'name' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                  </th>
+
+                  {/* Source */}
+                  <th 
+                    onClick={() => toggleSort('source')}
+                    style={{ padding: '12px 16px', cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    Source {sortField === 'source' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                  </th>
+
+                  {/* Contact Info & 1-Click Triggers */}
+                  <th style={{ padding: '12px 16px' }}>Direct Contact</th>
+
+                  {/* Score */}
+                  <th 
+                    onClick={() => toggleSort('score')}
+                    style={{ padding: '12px 16px', cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    Score {sortField === 'score' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                  </th>
+
+                  {/* Stage Dropdown */}
+                  <th 
+                    onClick={() => toggleSort('status')}
+                    style={{ padding: '12px 16px', cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    Pipeline Stage {sortField === 'status' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                  </th>
+
+                  {/* Deal Value */}
+                  <th 
+                    onClick={() => toggleSort('dealValue')}
+                    style={{ padding: '12px 16px', cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    Deal Value {sortField === 'dealValue' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                  </th>
+
+                  {/* Assigned Agent */}
+                  <th style={{ padding: '12px 16px' }}>Assigned Agent</th>
+
+                  {/* Created Date */}
+                  <th 
+                    onClick={() => toggleSort('createdAt')}
+                    style={{ padding: '12px 16px', cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    Created {sortField === 'createdAt' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                  </th>
+
+                  {/* Quick Action Buttons */}
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Quick Actions</th>
+                </tr>
+              </thead>
+              
+              <tbody>
+                {sortedLeads.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📂</div>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>No leads found</div>
+                      <div style={{ fontSize: '12px', marginTop: '4px' }}>Try modifying your filters or click "+ Add Lead" to record a new inbound inquiry.</div>
+                    </td>
+                  </tr>
+                ) : (
+                  sortedLeads.map(lead => {
+                    const scoreInfo = getLeadScoreInfo(lead);
+                    const stageColor = getStageColor(lead.status);
+                    const isSelected = selectedLeadIds.includes(lead._id);
+
+                    return (
+                      <tr
+                        key={lead._id}
+                        style={{
+                          borderBottom: '1px solid var(--border-color)',
+                          background: isSelected ? 'rgba(220, 38, 38, 0.04)' : 'transparent',
+                          transition: 'background 0.15s ease'
+                        }}
+                        onMouseOver={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-primary)';
+                        }}
+                        onMouseOut={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        {/* Checkbox */}
+                        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => handleToggleSelectLead(lead._id, e)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
+
+                        {/* Lead Name & Company */}
+                        <td 
+                          style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer' }}
+                          onClick={() => setSelectedLead(lead)}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '13.5px' }}>{lead.name}</span>
+                          </div>
+                          {lead.company && (
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400, marginTop: '2px' }}>
+                              🏢 {lead.company}
+                            </div>
+                          )}
+                          {lead.metaData?.campaignName && (
+                            <div style={{ fontSize: '10.5px', color: '#db2777', fontWeight: 600, marginTop: '2px' }}>
+                              🎯 {lead.metaData.campaignName}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Source */}
+                        <td style={{ padding: '12px 16px' }}>
+                          {getSourceBadge(lead.source)}
+                        </td>
+
+                        {/* Direct Contact (Phone & Email with 1-click links) */}
+                        <td style={{ padding: '12px 16px' }}>
+                          {lead.phoneNumber ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                              <span>📞 {lead.phoneNumber}</span>
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '11.5px' }}>No phone</span>
+                          )}
+                          {lead.email && (
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              ✉️ {lead.email}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Quality Score Pill */}
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            background: scoreInfo.bg,
+                            color: scoreInfo.color,
+                            border: `1px solid ${scoreInfo.border}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            {scoreInfo.label} ({scoreInfo.score})
+                          </span>
+                        </td>
+
+                        {/* Pipeline Stage with Instant Inline Switcher */}
+                        <td style={{ padding: '12px 16px' }}>
+                          <select
+                            value={lead.status}
+                            onChange={(e) => handleUpdateStatus(lead._id, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              background: stageColor.bg,
+                              color: stageColor.text,
+                              border: `1px solid ${stageColor.border}`,
+                              cursor: 'pointer',
+                              outline: 'none'
+                            }}
+                          >
+                            {STAGES.map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        </td>
+
+                        {/* Deal Value */}
+                        <td style={{ padding: '12px 16px', fontWeight: 700, color: lead.dealValue > 0 ? '#16a34a' : 'var(--text-muted)' }}>
+                          {lead.dealValue > 0 ? `₹${Number(lead.dealValue).toLocaleString()}` : '—'}
+                        </td>
+
+                        {/* Assigned Agent */}
+                        <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>
+                          {lead.assignedAgentId?.name ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600 }}>
+                              👤 {lead.assignedAgentId.name}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '11.5px' }}>Unassigned</span>
+                          )}
+                        </td>
+
+                        {/* Created Date */}
+                        <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '11px', whiteSpace: 'nowrap' }}>
+                          {new Date(lead.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </td>
+
+                        {/* Quick Action Icons & Details */}
+                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                            {/* WhatsApp Direct Action */}
+                            {lead.phoneNumber && (
+                              <button
+                                onClick={(e) => openWhatsApp(lead.phoneNumber, lead.name, e)}
+                                title="Chat on WhatsApp"
+                                style={{
+                                  background: '#dcfce7',
+                                  color: '#15803d',
+                                  border: '1px solid #bbf7d0',
+                                  borderRadius: '6px',
+                                  padding: '5px 8px',
+                                  fontSize: '12px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                🟢 WA
+                              </button>
+                            )}
+
+                            {/* Direct Call */}
+                            {lead.phoneNumber && (
+                              <button
+                                onClick={(e) => openCall(lead.phoneNumber, e)}
+                                title="Call lead"
+                                style={{
+                                  background: '#eff6ff',
+                                  color: '#1d4ed8',
+                                  border: '1px solid #bfdbfe',
+                                  borderRadius: '6px',
+                                  padding: '5px 8px',
+                                  fontSize: '12px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                📞
+                              </button>
+                            )}
+
+                            {/* Direct Email */}
+                            {lead.email && (
+                              <button
+                                onClick={(e) => openEmail(lead.email, lead.name, e)}
+                                title="Send Email"
+                                style={{
+                                  background: '#faf5ff',
+                                  color: '#7e22ce',
+                                  border: '1px solid #e9d5ff',
+                                  borderRadius: '6px',
+                                  padding: '5px 8px',
+                                  fontSize: '12px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                ✉️
+                              </button>
+                            )}
+
+                            {/* View Full Details */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLead(lead);
+                              }}
+                              style={{
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border-color)',
+                                background: 'var(--bg-primary)',
+                                color: 'var(--text-primary)',
+                                fontSize: '11.5px',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Details
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* ================= KANBAN BOARD VIEW ================= */
         <div className="lms-kanban-board">
           {STAGES.map(stage => {
-            const stageLeads = leads.filter(l => l.status === stage);
+            const stageLeads = sortedLeads.filter(l => l.status === stage);
             const stageTotal = stageLeads.reduce((acc, l) => acc + (Number(l.dealValue) || 0), 0);
 
             return (
@@ -406,125 +1163,64 @@ export default function LeadManagementSystem({
                       No leads in {stage}
                     </div>
                   ) : (
-                    stageLeads.map(lead => (
-                      <div
-                        key={lead._id}
-                        className="lead-item-card"
-                        onClick={() => setSelectedLead(lead)}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                          <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--text-primary)' }}>
-                            {lead.name}
-                          </span>
-                          {getSourceBadge(lead.source)}
-                        </div>
-
-                        {lead.company && (
-                          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                            🏢 {lead.company}
+                    stageLeads.map(lead => {
+                      const scoreInfo = getLeadScoreInfo(lead);
+                      return (
+                        <div
+                          key={lead._id}
+                          className="lead-item-card"
+                          onClick={() => setSelectedLead(lead)}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                            <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--text-primary)' }}>
+                              {lead.name}
+                            </span>
+                            {getSourceBadge(lead.source)}
                           </div>
-                        )}
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          {lead.phoneNumber && <div>📞 {lead.phoneNumber}</div>}
-                          {lead.email && <div>✉️ {lead.email}</div>}
-                          {lead.metaData?.campaignName && (
-                            <div style={{ color: '#db2777', fontWeight: 600 }}>
-                              🎯 Ad: {lead.metaData.campaignName}
+                          {lead.company && (
+                            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                              🏢 {lead.company}
                             </div>
                           )}
-                        </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid var(--border-light)', fontSize: '11.5px' }}>
-                          <span style={{ fontWeight: 700, color: lead.dealValue > 0 ? '#16a34a' : 'var(--text-muted)' }}>
-                            {lead.dealValue > 0 ? `₹${Number(lead.dealValue).toLocaleString()}` : 'No Deal Val'}
-                          </span>
-                          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                            {new Date(lead.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            {lead.phoneNumber && <div>📞 {lead.phoneNumber}</div>}
+                            {lead.email && <div>✉️ {lead.email}</div>}
+                            {lead.metaData?.campaignName && (
+                              <div style={{ color: '#db2777', fontWeight: 600 }}>
+                                🎯 Ad: {lead.metaData.campaignName}
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid var(--border-light)', fontSize: '11.5px' }}>
+                            <span style={{ fontWeight: 700, color: lead.dealValue > 0 ? '#16a34a' : 'var(--text-muted)' }}>
+                              {lead.dealValue > 0 ? `₹${Number(lead.dealValue).toLocaleString()}` : 'No Deal Val'}
+                            </span>
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              color: scoreInfo.color,
+                              background: scoreInfo.bg,
+                              padding: '2px 5px',
+                              borderRadius: '4px'
+                            }}>
+                              {scoreInfo.label}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
             );
           })}
         </div>
-      ) : (
-        /* Table View */
-        <div style={{ background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12.5px' }}>
-            <thead>
-              <tr style={{ background: 'var(--bg-primary)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontSize: '11px' }}>
-                <th style={{ padding: '12px 16px' }}>Lead Name</th>
-                <th style={{ padding: '12px 16px' }}>Source</th>
-                <th style={{ padding: '12px 16px' }}>Contact</th>
-                <th style={{ padding: '12px 16px' }}>Stage</th>
-                <th style={{ padding: '12px 16px' }}>Deal Value</th>
-                <th style={{ padding: '12px 16px' }}>Assigned Agent</th>
-                <th style={{ padding: '12px 16px' }}>Created</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leads.map(lead => (
-                <tr
-                  key={lead._id}
-                  style={{ borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }}
-                  onClick={() => setSelectedLead(lead)}
-                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
-                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                >
-                  <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {lead.name}
-                    {lead.company && <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400 }}>{lead.company}</div>}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>{getSourceBadge(lead.source)}</td>
-                  <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>
-                    <div>{lead.phoneNumber || '—'}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{lead.email || '—'}</div>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{
-                      padding: '3px 8px',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      background: lead.status === 'Won' ? '#f0fdf4' : lead.status === 'Lost' ? '#fef2f2' : 'var(--bg-tertiary)',
-                      color: lead.status === 'Won' ? '#16a34a' : lead.status === 'Lost' ? '#dc2626' : 'var(--text-secondary)'
-                    }}>
-                      {lead.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontWeight: 700, color: lead.dealValue > 0 ? '#16a34a' : 'var(--text-muted)' }}>
-                    {lead.dealValue > 0 ? `₹${Number(lead.dealValue).toLocaleString()}` : '—'}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    {lead.assignedAgentId?.name || 'Unassigned'}
-                  </td>
-                  <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '11px' }}>
-                    {new Date(lead.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                  </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedLead(lead);
-                      }}
-                      style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
-                    >
-                      View Details
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       )}
 
-      {/* 4. Lead Details Drawer */}
+      {/* 5. Enhanced Lead Details Drawer */}
       {selectedLead && (
         <div className="modal-overlay" onClick={() => setSelectedLead(null)}>
           <div
@@ -533,62 +1229,160 @@ export default function LeadManagementSystem({
               borderRadius: '16px',
               border: '1px solid var(--border-color)',
               width: '100%',
-              maxWidth: '650px',
+              maxWidth: '680px',
               maxHeight: '90vh',
               overflowY: 'auto',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
               display: 'flex',
               flexDirection: 'column'
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Header with Quick Actions */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)' }}>{selectedLead.name}</h3>
+                  <h3 style={{ fontSize: '19px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>{selectedLead.name}</h3>
                   {getSourceBadge(selectedLead.source)}
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Created {new Date(selectedLead.createdAt).toLocaleString()}
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Created on {new Date(selectedLead.createdAt).toLocaleString()}
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedLead(null)}
-                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}
-              >
-                ✕
-              </button>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={() => handleDeleteLead(selectedLead._id)}
+                  style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '6px', padding: '5px 10px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
+                  title="Delete Lead"
+                >
+                  🗑️ Delete
+                </button>
+                <button
+                  onClick={() => setSelectedLead(null)}
+                  style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Quick 1-Click Communications Row in Drawer */}
+            <div style={{ padding: '12px 24px', background: 'var(--bg-primary)', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {selectedLead.phoneNumber && (
+                <button
+                  onClick={() => openWhatsApp(selectedLead.phoneNumber, selectedLead.name)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  🟢 Open WhatsApp
+                </button>
+              )}
+              {selectedLead.phoneNumber && (
+                <button
+                  onClick={() => openCall(selectedLead.phoneNumber)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  📞 Direct Dial
+                </button>
+              )}
+              {selectedLead.email && (
+                <button
+                  onClick={() => openEmail(selectedLead.email, selectedLead.name)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  ✉️ Send Email
+                </button>
+              )}
+              {onOpenChatWithLead && (
+                <button
+                  onClick={() => {
+                    onOpenChatWithLead(selectedLead);
+                    setSelectedLead(null);
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  💬 Open LiveChat
+                </button>
+              )}
             </div>
 
             {/* Content Body */}
             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
-              {/* Status Switcher Row */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-primary)', padding: '12px 16px', borderRadius: '10px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Pipeline Stage:</span>
-                <select
-                  value={selectedLead.status}
-                  onChange={(e) => handleUpdateStatus(selectedLead._id, e.target.value)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)',
-                    fontWeight: 700,
-                    fontSize: '12px',
-                    color: selectedLead.status === 'Won' ? '#16a34a' : 'var(--text-primary)'
-                  }}
-                >
-                  {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+              {/* Status & Agent Assignment Switcher Row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'var(--bg-primary)', padding: '14px', borderRadius: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                    Pipeline Stage
+                  </label>
+                  <select
+                    value={selectedLead.status}
+                    onChange={(e) => handleUpdateStatus(selectedLead._id, e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      fontWeight: 700,
+                      fontSize: '12.5px',
+                      color: selectedLead.status === 'Won' ? '#16a34a' : 'var(--text-primary)'
+                    }}
+                  >
+                    {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                    Assigned Agent
+                  </label>
+                  <select
+                    value={selectedLead.assignedAgentId?._id || selectedLead.assignedAgentId || ''}
+                    onChange={async (e) => {
+                      const newAgentId = e.target.value;
+                      try {
+                        const res = await fetch(`${BACKEND_URL}/api/leads/${selectedLead._id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ assignedAgentId: newAgentId || null })
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          setSelectedLead(data.lead);
+                          setLeads(prev => prev.map(l => l._id === selectedLead._id ? data.lead : l));
+                          showToast?.('Assigned agent updated', 'success');
+                        }
+                      } catch (err) {
+                        showToast?.('Failed to update agent assignment', 'error');
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      fontWeight: 600,
+                      fontSize: '12.5px',
+                      color: 'var(--text-primary)'
+                    }}
+                  >
+                    <option value="">Unassigned</option>
+                    {agentsList.map(a => (
+                      <option key={a._id} value={a._id}>{a.name} ({a.email})</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Contact Info & Meta Ad Attribution */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 <div style={{ background: 'var(--bg-primary)', padding: '14px', borderRadius: '10px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Contact Details</div>
-                  <div style={{ fontSize: '12.5px', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                    Contact Details
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div>📞 <strong>Phone:</strong> {selectedLead.phoneNumber || 'Not provided'}</div>
                     <div>✉️ <strong>Email:</strong> {selectedLead.email || 'Not provided'}</div>
                     <div>🏢 <strong>Company:</strong> {selectedLead.company || 'Not provided'}</div>
@@ -597,8 +1391,10 @@ export default function LeadManagementSystem({
                 </div>
 
                 <div style={{ background: 'var(--bg-primary)', padding: '14px', borderRadius: '10px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Source Attribution</div>
-                  <div style={{ fontSize: '12.5px', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                    Source Attribution
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div>🏷️ <strong>Source:</strong> {selectedLead.source}</div>
                     {selectedLead.metaData?.campaignName && (
                       <div>🎯 <strong>Campaign:</strong> {selectedLead.metaData.campaignName}</div>
@@ -616,7 +1412,9 @@ export default function LeadManagementSystem({
               {/* Meta Lead Form Key-Value Answers (if applicable) */}
               {selectedLead.metaData?.formAnswers && Object.keys(selectedLead.metaData.formAnswers).length > 0 && (
                 <div style={{ background: 'var(--bg-primary)', padding: '14px', borderRadius: '10px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#db2777', textTransform: 'uppercase', marginBottom: '8px' }}>Meta Instant Form Submission Fields</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#db2777', textTransform: 'uppercase', marginBottom: '8px' }}>
+                    Meta Instant Form Responses
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', fontSize: '12px' }}>
                     {Object.entries(selectedLead.metaData.formAnswers).map(([k, v]) => (
                       <div key={k} style={{ background: 'var(--bg-secondary)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
@@ -631,15 +1429,15 @@ export default function LeadManagementSystem({
               {/* Activity & Notes Stream */}
               <div>
                 <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '10px' }}>Activity Timeline & Notes</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto', marginBottom: '12px' }}>
                   {selectedLead.notes && selectedLead.notes.length > 0 ? (
                     selectedLead.notes.map((n, idx) => (
                       <div key={idx} style={{ background: 'var(--bg-primary)', padding: '10px 12px', borderRadius: '8px', borderLeft: '3px solid var(--primary)', fontSize: '12px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '10.5px', marginBottom: '2px' }}>
-                          <span>{n.authorName || 'Agent'}</span>
-                          <span>{new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span style={{ fontWeight: 700 }}>{n.authorName || 'Agent'}</span>
+                          <span>{new Date(n.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                        <div style={{ color: 'var(--text-primary)' }}>{n.text}</div>
+                        <div style={{ color: 'var(--text-primary)', marginTop: '2px' }}>{n.text}</div>
                       </div>
                     ))
                   ) : (
@@ -650,14 +1448,14 @@ export default function LeadManagementSystem({
                 <form onSubmit={handleAddNote} style={{ display: 'flex', gap: '8px' }}>
                   <input
                     type="text"
-                    placeholder="Add a progress note..."
+                    placeholder="Type progress update, meeting note, or customer request..."
                     value={newNoteText}
                     onChange={(e) => setNewNoteText(e.target.value)}
                     style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '12.5px' }}
                   />
                   <button
                     type="submit"
-                    style={{ padding: '8px 14px', borderRadius: '6px', background: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                    style={{ padding: '8px 16px', borderRadius: '6px', background: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
                   >
                     Post Note
                   </button>
@@ -669,7 +1467,7 @@ export default function LeadManagementSystem({
         </div>
       )}
 
-      {/* 5. Add Lead Modal */}
+      {/* 6. Add Lead Modal */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div
@@ -724,6 +1522,29 @@ export default function LeadManagementSystem({
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>Company / Org</label>
+                  <input
+                    type="text"
+                    placeholder="Apex Innovations"
+                    value={formData.company}
+                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', marginTop: '4px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>Deal Value (₹)</label>
+                  <input
+                    type="number"
+                    placeholder="25000"
+                    value={formData.dealValue}
+                    onChange={(e) => setFormData({ ...formData, dealValue: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', marginTop: '4px' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
                   <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>Source</label>
                   <select
                     value={formData.source}
@@ -739,14 +1560,14 @@ export default function LeadManagementSystem({
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>Deal Value (₹)</label>
-                  <input
-                    type="number"
-                    placeholder="25000"
-                    value={formData.dealValue}
-                    onChange={(e) => setFormData({ ...formData, dealValue: e.target.value })}
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>Initial Stage</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', marginTop: '4px' }}
-                  />
+                  >
+                    {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
                 </div>
               </div>
 

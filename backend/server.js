@@ -1376,6 +1376,53 @@ app.delete('/api/leads/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// 12k. Bulk Update Lead Statuses
+app.post('/api/leads/bulk-status', authenticateToken, async (req, res) => {
+  try {
+    const { leadIds, status } = req.body;
+    if (!Array.isArray(leadIds) || leadIds.length === 0 || !status) {
+      return res.status(400).json({ error: 'leadIds array and status are required' });
+    }
+
+    const validAuthorId = (req.user.userId && mongoose.Types.ObjectId.isValid(req.user.userId)) ? req.user.userId : null;
+    const noteObj = {
+      authorId: validAuthorId,
+      authorName: req.user.name || 'Agent',
+      text: `Bulk updated status to "${status}".`,
+      createdAt: new Date()
+    };
+
+    const result = await Lead.updateMany(
+      { _id: { $in: leadIds } },
+      { 
+        $set: { status, updatedAt: new Date() },
+        $push: { notes: noteObj }
+      }
+    );
+
+    res.status(200).json({ success: true, updatedCount: result.modifiedCount, message: `Updated ${result.modifiedCount} leads` });
+  } catch (err) {
+    console.error('Error in bulk status update:', err);
+    res.status(500).json({ error: 'Failed to bulk update lead statuses' });
+  }
+});
+
+// 12l. Bulk Delete Leads
+app.post('/api/leads/bulk-delete', authenticateToken, async (req, res) => {
+  try {
+    const { leadIds } = req.body;
+    if (!Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: 'leadIds array is required' });
+    }
+
+    const result = await Lead.deleteMany({ _id: { $in: leadIds } });
+    res.status(200).json({ success: true, deletedCount: result.deletedCount, message: `Deleted ${result.deletedCount} leads` });
+  } catch (err) {
+    console.error('Error in bulk lead deletion:', err);
+    res.status(500).json({ error: 'Failed to bulk delete leads' });
+  }
+});
+
 // 13. Update Profile
 
 app.put('/api/auth/profile', authenticateToken, async (req, res) => {
