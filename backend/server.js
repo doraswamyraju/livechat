@@ -887,17 +887,27 @@ app.post('/api/upload', authenticateToken, async (req, res) => {
 });
 
 // 7b. Archive or Unarchive Conversation
+// 7b. Archive / Unarchive Conversation
 app.put('/api/conversations/:conversationId/archive', authenticateToken, async (req, res) => {
   const { conversationId } = req.params;
-  const { archive } = req.body; // true or false
+  const { archive } = req.body;
 
   try {
     let conv = null;
     if (mongoose.Types.ObjectId.isValid(conversationId)) {
-      conv = await Conversation.findOne({ _id: conversationId, tenantId: req.user.tenantId });
+      conv = await Conversation.findById(conversationId);
     }
     if (!conv) {
-      conv = await Conversation.findOne({ visitorId: conversationId, tenantId: req.user.tenantId });
+      conv = await Conversation.findOne({ visitorId: conversationId });
+    }
+    if (!conv && conversationId.startsWith('c_')) {
+      const stripped = conversationId.substring(2);
+      if (mongoose.Types.ObjectId.isValid(stripped)) {
+        conv = await Conversation.findById(stripped);
+      }
+      if (!conv) {
+        conv = await Conversation.findOne({ visitorId: stripped });
+      }
     }
     if (!conv) return res.status(404).json({ error: 'Conversation not found' });
 
@@ -906,7 +916,9 @@ app.put('/api/conversations/:conversationId/archive', authenticateToken, async (
     conv.updatedAt = new Date();
     await conv.save();
 
-    dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversation-updated', conv);
+    if (dashboardNamespace && req.user?.tenantId) {
+      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversation-updated', conv);
+    }
 
     res.status(200).json({ message: conv.isArchived ? 'Conversation archived' : 'Conversation unarchived', conversation: conv });
   } catch (err) {
@@ -920,35 +932,34 @@ app.delete('/api/conversations/:conversationId', authenticateToken, async (req, 
   const { conversationId } = req.params;
 
   try {
-    const tenantQuery = mongoose.Types.ObjectId.isValid(req.user.tenantId) 
-      ? { $in: [req.user.tenantId, new mongoose.Types.ObjectId(req.user.tenantId)] }
-      : req.user.tenantId;
-
     let conv = null;
     if (mongoose.Types.ObjectId.isValid(conversationId)) {
-      conv = await Conversation.findOne({ _id: conversationId, tenantId: tenantQuery });
+      conv = await Conversation.findById(conversationId);
     }
-    
-    // If not found by ObjectId, search by visitorId or clean ID
     if (!conv) {
-      conv = await Conversation.findOne({ visitorId: conversationId, tenantId: tenantQuery });
+      conv = await Conversation.findOne({ visitorId: conversationId });
     }
     if (!conv && conversationId.startsWith('c_')) {
       const strippedId = conversationId.substring(2);
       if (mongoose.Types.ObjectId.isValid(strippedId)) {
-        conv = await Conversation.findOne({ _id: strippedId, tenantId: tenantQuery });
+        conv = await Conversation.findById(strippedId);
       }
       if (!conv) {
-        conv = await Conversation.findOne({ visitorId: strippedId, tenantId: tenantQuery });
+        conv = await Conversation.findOne({ visitorId: strippedId });
       }
     }
+
+    const actualId = conv ? conv._id : (mongoose.Types.ObjectId.isValid(conversationId) ? conversationId : null);
 
     if (conv) {
       await Message.deleteMany({ conversationId: conv._id });
       await conv.deleteOne();
+    } else if (actualId) {
+      await Message.deleteMany({ conversationId: actualId });
+      await Conversation.deleteOne({ _id: actualId });
     }
 
-    if (dashboardNamespace) {
+    if (dashboardNamespace && req.user?.tenantId) {
       dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversation-deleted', { 
         conversationId: conv ? conv._id.toString() : conversationId 
       });
@@ -966,14 +977,23 @@ app.post('/api/conversations/bulk-delete', authenticateToken, async (req, res) =
   const { conversationIds, deleteAll, sourceFilter } = req.body;
 
   try {
-    const tenantQuery = mongoose.Types.ObjectId.isValid(req.user.tenantId) 
-      ? { $in: [req.user.tenantId, new mongoose.Types.ObjectId(req.user.tenantId)] }
-      : req.user.tenantId;
-
-    let query = { tenantId: tenantQuery };
+    let query = {};
+    if (req.user?.tenantId) {
+      const tId = req.user.tenantId;
+      query.tenantId = mongoose.Types.ObjectId.isValid(tId) ? new mongoose.Types.ObjectId(tId) : tId;
+    }
 
     if (!deleteAll && Array.isArray(conversationIds) && conversationIds.length > 0) {
-      query._id = { $in: conversationIds };
+      const validObjectIds = conversationIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+      const nonObjectIds = conversationIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+      
+      const conditions = [];
+      if (validObjectIds.length > 0) conditions.push({ _id: { $in: validObjectIds } });
+      if (nonObjectIds.length > 0) conditions.push({ visitorId: { $in: nonObjectIds } });
+      
+      if (conditions.length > 0) {
+        query.$or = conditions;
+      }
     } else if (sourceFilter && sourceFilter !== 'all') {
       query.source = sourceFilter;
     }
@@ -986,7 +1006,7 @@ app.post('/api/conversations/bulk-delete', authenticateToken, async (req, res) =
       await Conversation.deleteMany({ _id: { $in: targetIds } });
     }
 
-    if (dashboardNamespace) {
+    if (dashboardNamespace && req.user?.tenantId) {
       dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversations-bulk-deleted', { 
         conversationIds: targetIds.map(id => id.toString()),
         deleteAll: Boolean(deleteAll)
@@ -1010,17 +1030,34 @@ app.post('/api/conversations/:conversationId/read', authenticateToken, async (re
   const { conversationId } = req.params;
 
   try {
-    const conv = await Conversation.findOne({ _id: conversationId, tenantId: req.user.tenantId });
-    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    let conv = null;
+    if (mongoose.Types.ObjectId.isValid(conversationId)) {
+      conv = await Conversation.findById(conversationId);
+    }
+    if (!conv) {
+      conv = await Conversation.findOne({ visitorId: conversationId });
+    }
+    if (!conv && conversationId.startsWith('c_')) {
+      const stripped = conversationId.substring(2);
+      if (mongoose.Types.ObjectId.isValid(stripped)) {
+        conv = await Conversation.findById(stripped);
+      }
+      if (!conv) {
+        conv = await Conversation.findOne({ visitorId: stripped });
+      }
+    }
+    if (!conv) return res.status(200).json({ message: 'Conversation not found or already read', conversationId });
 
     conv.unreadCount = 0;
     await conv.save();
 
-    if (dashboardNamespace) {
-      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversation-read', { conversationId });
+    if (dashboardNamespace && req.user?.tenantId) {
+      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversation-read', { 
+        conversationId: conv._id.toString() 
+      });
     }
 
-    res.status(200).json({ message: 'Conversation marked as read', conversationId });
+    res.status(200).json({ message: 'Conversation marked as read', conversationId: conv._id.toString() });
   } catch (err) {
     console.error('Error marking conversation as read:', err);
     res.status(500).json({ error: 'Internal Server Error' });
