@@ -354,6 +354,8 @@ function App() {
   const [inboxSearchQuery, setInboxSearchQuery] = useState('');
   const [selectedConvIds, setSelectedConvIds] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [selectedVisitorIds, setSelectedVisitorIds] = useState([]);
+  const [bulkDeletingVisitors, setBulkDeletingVisitors] = useState(false);
   const [isBetaUser, setIsBetaUser] = useState(Boolean(user?.isBetaTester || tenant?.isBetaTester));
 
   // Global Demo Account Detector
@@ -1466,7 +1468,23 @@ function App() {
     socket.on('visitor-deleted', (data) => {
       if (data?.visitorId) {
         setVisitors(prev => prev.filter(v => v._id !== data.visitorId));
+        setSelectedVisitorIds(prev => prev.filter(id => id !== data.visitorId));
         if (selectedVisitorRef?.current?._id === data.visitorId || selectedVisitor?._id === data.visitorId) {
+          setSelectedVisitor(null);
+        }
+      }
+    });
+
+    socket.on('visitors-bulk-deleted', (data) => {
+      if (data.deleteAll) {
+        setVisitors([]);
+        setSelectedVisitor(null);
+        setSelectedVisitorIds([]);
+      } else if (Array.isArray(data.visitorIds)) {
+        const deletedSet = new Set(data.visitorIds);
+        setVisitors(prev => prev.filter(v => !deletedSet.has(v._id)));
+        setSelectedVisitorIds(prev => prev.filter(id => !deletedSet.has(id)));
+        if (selectedVisitor && deletedSet.has(selectedVisitor._id)) {
           setSelectedVisitor(null);
         }
       }
@@ -1782,7 +1800,7 @@ function App() {
     if (!window.confirm(`⚠️ Are you sure you want to permanently delete "${vName}" and all associated conversation history?\n\nThis action cannot be undone.`)) return;
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/visitors/${idToDelete}`, {
+      const res = await fetch(`${BACKEND_URL}/api/visitors/${encodeURIComponent(idToDelete)}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -1794,6 +1812,7 @@ function App() {
       showToast(`Visitor "${vName}" deleted successfully`);
       setVisitors(prev => prev.filter(v => v._id !== idToDelete));
       setConversations(prev => prev.filter(c => (c.visitorId?._id || c.visitorId) !== idToDelete));
+      setSelectedVisitorIds(prev => prev.filter(id => id !== idToDelete));
       if (selectedVisitor && selectedVisitor._id === idToDelete) {
         setSelectedVisitor(null);
       }
@@ -1803,6 +1822,67 @@ function App() {
       }
     } catch (err) {
       showToast(err.message || 'Error deleting visitor', 'error');
+    }
+  };
+
+  const handleToggleSelectVisitor = (visitorId, e) => {
+    e?.stopPropagation();
+    setSelectedVisitorIds(prev =>
+      prev.includes(visitorId) ? prev.filter(id => id !== visitorId) : [...prev, visitorId]
+    );
+  };
+
+  const handleSelectAllVisitors = (currentVisitors) => {
+    const allIds = currentVisitors.map(v => v._id);
+    if (selectedVisitorIds.length === allIds.length && allIds.length > 0) {
+      setSelectedVisitorIds([]);
+    } else {
+      setSelectedVisitorIds(allIds);
+    }
+  };
+
+  const handleBulkDeleteVisitors = async (deleteAll = false, totalCount = 0) => {
+    const countToDelete = deleteAll ? totalCount : selectedVisitorIds.length;
+    if (countToDelete === 0) return;
+
+    const confirmMsg = deleteAll
+      ? `⚠️ DANGER: Are you sure you want to PERMANENTLY DELETE ALL ${countToDelete} active visitors and their entire chat histories?\n\nThis action cannot be undone.`
+      : `⚠️ Are you sure you want to permanently delete ${countToDelete} selected visitor(s) and their conversation histories?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setBulkDeletingVisitors(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/visitors/bulk-delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          visitorIds: deleteAll ? [] : selectedVisitorIds,
+          deleteAll
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to bulk delete visitors');
+
+      showToast(`Deleted ${data.deletedCount || countToDelete} visitor(s) successfully`);
+      const deletedSet = new Set(data.visitorIds || selectedVisitorIds);
+      if (deleteAll) {
+        setVisitors([]);
+        setSelectedVisitor(null);
+      } else {
+        setVisitors(prev => prev.filter(v => !deletedSet.has(v._id)));
+        if (selectedVisitor && deletedSet.has(selectedVisitor._id)) {
+          setSelectedVisitor(null);
+        }
+      }
+      setSelectedVisitorIds([]);
+    } catch (err) {
+      showToast(err.message || 'Error bulk deleting visitors', 'error');
+    } finally {
+      setBulkDeletingVisitors(false);
     }
   };
 
@@ -3090,13 +3170,76 @@ function App() {
 
               <div className="monitor-grid">
               <div className="monitor-card glass-card">
-                <div className="card-header">
-                  <div className="card-title">Active Visitors online now</div>
+                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div className="card-title">Active Visitors online now</div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'var(--primary-light)', color: 'var(--primary)' }}>
+                      {visitors.length} total
+                    </span>
+                  </div>
+
+                  {/* Bulk Actions for Visitors */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {selectedVisitorIds.length > 0 && (
+                      <button
+                        onClick={() => handleBulkDeleteVisitors(false)}
+                        disabled={bulkDeletingVisitors}
+                        style={{
+                          background: '#fee2e2',
+                          color: '#dc2626',
+                          border: '1px solid #fca5a5',
+                          borderRadius: '8px',
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        🗑️ Delete Selected ({selectedVisitorIds.length})
+                      </button>
+                    )}
+                    {visitors.length > 0 && (
+                      <button
+                        onClick={() => handleBulkDeleteVisitors(true, visitors.length)}
+                        disabled={bulkDeletingVisitors}
+                        style={{
+                          background: '#ffffff',
+                          color: '#dc2626',
+                          border: '1px solid #fecdd3',
+                          borderRadius: '8px',
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="Purge all active visitors and history"
+                      >
+                        🔥 Delete All ({visitors.length})
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="card-body-scroll">
                   <table className="visitor-list-table">
                     <thead>
                       <tr>
+                        <th style={{ width: '38px', textAlign: 'center', padding: '10px 6px' }}>
+                          <input
+                            type="checkbox"
+                            checked={visitors.length > 0 && selectedVisitorIds.length === visitors.length}
+                            onChange={() => handleSelectAllVisitors(visitors)}
+                            style={{ cursor: 'pointer' }}
+                            title="Select all visitors"
+                          />
+                        </th>
                         <th>Visitor Details</th>
                         <th>Device/OS</th>
                         <th>Current Subpath</th>
@@ -3116,42 +3259,55 @@ function App() {
                         if (sortedVisitors.length === 0) {
                           return (
                             <tr>
-                              <td colSpan="4" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                              <td colSpan="5" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                                 No active visitors online right now.
                               </td>
                             </tr>
                           );
                         }
 
-                        return sortedVisitors.map(visitor => (
-                          <tr
-                            key={visitor._id}
-                            className={`visitor-row ${selectedVisitor?._id === visitor._id ? 'selected' : ''}`}
-                            onClick={() => setSelectedVisitor(visitor)}
-                          >
-                            <td>
-                              <div className="visitor-badge-info">
-                                <div className="visitor-status-indicator">
-                                  <span className={`v-pulse ${visitor.isOnline ? 'anim' : ''}`} style={{ backgroundColor: visitor.isOnline ? 'var(--success)' : 'var(--text-muted)' }}></span>
-                                  <span className="v-pulse" style={{ backgroundColor: visitor.isOnline ? 'var(--success)' : 'var(--text-muted)' }}></span>
+                        return sortedVisitors.map(visitor => {
+                          const isSelected = selectedVisitorIds.includes(visitor._id);
+                          const isActiveRow = selectedVisitor?._id === visitor._id;
+                          return (
+                            <tr
+                              key={visitor._id}
+                              className={`visitor-row ${isActiveRow ? 'selected' : ''}`}
+                              onClick={() => setSelectedVisitor(visitor)}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <td style={{ textAlign: 'center', padding: '10px 6px' }} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => handleToggleSelectVisitor(visitor._id, e)}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                              </td>
+                              <td>
+                                <div className="visitor-badge-info">
+                                  <div className="visitor-status-indicator">
+                                    <span className={`v-pulse ${visitor.isOnline ? 'anim' : ''}`} style={{ backgroundColor: visitor.isOnline ? 'var(--success)' : 'var(--text-muted)' }}></span>
+                                    <span className="v-pulse" style={{ backgroundColor: visitor.isOnline ? 'var(--success)' : 'var(--text-muted)' }}></span>
+                                  </div>
+                                  <div className="visitor-meta-text">
+                                    {visitor.name}
+                                    {visitor.isMuted && <span title="Muted" style={{ marginLeft: '4px', color: '#EF4444' }}>🔇</span>}
+                                  </div>
                                 </div>
-                                <div className="visitor-meta-text">
-                                  {visitor.name}
-                                  {visitor.isMuted && <span title="Muted" style={{ marginLeft: '4px', color: '#EF4444' }}>🔇</span>}
-                                </div>
-                              </div>
-                            </td>
-                            <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                              {visitor.deviceType} • {visitor.browser} on {visitor.os}
-                            </td>
-                            <td>
-                              <span className="path-tag">{visitor.currentUrl || '/'}</span>
-                            </td>
-                            <td style={{ fontSize: '13px' }}>
-                              🌍 {visitor.city || 'Local'}, {visitor.country || 'India'}
-                            </td>
-                          </tr>
-                        ));
+                              </td>
+                              <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                {visitor.deviceType} • {visitor.browser} on {visitor.os}
+                              </td>
+                              <td>
+                                <span className="path-tag">{visitor.currentUrl || '/'}</span>
+                              </td>
+                              <td style={{ fontSize: '13px' }}>
+                                🌍 {visitor.city || 'Local'}, {visitor.country || 'India'}
+                              </td>
+                            </tr>
+                          );
+                        });
                       })()}
                     </tbody>
                   </table>

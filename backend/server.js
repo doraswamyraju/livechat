@@ -1124,34 +1124,19 @@ app.get('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
 
 // 9b-2. Delete Single Visitor & Associated Conversation Logs
 app.delete('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
-  const { visitorId } = req.params;
+  const rawVisitorId = req.params.visitorId;
+  const visitorId = decodeURIComponent(rawVisitorId);
   try {
     const tId = req.user?.tenantId;
     const tenantQuery = mongoose.Types.ObjectId.isValid(tId) && String(tId).length === 24 ? new mongoose.Types.ObjectId(tId) : tId;
 
-    let visitorQuery = { tenantId: tenantQuery };
-    if (mongoose.Types.ObjectId.isValid(visitorId) && String(visitorId).length === 24) {
-      visitorQuery._id = new mongoose.Types.ObjectId(visitorId);
-    } else {
-      visitorQuery._id = visitorId;
-    }
-
-    let visitor = await Visitor.findOne(visitorQuery);
-    if (!visitor) {
-      visitor = await Visitor.findOne({
-        tenantId: tenantQuery,
-        $or: [{ _id: visitorId }, { visitorId: visitorId }]
-      });
-    }
-
-    const targetVisitorId = visitor ? visitor._id : visitorId;
-
-    // Delete associated conversations and messages
+    // Delete conversations and messages associated with this visitor
     const convs = await Conversation.find({
-      tenantId: tenantQuery,
       $or: [
-        { visitorId: targetVisitorId },
-        { visitorId: String(targetVisitorId) }
+        { visitorId: visitorId },
+        { visitorId: rawVisitorId },
+        { tenantId: tenantQuery, visitorId: visitorId },
+        { tenantId: tenantQuery, visitorId: rawVisitorId }
       ]
     }).select('_id');
 
@@ -1161,20 +1146,15 @@ app.delete('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
       await Conversation.deleteMany({ _id: { $in: convIds } });
     }
 
-    // Delete the visitor record
+    // Delete the visitor record(s)
     await Visitor.deleteMany({
-      tenantId: tenantQuery,
-      $or: [
-        { _id: targetVisitorId },
-        { _id: visitorId },
-        { visitorId: visitorId }
-      ]
+      _id: { $in: [visitorId, rawVisitorId] }
     });
 
     // Real-time notification across dashboard instances
     if (dashboardNamespace && req.user?.tenantId) {
       dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('visitor-deleted', {
-        visitorId: String(targetVisitorId)
+        visitorId: visitorId
       });
       if (convIds.length > 0) {
         dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversations-bulk-deleted', {
@@ -1187,11 +1167,71 @@ app.delete('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Visitor and associated conversation history deleted successfully',
-      visitorId: String(targetVisitorId)
+      visitorId: visitorId
     });
   } catch (err) {
     console.error('Error deleting visitor:', err);
-    res.status(500).json({ error: 'Failed to delete visitor' });
+    res.status(500).json({ error: 'Failed to delete visitor: ' + (err.message || err) });
+  }
+});
+
+// 9b-3. Bulk Delete Visitors & Associated Conversation Logs
+app.post('/api/visitors/bulk-delete', authenticateToken, async (req, res) => {
+  const { visitorIds, deleteAll } = req.body;
+  try {
+    const tId = req.user?.tenantId;
+    const tenantQuery = mongoose.Types.ObjectId.isValid(tId) && String(tId).length === 24 ? new mongoose.Types.ObjectId(tId) : tId;
+
+    let targetVisitorIds = [];
+    if (deleteAll) {
+      const allVisitors = await Visitor.find({ tenantId: tenantQuery }).select('_id');
+      targetVisitorIds = allVisitors.map(v => String(v._id));
+    } else if (Array.isArray(visitorIds) && visitorIds.length > 0) {
+      targetVisitorIds = visitorIds.map(id => String(id));
+    }
+
+    if (targetVisitorIds.length === 0) {
+      return res.status(200).json({ success: true, deletedCount: 0, message: 'No visitors selected' });
+    }
+
+    // Delete conversations and messages for all target visitors
+    const convs = await Conversation.find({
+      visitorId: { $in: targetVisitorIds }
+    }).select('_id');
+
+    const convIds = convs.map(c => c._id);
+    if (convIds.length > 0) {
+      await Message.deleteMany({ conversationId: { $in: convIds } });
+      await Conversation.deleteMany({ _id: { $in: convIds } });
+    }
+
+    // Delete the visitor records
+    await Visitor.deleteMany({
+      _id: { $in: targetVisitorIds }
+    });
+
+    if (dashboardNamespace && req.user?.tenantId) {
+      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('visitors-bulk-deleted', {
+        visitorIds: targetVisitorIds,
+        deleteAll: Boolean(deleteAll)
+      });
+      if (convIds.length > 0) {
+        dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversations-bulk-deleted', {
+          conversationIds: convIds.map(id => id.toString()),
+          deleteAll: Boolean(deleteAll)
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      deletedCount: targetVisitorIds.length,
+      visitorIds: targetVisitorIds,
+      message: `Successfully deleted ${targetVisitorIds.length} visitor(s)`
+    });
+  } catch (err) {
+    console.error('Error bulk deleting visitors:', err);
+    res.status(500).json({ error: 'Failed to bulk delete visitors: ' + (err.message || err) });
   }
 });
 
