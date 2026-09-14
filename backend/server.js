@@ -317,6 +317,10 @@ app.post('/api/auth/google-login', async (req, res) => {
 
     const token = jwt.sign(
       { userId: user._id, tenantId: user.tenantId._id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     const isBeta = Boolean(user.isBetaTester || user.tenantId?.isBetaTester);
     const activeBetaFeatures = user.betaFeatures?.length ? user.betaFeatures : (user.tenantId?.betaFeatures || []);
 
