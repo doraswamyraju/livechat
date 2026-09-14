@@ -1122,6 +1122,79 @@ app.get('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
   }
 });
 
+// 9b-2. Delete Single Visitor & Associated Conversation Logs
+app.delete('/api/visitors/:visitorId', authenticateToken, async (req, res) => {
+  const { visitorId } = req.params;
+  try {
+    const tId = req.user?.tenantId;
+    const tenantQuery = mongoose.Types.ObjectId.isValid(tId) && String(tId).length === 24 ? new mongoose.Types.ObjectId(tId) : tId;
+
+    let visitorQuery = { tenantId: tenantQuery };
+    if (mongoose.Types.ObjectId.isValid(visitorId) && String(visitorId).length === 24) {
+      visitorQuery._id = new mongoose.Types.ObjectId(visitorId);
+    } else {
+      visitorQuery._id = visitorId;
+    }
+
+    let visitor = await Visitor.findOne(visitorQuery);
+    if (!visitor) {
+      visitor = await Visitor.findOne({
+        tenantId: tenantQuery,
+        $or: [{ _id: visitorId }, { visitorId: visitorId }]
+      });
+    }
+
+    const targetVisitorId = visitor ? visitor._id : visitorId;
+
+    // Delete associated conversations and messages
+    const convs = await Conversation.find({
+      tenantId: tenantQuery,
+      $or: [
+        { visitorId: targetVisitorId },
+        { visitorId: String(targetVisitorId) }
+      ]
+    }).select('_id');
+
+    const convIds = convs.map(c => c._id);
+    if (convIds.length > 0) {
+      await Message.deleteMany({ conversationId: { $in: convIds } });
+      await Conversation.deleteMany({ _id: { $in: convIds } });
+    }
+
+    // Delete the visitor record
+    await Visitor.deleteMany({
+      tenantId: tenantQuery,
+      $or: [
+        { _id: targetVisitorId },
+        { _id: visitorId },
+        { visitorId: visitorId }
+      ]
+    });
+
+    // Real-time notification across dashboard instances
+    if (dashboardNamespace && req.user?.tenantId) {
+      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('visitor-deleted', {
+        visitorId: String(targetVisitorId)
+      });
+      if (convIds.length > 0) {
+        dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversations-bulk-deleted', {
+          conversationIds: convIds.map(id => id.toString()),
+          deleteAll: false
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Visitor and associated conversation history deleted successfully',
+      visitorId: String(targetVisitorId)
+    });
+  } catch (err) {
+    console.error('Error deleting visitor:', err);
+    res.status(500).json({ error: 'Failed to delete visitor' });
+  }
+});
+
 // 9c. Top 5 High-Converting URLs & Exit Dwell Times
 app.get('/api/analytics/top-urls', authenticateToken, async (req, res) => {
   try {

@@ -422,16 +422,23 @@ h1, h2, h3, h4, h5, h6 {
 /* Active Monitor View */
 .monitor-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: minmax(0, 1.8fr) minmax(360px, 1fr);
   gap: 24px;
-  height: 100%;
+  align-items: start;
 }
 
 .monitor-card {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  height: 100%;
+}
+
+.monitor-sticky-panel {
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+  z-index: 10;
 }
 
 .card-header {

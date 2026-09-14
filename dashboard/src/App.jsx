@@ -154,9 +154,13 @@ function App() {
   const [selectedConversation, setSelectedConversation] = useState(null);
 
   const selectedConversationRef = useRef(selectedConversation);
+  const selectedVisitorRef = useRef(selectedVisitor);
   useEffect(() => {
     selectedConversationRef.current = selectedConversation;
   }, [selectedConversation]);
+  useEffect(() => {
+    selectedVisitorRef.current = selectedVisitor;
+  }, [selectedVisitor]);
 
   // Channel SVG Icon Component Helper
   const renderChannelIcon = (source, size = 14) => {
@@ -1459,6 +1463,15 @@ function App() {
       }
     });
 
+    socket.on('visitor-deleted', (data) => {
+      if (data?.visitorId) {
+        setVisitors(prev => prev.filter(v => v._id !== data.visitorId));
+        if (selectedVisitorRef?.current?._id === data.visitorId || selectedVisitor?._id === data.visitorId) {
+          setSelectedVisitor(null);
+        }
+      }
+    });
+
     socket.on('beta-status-changed', (data) => {
       setIsBetaUser(Boolean(data.isBetaTester));
       showToast(data.isBetaTester ? '🧪 Beta features unlocked for your workspace!' : 'Workspace returned to Live tier');
@@ -1759,6 +1772,37 @@ function App() {
       showToast('Visitor profile saved successfully!');
     } catch (err) {
       showToast(err.message, 'error');
+    }
+  };
+
+  const handleDeleteVisitor = async (visitorId) => {
+    const idToDelete = visitorId || selectedVisitor?._id;
+    if (!idToDelete) return;
+    const vName = selectedVisitor?.name || 'this visitor';
+    if (!window.confirm(`⚠️ Are you sure you want to permanently delete "${vName}" and all associated conversation history?\n\nThis action cannot be undone.`)) return;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/visitors/${idToDelete}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete visitor');
+
+      showToast(`Visitor "${vName}" deleted successfully`);
+      setVisitors(prev => prev.filter(v => v._id !== idToDelete));
+      setConversations(prev => prev.filter(c => (c.visitorId?._id || c.visitorId) !== idToDelete));
+      if (selectedVisitor && selectedVisitor._id === idToDelete) {
+        setSelectedVisitor(null);
+      }
+      if (selectedConversation && (selectedConversation.visitorId?._id || selectedConversation.visitorId) === idToDelete) {
+        setSelectedConversation(null);
+        setMessages([]);
+      }
+    } catch (err) {
+      showToast(err.message || 'Error deleting visitor', 'error');
     }
   };
 
@@ -3114,9 +3158,45 @@ function App() {
                 </div>
               </div>
 
-              {/* Right Panel details */}
-              <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <h3 className="card-title">Visitor Footprint Details</h3>
+              {/* Right Panel details (Sticky fixed when scrolling active visitors) */}
+              <div 
+                className="glass-card monitor-sticky-panel" 
+                style={{ 
+                  padding: '24px', 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '16px',
+                  position: 'sticky',
+                  top: '20px',
+                  maxHeight: 'calc(100vh - 100px)',
+                  overflowY: 'auto'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 className="card-title" style={{ margin: 0 }}>Visitor Footprint Details</h3>
+                  {selectedVisitor && (
+                    <button
+                      onClick={() => handleDeleteVisitor(selectedVisitor._id)}
+                      title="Delete visitor profile and chat history"
+                      style={{
+                        background: '#fee2e2',
+                        color: '#dc2626',
+                        border: '1px solid #fca5a5',
+                        borderRadius: '8px',
+                        padding: '5px 10px',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      🗑️ Delete
+                    </button>
+                  )}
+                </div>
                 {selectedVisitor ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     {/* Top Action: Glowing Open Chat Thread CTA */}
@@ -3187,28 +3267,49 @@ function App() {
                         <input type="checkbox" id="visitor-muted-check-1" checked={editVisitorMuted} onChange={(e) => setEditVisitorMuted(e.target.checked)} style={{ cursor: 'pointer' }} />
                         <label htmlFor="visitor-muted-check-1" className="form-label" style={{ fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', margin: 0 }}>Mute & Suppress Alerts</label>
                       </div>
-                      <button 
-                        style={{ 
-                          padding: '10px 16px', 
-                          fontSize: '13px', 
-                          fontWeight: 700, 
-                          marginTop: '4px', 
-                          background: 'linear-gradient(135deg, #dc2626, #b91c1c)', 
-                          color: '#ffffff', 
-                          border: 'none', 
-                          borderRadius: '8px', 
-                          cursor: 'pointer', 
-                          width: '100%',
-                          boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px'
-                        }} 
-                        onClick={handleUpdateVisitor}
-                      >
-                        💾 Save Contact Info
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                        <button 
+                          style={{ 
+                            flex: 1,
+                            padding: '10px 14px', 
+                            fontSize: '13px', 
+                            fontWeight: 700, 
+                            background: 'linear-gradient(135deg, #dc2626, #b91c1c)', 
+                            color: '#ffffff', 
+                            border: 'none', 
+                            borderRadius: '8px', 
+                            cursor: 'pointer', 
+                            boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px'
+                          }} 
+                          onClick={handleUpdateVisitor}
+                        >
+                          💾 Save Info
+                        </button>
+                        <button 
+                          style={{ 
+                            padding: '10px 14px', 
+                            fontSize: '13px', 
+                            fontWeight: 700, 
+                            background: '#fef2f2', 
+                            color: '#dc2626', 
+                            border: '1px solid #fecdd3', 
+                            borderRadius: '8px', 
+                            cursor: 'pointer', 
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px'
+                          }} 
+                          onClick={() => handleDeleteVisitor(selectedVisitor._id)}
+                          title="Delete visitor profile and chat logs"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
                     </div>
 
                     <div className="info-item">
