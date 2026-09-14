@@ -205,6 +205,50 @@ data class LeadStatsDto(
     val conversionRate: Double = 0.0
 )
 
+data class TopUrlAnalyticsDto(
+    val path: String,
+    val visits: Int,
+    val dwellDisplay: String,
+    val conversionRate: Double,
+    val exitRate: Double,
+    val tag: String = "🔥 High Upsell"
+)
+
+data class AdCampaignDto(
+    val _id: String,
+    val name: String,
+    val objective: String = "LEAD_GENERATION",
+    val status: String = "ACTIVE",
+    val dailyBudget: Double = 500.0,
+    val totalSpend: Double = 0.0,
+    val impressions: Int = 0,
+    val clicks: Int = 0,
+    val cpc: Double = 0.0,
+    val conversions: Int = 0,
+    val roas: Double = 0.0,
+    val createdAt: String? = null
+)
+
+data class CreateCampaignRequest(
+    val name: String,
+    val objective: String = "LEAD_GENERATION",
+    val dailyBudget: Double = 500.0,
+    val targetUrl: String? = null,
+    val locations: List<String>? = null,
+    val interests: List<String>? = null,
+    val headline: String? = null,
+    val primaryText: String? = null,
+    val callToAction: String? = null
+)
+
+data class MetaAdsSummaryDto(
+    val totalSpend: Double = 0.0,
+    val totalImpressions: Int = 0,
+    val totalClicks: Int = 0,
+    val averageRoas: Double = 0.0,
+    val activeCampaignsCount: Int = 0
+)
+
 // ============================================
 // RETROFIT API INTERFACES
 // ============================================
@@ -294,6 +338,23 @@ interface LetsTrackApi {
         @Path("id") leadId: String,
         @Body body: Map<String, String>
     ): LeadDto
+
+    // Meta Ads APIs
+    @GET("/api/meta/campaigns")
+    suspend fun getCampaigns(@Header("Authorization") token: String): List<AdCampaignDto>
+
+    @POST("/api/meta/campaigns")
+    suspend fun createCampaign(
+        @Header("Authorization") token: String,
+        @Body request: CreateCampaignRequest
+    ): AdCampaignDto
+
+    @PUT("/api/meta/campaigns/{id}/status")
+    suspend fun toggleCampaignStatus(
+        @Header("Authorization") token: String,
+        @Path("id") campaignId: String,
+        @Body body: Map<String, String>
+    ): AdCampaignDto
 }
 
 // ============================================

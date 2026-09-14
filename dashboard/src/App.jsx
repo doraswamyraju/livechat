@@ -118,6 +118,7 @@ function App() {
   // Collapsible Layouts State
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('letstrack_sidebar_collapsed') === 'true');
   const [chatDetailsCollapsed, setChatDetailsCollapsed] = useState(() => localStorage.getItem('letstrack_chat_details_collapsed') === 'true');
+  const [showAllConvertingUrls, setShowAllConvertingUrls] = useState(false);
 
   const toggleSidebar = () => {
     setSidebarCollapsed(prev => {
@@ -2511,7 +2512,9 @@ function App() {
                   avgDwell: `${Math.round(data.totalDuration / data.count)}s`,
                   chatRate: `${totalVisitorsCount > 0 ? Math.round((data.count / totalVisitorsCount) * 100) : 0}%`,
                   tag: data.count > 3 ? '🔥 High Traffic' : 'Active Subpath'
-                }));
+                })).sort((a, b) => b.visits - a.visits);
+
+                const displayedUrls = showAllConvertingUrls ? realUrls : realUrls.slice(0, 10);
 
                 if (!isDemo && totalVisitorsCount === 0) {
                   return (
@@ -2802,7 +2805,7 @@ function App() {
                               </tr>
                             </>
                           ) : (
-                            realUrls.map((item, idx) => (
+                            displayedUrls.map((item, idx) => (
                               <tr key={idx} className="visitor-row">
                                 <td><span className="path-tag">{item.url}</span></td>
                                 <td style={{ fontWeight: 700 }}>{item.visits} visits</td>
@@ -2839,6 +2842,37 @@ function App() {
                           )}
                         </tbody>
                       </table>
+
+                      {!isDemo && realUrls.length > 10 && (
+                        <div style={{ marginTop: '16px', textAlign: 'center', borderTop: '1px dashed var(--border-color)', paddingTop: '14px' }}>
+                          <button
+                            onClick={() => setShowAllConvertingUrls(!showAllConvertingUrls)}
+                            style={{
+                              background: 'var(--bg-tertiary)',
+                              border: '1px solid var(--border-color)',
+                              color: 'var(--text-primary)',
+                              padding: '8px 18px',
+                              borderRadius: '8px',
+                              fontSize: '12.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              transition: 'all 0.2s',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                          >
+                            {showAllConvertingUrls ? (
+                              <>▲ Collapse to Top 10 URLs</>
+                            ) : (
+                              <>▼ Show All ({realUrls.length} URLs)</>
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </>
                 );
