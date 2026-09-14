@@ -764,13 +764,32 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
   const { conversationId } = req.params;
 
   try {
-    let convId = conversationId;
-    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
-      const conv = await Conversation.findOne({ visitorId: conversationId });
-      if (conv) convId = conv._id;
-      else return res.status(200).json([]);
+    let conv = null;
+    if (mongoose.Types.ObjectId.isValid(conversationId)) {
+      conv = await Conversation.findById(conversationId);
     }
-    const messages = await Message.find({ conversationId: convId }).sort({ timestamp: 1 });
+    if (!conv) {
+      conv = await Conversation.findOne({ visitorId: conversationId });
+    }
+    if (!conv && conversationId.startsWith('c_')) {
+      const stripped = conversationId.substring(2);
+      if (mongoose.Types.ObjectId.isValid(stripped)) {
+        conv = await Conversation.findById(stripped);
+      }
+      if (!conv) {
+        conv = await Conversation.findOne({ visitorId: stripped });
+      }
+    }
+
+    if (!conv) {
+      if (mongoose.Types.ObjectId.isValid(conversationId)) {
+        const messages = await Message.find({ conversationId }).sort({ timestamp: 1 });
+        return res.status(200).json(messages);
+      }
+      return res.status(200).json([]);
+    }
+
+    const messages = await Message.find({ conversationId: conv._id }).sort({ timestamp: 1 });
     res.status(200).json(messages);
   } catch (err) {
     console.error('Error retrieving conversation messages:', err);
