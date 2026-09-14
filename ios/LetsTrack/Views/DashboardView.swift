@@ -369,8 +369,7 @@ struct UnifiedInboxTab: View {
     }
     
     var filteredConversations: [ConversationDto] {
-        let sorted = socketManager.conversationsList.sorted(by: { $0.updatedAt > $1.updatedAt })
-        return sorted.filter { conv in
+        let filtered = socketManager.conversationsList.filter { conv in
             let vis = socketManager.visitorsList.first(where: { $0.id == conv.visitorId })
             let ch = (conv.channel ?? vis?.resolvedChannel ?? "livechat").lowercased()
             let vName = vis?.name.lowercased() ?? ""
@@ -396,6 +395,18 @@ struct UnifiedInboxTab: View {
             }
             
             return true
+        }
+
+        return filtered.sorted { a, b in
+            let aUnread = (a.unreadCount ?? 0) > 0 ? 1 : 0
+            let bUnread = (b.unreadCount ?? 0) > 0 ? 1 : 0
+            if aUnread != bUnread { return aUnread > bUnread }
+            
+            let aOnline = (socketManager.visitorsList.first(where: { $0.id == a.visitorId })?.isOnline == true) ? 1 : 0
+            let bOnline = (socketManager.visitorsList.first(where: { $0.id == b.visitorId })?.isOnline == true) ? 1 : 0
+            if aOnline != bOnline { return aOnline > bOnline }
+            
+            return a.updatedAt > b.updatedAt
         }
     }
     
@@ -460,7 +471,7 @@ struct UnifiedInboxTab: View {
                         channelPill(id: "whatsapp", label: "WhatsApp", icon: "phone.fill", color: Color(red: 37/255, green: 211/255, blue: 102/255), count: channelCounts["whatsapp"] ?? 0)
                         channelPill(id: "instagram", label: "Instagram", icon: "camera.fill", color: Color(red: 225/255, green: 48/255, blue: 108/255), count: channelCounts["instagram"] ?? 0)
                         channelPill(id: "facebook", label: "Facebook", icon: "person.2.fill", color: Color(red: 24/255, green: 119/255, blue: 242/255), count: channelCounts["facebook"] ?? 0)
-                        channelPill(id: "livechat", label: "LiveChat", icon: "message.fill", color: Color(red: 100/255, green: 116/255, blue: 139/255), count: channelCounts["livechat"] ?? 0)
+                        channelPill(id: "livechat", label: "LiveChat", icon: "message.fill", color: Color(red: 59/255, green: 130/255, blue: 246/255), count: channelCounts["livechat"] ?? 0)
                     }
                     .padding(.horizontal)
                 }
@@ -522,7 +533,9 @@ struct UnifiedInboxTab: View {
         let visitorName = visitor?.name ?? "Customer"
         let channel = (conv.channel ?? visitor?.resolvedChannel ?? "livechat").lowercased()
         let channelColor = theme.getChannelColor(channel)
+        let unreadCount = conv.unreadCount ?? 0
         let isUnassigned = conv.status == "Unassigned"
+        let isOnline = visitor?.isOnline == true
         
         return Button(action: {
             onNavigateToChat(conv.id, visitorName, conv.visitorId)
@@ -543,10 +556,18 @@ struct UnifiedInboxTab: View {
                                 .foregroundColor(theme.primaryColor)
                         )
                     
-                    // Official Brand Logo Badge
-                    BrandLogoView(source: channel, size: 18)
-                        .overlay(Circle().stroke(theme.surfaceColor, lineWidth: 2))
-                        .offset(x: 2, y: 2)
+                    if isOnline {
+                        Circle()
+                            .fill(Color(red: 34/255, green: 197/255, blue: 94/255))
+                            .frame(width: 14, height: 14)
+                            .overlay(Circle().stroke(theme.surfaceColor, lineWidth: 2))
+                            .offset(x: 2, y: 2)
+                    } else {
+                        // Official Brand Logo Badge
+                        BrandLogoView(source: channel, size: 18)
+                            .overlay(Circle().stroke(theme.surfaceColor, lineWidth: 2))
+                            .offset(x: 2, y: 2)
+                    }
                 }
                 
                 // Content info
@@ -557,13 +578,21 @@ struct UnifiedInboxTab: View {
                             .foregroundColor(theme.onSurfaceColor)
                             .lineLimit(1)
                         
-                        if isUnassigned {
-                            Text("NEW")
+                        if unreadCount > 0 {
+                            Text("\(unreadCount) NEW")
                                 .font(.system(size: 9, weight: .black))
                                 .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color(red: 220/255, green: 38/255, blue: 38/255))
+                                .cornerRadius(6)
+                        } else if isUnassigned {
+                            Text("WAITING")
+                                .font(.system(size: 9, weight: .black))
+                                .foregroundColor(theme.primaryColor)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2)
-                                .background(theme.primaryColor)
+                                .background(theme.primaryColor.opacity(0.12))
                                 .cornerRadius(6)
                         }
                         
@@ -599,7 +628,7 @@ struct UnifiedInboxTab: View {
             .cornerRadius(16)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(isUnassigned ? theme.primaryColor.opacity(0.5) : theme.borderColor, lineWidth: 1)
+                    .stroke(unreadCount > 0 ? Color(red: 220/255, green: 38/255, blue: 38/255).opacity(0.5) : theme.borderColor, lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(theme.isDark ? 0.25 : 0.04), radius: 8, y: 3)
         }

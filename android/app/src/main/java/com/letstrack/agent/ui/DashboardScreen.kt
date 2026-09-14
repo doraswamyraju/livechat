@@ -672,12 +672,12 @@ fun UnifiedInboxTabContent(
     var selectedChannel by remember { mutableStateOf("all") }
     var searchText by remember { mutableStateOf("") }
 
-    // Dynamic counts
+    // Dynamic counts matching Web criteria
     val channelCounts = remember(conversationsList, visitorsList) {
         val counts = mutableMapOf("all" to 0, "whatsapp" to 0, "instagram" to 0, "facebook" to 0, "livechat" to 0)
         for (conv in conversationsList) {
             val vis = visitorsList.find { it._id == conv.visitorId }
-            val ch = (conv.channel ?: vis?.resolvedChannel ?: "livechat").lowercase()
+            val ch = (conv.channel ?: vis?.resolvedChannel ?: "webchat").lowercase()
             counts["all"] = (counts["all"] ?: 0) + 1
             if (ch.contains("whatsapp")) counts["whatsapp"] = (counts["whatsapp"] ?: 0) + 1
             else if (ch.contains("instagram") || ch.contains("ig")) counts["instagram"] = (counts["instagram"] ?: 0) + 1
@@ -687,10 +687,22 @@ fun UnifiedInboxTabContent(
         counts
     }
 
+    // 3-Tier Sorting matching Web Dashboard exactly:
+    // 1. Unread pending messages on top
+    // 2. Live Web visitors connected right now
+    // 3. Latest message timestamp
     val filteredList = remember(conversationsList, visitorsList, selectedChannel, searchText) {
-        conversationsList.sortedByDescending { it.updatedAt }.filter { conv ->
+        conversationsList.sortedWith(
+            compareByDescending<ConversationDto> { (it.unreadCount ?: 0) > 0 }
+                .thenByDescending {
+                    val vis = visitorsList.find { v -> v._id == it.visitorId }
+                    val ch = (it.channel ?: vis?.resolvedChannel ?: "webchat").lowercase()
+                    (ch == "webchat" || ch.contains("web")) && (vis?.isOnline == true)
+                }
+                .thenByDescending { it.updatedAt }
+        ).filter { conv ->
             val vis = visitorsList.find { it._id == conv.visitorId }
-            val ch = (conv.channel ?: vis?.resolvedChannel ?: "livechat").lowercase()
+            val ch = (conv.channel ?: vis?.resolvedChannel ?: "webchat").lowercase()
             val vName = vis?.name?.lowercase() ?: ""
 
             if (selectedChannel != "all") {
@@ -884,6 +896,8 @@ fun ConversationCard(
     val ch = (conv.channel ?: visitor.resolvedChannel).lowercase()
     val chColor = getChannelBrandingColor(ch)
     val isUnassigned = conv.status == "Unassigned"
+    val hasUnread = (conv.unreadCount ?: 0) > 0
+    val isLive = visitor.isOnline
 
     Card(
         onClick = onClick,
@@ -891,7 +905,7 @@ fun ConversationCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, if (isUnassigned) Color(0xFFDC2626).copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+            .border(1.dp, if (hasUnread) Color(0xFFDC2626) else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
     ) {
         Row(
             modifier = Modifier
@@ -900,10 +914,10 @@ fun ConversationCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Avatar with bottom-right channel badge overlay
+            // Avatar with bottom-right status or channel badge
             Box(contentAlignment = Alignment.BottomEnd) {
                 Surface(
-                    color = Color(0xFFDC2626).copy(alpha = 0.15f),
+                    color = if (isLive) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF64748B).copy(alpha = 0.12f),
                     shape = CircleShape,
                     modifier = Modifier.size(48.dp)
                 ) {
@@ -912,17 +926,28 @@ fun ConversationCard(
                             text = visitor.name.take(1).uppercase(),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Black,
-                            color = Color(0xFFDC2626)
+                            color = if (isLive) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .background(chColor, CircleShape)
-                        .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                )
+                if (isLive) {
+                    // Live Online Green Pulse Dot
+                    Box(
+                        modifier = Modifier
+                            .size(13.dp)
+                            .background(Color(0xFF10B981), CircleShape)
+                            .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                    )
+                } else {
+                    // Offline / Channel Indicator
+                    Box(
+                        modifier = Modifier
+                            .size(13.dp)
+                            .background(chColor.copy(alpha = 0.85f), CircleShape)
+                            .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                    )
+                }
             }
 
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -938,13 +963,23 @@ fun ConversationCard(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        if (isUnassigned) {
+                        if (hasUnread) {
                             Surface(color = Color(0xFFDC2626), shape = RoundedCornerShape(6.dp)) {
                                 Text(
-                                    text = "NEW",
+                                    text = if ((conv.unreadCount ?: 0) > 1) "${conv.unreadCount} NEW" else "NEW",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black,
                                     color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
+                            }
+                        } else if (isUnassigned) {
+                            Surface(color = Color(0xFFFEF3C7), shape = RoundedCornerShape(6.dp)) {
+                                Text(
+                                    text = "WAITING",
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFD97706),
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -967,7 +1002,7 @@ fun ConversationCard(
                     )
                     Text("•", fontSize = 10.sp, color = Color(0xFF94A3B8))
                     Text(
-                        text = conv.lastMessage ?: (visitor.currentUrl?.let { "Browsing $it" } ?: "Active conversation"),
+                        text = conv.lastMessage ?: (visitor.currentUrl?.let { "Browsing $it" } ?: "Conversation thread"),
                         fontSize = 12.sp,
                         color = Color(0xFF94A3B8),
                         maxLines = 1,
@@ -2452,15 +2487,41 @@ fun getLeadStatusColor(status: String): Color {
 
 fun getChannelBrandingColor(channel: String): Color {
     return when (channel.lowercase()) {
-        "whatsapp" -> Color(0xFF25D366)
-        "instagram" -> Color(0xFFE1306C)
-        "facebook" -> Color(0xFF1877F2)
+        "whatsapp", "whatsapp-web", "whatsapp-api" -> Color(0xFF25D366)
+        "instagram", "ig" -> Color(0xFFE1306C)
+        "facebook", "fb" -> Color(0xFF1877F2)
         "meta_ads", "meta ads" -> Color(0xFF0081FB)
-        else -> Color(0xFFDC2626)
+        else -> Color(0xFF3B82F6) // Modern blue for livechat web
     }
 }
 
 fun formatRelative(iso: String): String {
     if (iso.isEmpty()) return ""
-    return "now"
+    return try {
+        val cleanIso = iso.split(".")[0].replace("Z", "")
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault()).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        val date = sdf.parse(cleanIso) ?: return ""
+        val now = System.currentTimeMillis()
+        val diff = now - date.time
+        val seconds = diff / 1000
+        val minutes = seconds / 60
+        val hours = minutes / 60
+        val days = hours / 24
+
+        when {
+            seconds < 60 -> "now"
+            minutes < 60 -> "${minutes}m"
+            hours < 24 -> "${hours}h"
+            days == 1L -> "Yesterday"
+            days < 7 -> "${days}d"
+            else -> {
+                val outFmt = java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault())
+                outFmt.format(date)
+            }
+        }
+    } catch (e: Exception) {
+        ""
+    }
 }

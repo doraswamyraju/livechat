@@ -407,19 +407,24 @@ function App() {
   const [billingData, setBillingData] = useState(null);
   const [billingLoading, setBillingLoading] = useState(false);
 
-  // Dynamically load Razorpay SDK
-  useEffect(() => {
-    if (!document.getElementById('razorpay-checkout-sdk')) {
+  // Lazy-load Razorpay SDK on demand (prevents 500+ preloading warnings on inbox)
+  const ensureRazorpayLoaded = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) return resolve(true);
+      if (document.getElementById('razorpay-checkout-sdk')) return resolve(true);
       const script = document.createElement('script');
       script.id = 'razorpay-checkout-sdk';
       script.src = 'https://checkout.razorpay.com/v1/checkout.js';
       script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
       document.body.appendChild(script);
-    }
-  }, []);
+    });
+  };
 
   const fetchBillingData = async () => {
     if (!token) return;
+    ensureRazorpayLoaded();
     try {
       setBillingLoading(true);
       const res = await fetch(`${BACKEND_URL}/api/billing/current`, {
