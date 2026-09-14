@@ -348,6 +348,9 @@ function App() {
   const [agentInviteRole, setAgentInviteRole] = useState('Agent');
   const [seatInfo, setSeatInfo] = useState({ used: 1, max: 1, plan: 'free' });
   const [inboxSearchQuery, setInboxSearchQuery] = useState('');
+  const [selectedConvIds, setSelectedConvIds] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [isBetaUser, setIsBetaUser] = useState(Boolean(user?.isBetaTester || tenant?.isBetaTester));
 
   // Global Demo Account Detector
   const isDemo = user?.email === 'demo@letstrack.io' || token === 'demo_jwt_token_simulation_99201' || tenant?.id === 'demo-tenant-99';
@@ -727,12 +730,78 @@ function App() {
 
       showToast('Conversation deleted successfully');
       setConversations(prev => prev.filter(c => c._id !== convId));
+      setSelectedConvIds(prev => prev.filter(id => id !== convId));
       if (selectedConversation && selectedConversation._id === convId) {
         setSelectedConversation(null);
         setMessages([]);
       }
     } catch (err) {
       showToast(err.message, 'error');
+    }
+  };
+
+  const handleToggleSelectConv = (convId, e) => {
+    e?.stopPropagation();
+    setSelectedConvIds(prev => 
+      prev.includes(convId) ? prev.filter(id => id !== convId) : [...prev, convId]
+    );
+  };
+
+  const handleSelectAllConvs = (filteredConvs) => {
+    const allFilteredIds = filteredConvs.map(c => c._id);
+    if (selectedConvIds.length === allFilteredIds.length && allFilteredIds.length > 0) {
+      setSelectedConvIds([]);
+    } else {
+      setSelectedConvIds(allFilteredIds);
+    }
+  };
+
+  const handleBulkDeleteConversations = async (deleteAll = false, totalCount = 0) => {
+    const countToDelete = deleteAll ? totalCount : selectedConvIds.length;
+    if (countToDelete === 0) return;
+
+    const confirmMsg = deleteAll 
+      ? `⚠️ DANGER: Are you sure you want to PERMANENTLY DELETE ALL ${countToDelete} conversations in this inbox?\n\nThis will purge all messages and cannot be undone.`
+      : `Are you sure you want to permanently delete ${countToDelete} selected conversation(s) and their messages?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setBulkDeleting(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/conversations/bulk-delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          conversationIds: deleteAll ? [] : selectedConvIds,
+          deleteAll,
+          sourceFilter: channelFilter
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Bulk delete failed');
+
+      showToast(`Deleted ${data.deletedCount || countToDelete} conversation(s) successfully`);
+      
+      const deletedSet = new Set(data.conversationIds || selectedConvIds);
+      if (deleteAll) {
+        setConversations(prev => channelFilter === 'all' ? [] : prev.filter(c => c.source !== channelFilter));
+        setSelectedConversation(null);
+        setMessages([]);
+      } else {
+        setConversations(prev => prev.filter(c => !deletedSet.has(c._id)));
+        if (selectedConversation && deletedSet.has(selectedConversation._id)) {
+          setSelectedConversation(null);
+          setMessages([]);
+        }
+      }
+      setSelectedConvIds([]);
+    } catch (err) {
+      showToast(err.message || 'Error bulk deleting conversations', 'error');
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -1361,10 +1430,33 @@ function App() {
 
     socket.on('conversation-deleted', (data) => {
       setConversations(prev => prev.filter(c => c._id !== data.conversationId));
+      setSelectedConvIds(prev => prev.filter(id => id !== data.conversationId));
       if (selectedConversation && selectedConversation._id === data.conversationId) {
         setSelectedConversation(null);
         setMessages([]);
       }
+    });
+
+    socket.on('conversations-bulk-deleted', (data) => {
+      if (data.deleteAll) {
+        setConversations([]);
+        setSelectedConversation(null);
+        setMessages([]);
+        setSelectedConvIds([]);
+      } else if (Array.isArray(data.conversationIds)) {
+        const deletedSet = new Set(data.conversationIds);
+        setConversations(prev => prev.filter(c => !deletedSet.has(c._id)));
+        setSelectedConvIds(prev => prev.filter(id => !deletedSet.has(id)));
+        if (selectedConversation && deletedSet.has(selectedConversation._id)) {
+          setSelectedConversation(null);
+          setMessages([]);
+        }
+      }
+    });
+
+    socket.on('beta-status-changed', (data) => {
+      setIsBetaUser(Boolean(data.isBetaTester));
+      showToast(data.isBetaTester ? '🧪 Beta features unlocked for your workspace!' : 'Workspace returned to Live tier');
     });
 
     // 9. Sync agent status changes
@@ -2284,6 +2376,26 @@ function App() {
               {activeTab === 'superadmin' && 'Platform Super Admin Command Center'}
               {activeTab === 'profile' && 'Employee Profile Center'}
             </div>
+            {isBetaUser && (
+              <span 
+                style={{
+                  background: 'linear-gradient(135deg, #8B5CF6, #6D28D9)',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '3px 9px',
+                  borderRadius: '12px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: '0 2px 8px rgba(139, 92, 246, 0.35)',
+                  letterSpacing: '0.3px'
+                }}
+                title="Your workspace has early access to Beta preview features"
+              >
+                🧪 BETA TIER
+              </span>
+            )}
           </div>
 
           <div className="navbar-profile" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -3394,58 +3506,163 @@ function App() {
                       );
                     }
 
-                    return sorted.map(conv => {
-                      const vis = typeof conv.visitorId === 'object' ? conv.visitorId : visitors.find(v => v._id === conv.visitorId);
-                      const agentName = conv.assignedAgentId ? conv.assignedAgentId.name : 'Unassigned';
-                      const isLiveWeb = (!conv.source || conv.source === 'webchat') && vis?.isOnline;
-                      const hasUnread = (conv.unreadCount || 0) > 0;
+                    return (
+                      <>
+                        {/* Bulk Action Toolbar */}
+                        <div style={{
+                          padding: '8px 12px',
+                          background: selectedConvIds.length > 0 ? 'rgba(220, 38, 38, 0.08)' : 'var(--bg-tertiary)',
+                          borderBottom: '1px solid var(--border-color)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '8px',
+                          fontSize: '12px',
+                          position: 'sticky',
+                          top: 0,
+                          zIndex: 10
+                        }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 600, color: 'var(--text-primary)', margin: 0, userSelect: 'none' }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedConvIds.length === sorted.length && sorted.length > 0}
+                              onChange={() => handleSelectAllConvs(sorted)}
+                              style={{ cursor: 'pointer', width: '14px', height: '14px', accentColor: '#dc2626' }}
+                            />
+                            <span>Select All ({sorted.length})</span>
+                          </label>
 
-                      return (
-                        <div
-                          key={conv._id}
-                          className={`room-card ${selectedConversation?._id === conv._id ? 'active' : ''}`}
-                          onClick={() => handleSelectConversation(conv)}
-                          style={{ 
-                            position: 'relative',
-                            borderLeft: hasUnread ? '3px solid #DC2626' : undefined,
-                            background: hasUnread ? 'rgba(220, 38, 38, 0.05)' : undefined
-                          }}
-                        >
-                          <div className="room-card-header">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                              <div style={{
-                                width: '34px',
-                                height: '34px',
-                                borderRadius: '50%',
-                                background: isLiveWeb ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--bg-accent)',
-                                color: 'white',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontWeight: 700,
-                                fontSize: '13px',
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {selectedConvIds.length > 0 ? (
+                              <>
+                                <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 700 }}>
+                                  {selectedConvIds.length} selected
+                                </span>
+                                <button
+                                  onClick={() => handleBulkDeleteConversations(false, sorted.length)}
+                                  disabled={bulkDeleting}
+                                  style={{
+                                    background: '#dc2626',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                  title="Delete selected conversations"
+                                >
+                                  {bulkDeleting ? 'Deleting...' : `🗑️ Delete (${selectedConvIds.length})`}
+                                </button>
+                                <button
+                                  onClick={() => setSelectedConvIds([])}
+                                  style={{
+                                    background: 'transparent',
+                                    border: '1px solid var(--border-color)',
+                                    color: 'var(--text-secondary)',
+                                    padding: '4px 6px',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Clear Selection"
+                                >
+                                  ✕
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => handleBulkDeleteConversations(true, sorted.length)}
+                                disabled={bulkDeleting}
+                                style={{
+                                  background: 'transparent',
+                                  color: '#dc2626',
+                                  border: '1px solid rgba(220, 38, 38, 0.3)',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
+                                title="Permanently delete all conversations in this view"
+                              >
+                                {bulkDeleting ? 'Purging...' : `🗑️ Delete All (${sorted.length})`}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {sorted.map(conv => {
+                          const vis = typeof conv.visitorId === 'object' ? conv.visitorId : visitors.find(v => v._id === conv.visitorId);
+                          const agentName = conv.assignedAgentId ? conv.assignedAgentId.name : 'Unassigned';
+                          const isLiveWeb = (!conv.source || conv.source === 'webchat') && vis?.isOnline;
+                          const hasUnread = (conv.unreadCount || 0) > 0;
+                          const isSelected = selectedConvIds.includes(conv._id);
+
+                          return (
+                            <div
+                              key={conv._id}
+                              className={`room-card ${selectedConversation?._id === conv._id ? 'active' : ''}`}
+                              onClick={() => handleSelectConversation(conv)}
+                              style={{ 
                                 position: 'relative',
-                                flexShrink: 0,
-                                border: isLiveWeb ? '1.5px solid #10B981' : '1px solid var(--border-color)'
-                              }}>
-                                {(vis?.name || 'V')[0]?.toUpperCase()}
-                                {isLiveWeb ? (
-                                  <span style={{ position: 'absolute', bottom: '-1px', right: '-1px', width: '9px', height: '9px', borderRadius: '50%', backgroundColor: '#10B981', border: '2px solid var(--bg-secondary)' }}></span>
-                                ) : (
-                                  <span style={{ position: 'absolute', bottom: '-2px', right: '-2px', width: '14px', height: '14px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    {renderChannelIcon(conv.source, 10)}
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ minWidth: 0, flex: 1 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span className="room-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: hasUnread ? 700 : 600, color: hasUnread ? 'var(--text-primary)' : undefined }}>
-                                    {vis?.name || 'Visitor'}
-                                  </span>
-                                  {renderSourceBadge(conv.source)}
+                                borderLeft: isSelected ? '3px solid #dc2626' : (hasUnread ? '3px solid #DC2626' : undefined),
+                                background: isSelected ? 'rgba(220, 38, 38, 0.08)' : (hasUnread ? 'rgba(220, 38, 38, 0.05)' : undefined)
+                              }}
+                            >
+                              <div className="room-card-header">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onClick={(e) => handleToggleSelectConv(conv._id, e)}
+                                    onChange={() => {}}
+                                    style={{
+                                      cursor: 'pointer',
+                                      width: '15px',
+                                      height: '15px',
+                                      accentColor: '#dc2626',
+                                      flexShrink: 0
+                                    }}
+                                    title="Select conversation"
+                                  />
+                                  <div style={{
+                                    width: '34px',
+                                    height: '34px',
+                                    borderRadius: '50%',
+                                    background: isLiveWeb ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--bg-accent)',
+                                    color: 'white',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 700,
+                                    fontSize: '13px',
+                                    position: 'relative',
+                                    flexShrink: 0,
+                                    border: isLiveWeb ? '1.5px solid #10B981' : '1px solid var(--border-color)'
+                                  }}>
+                                    {(vis?.name || 'V')[0]?.toUpperCase()}
+                                    {isLiveWeb ? (
+                                      <span style={{ position: 'absolute', bottom: '-1px', right: '-1px', width: '9px', height: '9px', borderRadius: '50%', backgroundColor: '#10B981', border: '2px solid var(--bg-secondary)' }}></span>
+                                    ) : (
+                                      <span style={{ position: 'absolute', bottom: '-2px', right: '-2px', width: '14px', height: '14px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {renderChannelIcon(conv.source, 10)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ minWidth: 0, flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span className="room-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: hasUnread ? 700 : 600, color: hasUnread ? 'var(--text-primary)' : undefined }}>
+                                        {vis?.name || 'Visitor'}
+                                      </span>
+                                      {renderSourceBadge(conv.source)}
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <span className="room-time" style={{ color: hasUnread ? '#F87171' : undefined, fontWeight: hasUnread ? 700 : undefined }}>
@@ -3498,9 +3715,11 @@ function App() {
                             </div>
                           </div>
                         </div>
-                      );
-                    });
-                  })()}
+                        );
+                      })}
+                    </>
+                  );
+                })()}
                 </div>
               </div>
 

@@ -22,10 +22,11 @@ struct UserProfile: Codable, Identifiable, Hashable {
     let email: String
     let role: String
     let status: String
+    var isBetaTester: Bool = false
     
     enum CodingKeys: String, CodingKey {
         case id = "_id"
-        case name, email, role, status
+        case name, email, role, status, isBetaTester
     }
     
     // Fallback parser since MongoDB/Retrofit formats can differ (some responses might return `id` as `id`)
@@ -35,6 +36,7 @@ struct UserProfile: Codable, Identifiable, Hashable {
         email = try container.decode(String.self, forKey: .email)
         role = (try? container.decode(String.self, forKey: .role)) ?? "Agent"
         status = (try? container.decode(String.self, forKey: .status)) ?? "Offline"
+        isBetaTester = (try? container.decode(Bool.self, forKey: .isBetaTester)) ?? false
         
         if let decodedId = try? container.decode(String.self, forKey: .id) {
             id = decodedId
@@ -107,10 +109,11 @@ struct TenantDetails: Codable, Hashable {
     let name: String
     let domain: String
     let apiKey: String
+    var isBetaTester: Bool = false
     
     enum CodingKeys: String, CodingKey {
         case id = "_id"
-        case name, domain, apiKey
+        case name, domain, apiKey, isBetaTester
     }
     
     init(from decoder: Decoder) throws {
@@ -118,6 +121,7 @@ struct TenantDetails: Codable, Hashable {
         name = try container.decode(String.self, forKey: .name)
         domain = (try? container.decode(String.self, forKey: .domain)) ?? ""
         apiKey = (try? container.decode(String.self, forKey: .apiKey)) ?? ""
+        isBetaTester = (try? container.decode(Bool.self, forKey: .isBetaTester)) ?? false
         
         if let decodedId = try? container.decode(String.self, forKey: .id) {
             id = decodedId
@@ -131,11 +135,12 @@ struct TenantDetails: Codable, Hashable {
         case idFallback = "id"
     }
     
-    init(id: String, name: String, domain: String, apiKey: String) {
+    init(id: String, name: String, domain: String, apiKey: String, isBetaTester: Bool = false) {
         self.id = id
         self.name = name
         self.domain = domain
         self.apiKey = apiKey
+        self.isBetaTester = isBetaTester
     }
 }
 

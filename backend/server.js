@@ -317,9 +317,8 @@ app.post('/api/auth/google-login', async (req, res) => {
 
     const token = jwt.sign(
       { userId: user._id, tenantId: user.tenantId._id, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const isBeta = Boolean(user.isBetaTester || user.tenantId?.isBetaTester);
+    const activeBetaFeatures = user.betaFeatures?.length ? user.betaFeatures : (user.tenantId?.betaFeatures || []);
 
     res.status(200).json({
       token,
@@ -329,13 +328,17 @@ app.post('/api/auth/google-login', async (req, res) => {
         email: user.email,
         role: user.role,
         status: user.status,
-        avatarUrl: user.avatarUrl
+        avatarUrl: user.avatarUrl,
+        isBetaTester: isBeta,
+        betaFeatures: activeBetaFeatures
       },
       tenant: {
         id: user.tenantId._id,
         name: user.tenantId.name,
         domain: user.tenantId.domain,
-        apiKey: user.tenantId.apiKey
+        apiKey: user.tenantId.apiKey,
+        isBetaTester: Boolean(user.tenantId.isBetaTester),
+        betaFeatures: user.tenantId.betaFeatures || []
       }
     });
 
@@ -371,6 +374,9 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '30d' }
     );
 
+    const isBeta = Boolean(user.isBetaTester || user.tenantId?.isBetaTester);
+    const activeBetaFeatures = user.betaFeatures?.length ? user.betaFeatures : (user.tenantId?.betaFeatures || []);
+
     res.status(200).json({
       token,
       user: {
@@ -378,13 +384,17 @@ app.post('/api/auth/login', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        status: user.status
+        status: user.status,
+        isBetaTester: isBeta,
+        betaFeatures: activeBetaFeatures
       },
       tenant: {
         id: user.tenantId._id,
         name: user.tenantId.name,
         domain: user.tenantId.domain,
-        apiKey: user.tenantId.apiKey
+        apiKey: user.tenantId.apiKey,
+        isBetaTester: Boolean(user.tenantId.isBetaTester),
+        betaFeatures: user.tenantId.betaFeatures || []
       }
     });
 
@@ -944,6 +954,50 @@ app.delete('/api/conversations/:conversationId', authenticateToken, async (req, 
   } catch (err) {
     console.error('Error deleting conversation:', err);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 7c-2. Bulk Delete Conversations & Messages
+app.post('/api/conversations/bulk-delete', authenticateToken, async (req, res) => {
+  const { conversationIds, deleteAll, sourceFilter } = req.body;
+
+  try {
+    const tenantQuery = mongoose.Types.ObjectId.isValid(req.user.tenantId) 
+      ? { $in: [req.user.tenantId, new mongoose.Types.ObjectId(req.user.tenantId)] }
+      : req.user.tenantId;
+
+    let query = { tenantId: tenantQuery };
+
+    if (!deleteAll && Array.isArray(conversationIds) && conversationIds.length > 0) {
+      query._id = { $in: conversationIds };
+    } else if (sourceFilter && sourceFilter !== 'all') {
+      query.source = sourceFilter;
+    }
+
+    const conversationsToDelete = await Conversation.find(query).select('_id');
+    const targetIds = conversationsToDelete.map(c => c._id);
+
+    if (targetIds.length > 0) {
+      await Message.deleteMany({ conversationId: { $in: targetIds } });
+      await Conversation.deleteMany({ _id: { $in: targetIds } });
+    }
+
+    if (dashboardNamespace) {
+      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('conversations-bulk-deleted', { 
+        conversationIds: targetIds.map(id => id.toString()),
+        deleteAll: Boolean(deleteAll)
+      });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      deletedCount: targetIds.length, 
+      conversationIds: targetIds.map(id => id.toString()),
+      message: `Successfully deleted ${targetIds.length} conversation(s).` 
+    });
+  } catch (err) {
+    console.error('Error in bulk deleting conversations:', err);
+    res.status(500).json({ error: 'Failed to bulk delete conversations' });
   }
 });
 
@@ -2393,6 +2447,8 @@ app.get('/api/superadmin/tenants', authenticateToken, requireSuperAdmin, async (
           planPrice: t.planPrice || 0,
           maxAgents: t.maxAgents || 1,
           isSuspended: !!t.isSuspended,
+          isBetaTester: !!t.isBetaTester,
+          betaFeatures: t.betaFeatures || [],
           features: t.features,
           subscription: t.subscription,
           userCount,
@@ -2411,9 +2467,9 @@ app.get('/api/superadmin/tenants', authenticateToken, requireSuperAdmin, async (
   }
 });
 
-// 3. SuperAdmin - Update Tenant Plan / Quota / Status
+// 3. SuperAdmin - Update Tenant Plan / Quota / Status / Beta
 app.put('/api/superadmin/tenants/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
-  const { plan, planPrice, maxAgents, isSuspended, features } = req.body;
+  const { plan, planPrice, maxAgents, isSuspended, isBetaTester, betaFeatures, features } = req.body;
 
   try {
     const tenant = await Tenant.findById(req.params.id);
@@ -2423,23 +2479,69 @@ app.put('/api/superadmin/tenants/:id', authenticateToken, requireSuperAdmin, asy
     if (planPrice !== undefined) tenant.planPrice = Number(planPrice);
     if (maxAgents !== undefined) tenant.maxAgents = Number(maxAgents);
     if (isSuspended !== undefined) tenant.isSuspended = Boolean(isSuspended);
+    if (isBetaTester !== undefined) tenant.isBetaTester = Boolean(isBetaTester);
+    if (betaFeatures !== undefined) tenant.betaFeatures = betaFeatures;
     if (features !== undefined) {
       tenant.features = { ...tenant.features, ...features };
     }
 
     await tenant.save();
 
+    if (dashboardNamespace) {
+      dashboardNamespace.to(`tenant_${tenant._id}`).emit('beta-status-changed', {
+        isBetaTester: !!tenant.isBetaTester,
+        betaFeatures: tenant.betaFeatures || []
+      });
+      dashboardNamespace.to(`tenant_${tenant._id}`).emit('tenant-updated', { tenant });
+    }
+
     await AuditLog.create({
       tenantId: tenant._id,
       userId: req.user.userId,
       actorEmail: req.user.email || 'SuperAdmin',
       action: 'TENANT_UPDATED_BY_SUPERADMIN',
-      details: { plan: tenant.plan, maxAgents: tenant.maxAgents, isSuspended: tenant.isSuspended }
+      details: { plan: tenant.plan, maxAgents: tenant.maxAgents, isSuspended: tenant.isSuspended, isBetaTester: tenant.isBetaTester }
     });
 
     res.status(200).json({ message: 'Tenant updated successfully', tenant });
   } catch (err) {
     console.error('Error updating tenant:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 3b. SuperAdmin - 1-Click Toggle Beta Access
+app.put('/api/superadmin/tenants/:id/toggle-beta', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.params.id);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    tenant.isBetaTester = !tenant.isBetaTester;
+    await tenant.save();
+
+    if (dashboardNamespace) {
+      dashboardNamespace.to(`tenant_${tenant._id}`).emit('beta-status-changed', {
+        isBetaTester: !!tenant.isBetaTester,
+        betaFeatures: tenant.betaFeatures || []
+      });
+      dashboardNamespace.to(`tenant_${tenant._id}`).emit('tenant-updated', { tenant });
+    }
+
+    await AuditLog.create({
+      tenantId: tenant._id,
+      userId: req.user.userId,
+      actorEmail: req.user.email || 'SuperAdmin',
+      action: 'TENANT_BETA_TOGGLED_BY_SUPERADMIN',
+      details: { isBetaTester: tenant.isBetaTester }
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      isBetaTester: tenant.isBetaTester, 
+      message: `Beta access ${tenant.isBetaTester ? 'enabled' : 'disabled'} for ${tenant.name}` 
+    });
+  } catch (err) {
+    console.error('Error toggling beta access:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

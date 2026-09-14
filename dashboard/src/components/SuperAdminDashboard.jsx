@@ -906,6 +906,24 @@ export default function SuperAdminDashboard({
     }
   };
 
+  const handleToggleBeta = async (tenantId, currentBeta) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/superadmin/tenants/${tenantId}/toggle-beta`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || (currentBeta ? 'Beta access disabled' : 'Beta access enabled'));
+        fetchOverviewData();
+      } else {
+        throw new Error(data.error || 'Failed to toggle beta access');
+      }
+    } catch (err) {
+      showToast(err.message || 'Error toggling beta access', 'error');
+    }
+  };
+
   const handleDeleteTenant = async (tenantId, tenantName) => {
     if (!window.confirm(`Are you sure you want to permanently delete workspace "${tenantName}"?`)) return;
     try {
@@ -2850,6 +2868,7 @@ export default function SuperAdminDashboard({
                     <th style={{ padding: '12px 14px' }}>Domain & API Key</th>
                     <th style={{ padding: '12px 14px' }}>Plan & Seats</th>
                     <th style={{ padding: '12px 14px' }}>Admin Contact</th>
+                    <th style={{ padding: '12px 14px' }}>Beta Access</th>
                     <th style={{ padding: '12px 14px' }}>Status</th>
                     <th style={{ padding: '12px 14px' }}>Actions</th>
                   </tr>
@@ -2889,6 +2908,29 @@ export default function SuperAdminDashboard({
                       <td style={{ padding: '14px' }}>
                         <div style={{ fontSize: '13px' }}>{t.adminEmail}</div>
                         <div style={{ fontSize: '11px', color: '#64748b' }}>Created {new Date(t.createdAt).toLocaleDateString()}</div>
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <button
+                          onClick={() => handleToggleBeta(t.id, t.isBetaTester)}
+                          style={{
+                            background: t.isBetaTester ? 'linear-gradient(135deg, #8B5CF6, #6D28D9)' : '#f1f5f9',
+                            color: t.isBetaTester ? '#ffffff' : '#64748b',
+                            border: t.isBetaTester ? '1px solid #7C3AED' : '1px solid #cbd5e1',
+                            padding: '4px 10px',
+                            borderRadius: '20px',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            boxShadow: t.isBetaTester ? '0 2px 4px rgba(139, 92, 246, 0.25)' : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title={t.isBetaTester ? 'Click to disable Beta features' : 'Click to enable Beta features for this workspace'}
+                        >
+                          {t.isBetaTester ? '🧪 Beta Enabled' : '⚪ Live Tier'}
+                        </button>
                       </td>
                       <td style={{ padding: '14px' }}>
                         <span style={{

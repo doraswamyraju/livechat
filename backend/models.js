@@ -20,6 +20,8 @@ const TenantSchema = new mongoose.Schema({
     whitelabelBranding: { type: Boolean, default: false },   // Remove "Powered by LetsTrack"
     socialMetaDm: { type: Boolean, default: false }          // FB & Instagram Sync
   },
+  isBetaTester: { type: Boolean, default: false },
+  betaFeatures: [{ type: String }],
   subscription: {
     razorpaySubscriptionId: { type: String, default: '' },
     razorpayCustomerId: { type: String, default: '' },
@@ -55,6 +57,8 @@ const UserSchema = new mongoose.Schema({
   fcmToken: { type: String, default: '' },
   fcmTokens: [{ type: String }],
   isBanned: { type: Boolean, default: false },
+  isBetaTester: { type: Boolean, default: false },
+  betaFeatures: [{ type: String }],
   lastActive: { type: Date, default: Date.now },
   createdAt: { type: Date, default: Date.now }
 });
