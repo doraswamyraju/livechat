@@ -5,7 +5,7 @@ set -e
 cd "$(dirname "$0")"
 
 # Set Xcode path
-export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
 
 PROJECT_NAME="LetsTrack"
 SCHEME_NAME="LetsTrack"
