@@ -41,6 +41,10 @@ app.get(['/privacy', '/privacy-policy'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public/privacy.html'));
 });
 
+app.get(['/delete-account', '/account-deletion', '/data-deletion'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/delete-account.html'));
+});
+
 const PORT = process.env.PORT || 5004;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/letstrack';
 const JWT_SECRET = process.env.JWT_SECRET || 'letstrack_super_secret_session_key';
