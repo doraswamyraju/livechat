@@ -527,7 +527,7 @@ fun DashboardScreen(
             selectedTab = selectedTab,
             isAdmin = isAdmin,
             isDark = isDark,
-            unassignedCount = conversationsList.count { it.status == "Unassigned" },
+            unreadCount = conversationsList.count { (it.unreadCount ?: 0) > 0 },
             onSelectTab = { selectedTab = it },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -555,7 +555,7 @@ fun FloatingDock(
     selectedTab: Int,
     isAdmin: Boolean,
     isDark: Boolean,
-    unassignedCount: Int,
+    unreadCount: Int,
     onSelectTab: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -591,7 +591,7 @@ fun FloatingDock(
                 label = "Inbox",
                 index = 2,
                 isSelected = selectedTab == 2,
-                badgeCount = unassignedCount,
+                badgeCount = unreadCount,
                 onClick = { onSelectTab(2) }
             )
             DockItem(icon = Icons.Default.AssignmentInd, label = "Leads", index = 3, isSelected = selectedTab == 3, onClick = { onSelectTab(3) })
@@ -749,17 +749,34 @@ fun UnifiedInboxTabContent(
                     )
                 }
 
-                Surface(
-                    color = Color(0xFFDC2626).copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(
-                        text = "${filteredList.size} Active",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFDC2626),
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
+                val liveUsersCount = visitorsList.count { it.isOnline }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (liveUsersCount > 0) {
+                        Surface(
+                            color = Color(0xFF10B981).copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(
+                                text = "🟢 $liveUsersCount Live",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = "${filteredList.size} Chats",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF94A3B8),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
         }

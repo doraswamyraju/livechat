@@ -203,7 +203,7 @@ struct DashboardView: View {
         HStack(spacing: 0) {
             DockItem(icon: "chart.bar.fill", label: "Overview", index: 0, selection: $selectedTab)
             DockItem(icon: "antenna.radiowaves.left.and.right", label: "Radar", index: 1, selection: $selectedTab)
-            DockItem(icon: "bubble.left.and.bubble.right.fill", label: "Inbox", index: 2, selection: $selectedTab, badgeCount: socketManager.conversationsList.filter { $0.status == "Unassigned" }.count)
+            DockItem(icon: "bubble.left.and.bubble.right.fill", label: "Inbox", index: 2, selection: $selectedTab, badgeCount: socketManager.conversationsList.filter { ($0.unreadCount ?? 0) > 0 }.count)
             DockItem(icon: "person.crop.rectangle.stack.fill", label: "Leads", index: 3, selection: $selectedTab)
             DockItem(icon: "megaphone.fill", label: "Ads", index: 4, selection: $selectedTab)
             
@@ -422,13 +422,31 @@ struct UnifiedInboxTab: View {
                         
                         Spacer()
                         
-                        Text("\(filteredConversations.count) Active")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(theme.primaryColor)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(theme.primaryColor.opacity(0.12))
-                            .cornerRadius(12)
+                        let liveCount = socketManager.visitorsList.filter { $0.isOnline }.count
+                        HStack(spacing: 6) {
+                            if liveCount > 0 {
+                                HStack(spacing: 4) {
+                                    Circle()
+                                        .fill(Color(red: 16/255, green: 185/255, blue: 129/255))
+                                        .frame(width: 6, height: 6)
+                                    Text("\(liveCount) Live")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(Color(red: 16/255, green: 185/255, blue: 129/255))
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color(red: 16/255, green: 185/255, blue: 129/255).opacity(0.12))
+                                .cornerRadius(10)
+                            }
+                            
+                            Text("\(filteredConversations.count) Chats")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(theme.textGrayColor)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(theme.inputBackground)
+                                .cornerRadius(10)
+                        }
                     }
                     
                     Text("All conversations. One place.")
