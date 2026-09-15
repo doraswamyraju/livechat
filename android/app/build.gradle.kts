@@ -6,14 +6,14 @@ plugins {
 
 android {
     namespace = "com.letstrack.agent"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.letstrack.agent"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 36
+        versionCode = 3
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
