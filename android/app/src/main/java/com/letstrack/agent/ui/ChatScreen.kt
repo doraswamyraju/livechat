@@ -68,6 +68,7 @@ fun ChatScreen(
     var isDetailsExpanded by remember { mutableStateOf(false) }
 
     var quickRepliesList by remember { mutableStateOf<List<QuickReplyDto>>(emptyList()) }
+    var isVisitorOnline by remember { mutableStateOf(false) }
     var mutableVisitorName by remember { mutableStateOf(visitorName) }
     var visitorMuted by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
@@ -106,6 +107,7 @@ fun ChatScreen(
                 visitorCity = visitor.city
                 visitorDevice = visitor.deviceType
                 visitorMuted = visitor.isMuted ?: false
+                isVisitorOnline = visitor.isOnline ?: false
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -150,6 +152,7 @@ fun ChatScreen(
                 )
                 messagesList = messagesList + msg
                 isVisitorTyping = false
+                isVisitorOnline = true
             }
         }
 
@@ -160,10 +163,26 @@ fun ChatScreen(
             }
         }
 
+        socket.on("visitor-online") { args ->
+            val data = args[0] as? JSONObject
+            if (data?.optString("_id") == visitorId || data?.optString("id") == visitorId) {
+                isVisitorOnline = true
+            }
+        }
+
+        socket.on("visitor-offline") { args ->
+            val data = args[0] as? JSONObject
+            if (data?.optString("_id") == visitorId || data?.optString("id") == visitorId) {
+                isVisitorOnline = false
+            }
+        }
+
         onDispose {
             socket.off("agent-msg-received")
             socket.off("visitor-msg")
             socket.off("visitor-typing")
+            socket.off("visitor-online")
+            socket.off("visitor-offline")
         }
     }
 
@@ -183,7 +202,7 @@ fun ChatScreen(
                     ) {
                         Box(contentAlignment = Alignment.BottomEnd) {
                             Surface(
-                                color = Color(0xFFDC2626).copy(alpha = 0.15f),
+                                color = if (isVisitorOnline) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF64748B).copy(alpha = 0.12f),
                                 shape = CircleShape,
                                 modifier = Modifier.size(36.dp)
                             ) {
@@ -192,14 +211,14 @@ fun ChatScreen(
                                         text = mutableVisitorName.take(1).uppercase(),
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Black,
-                                        color = Color(0xFFDC2626)
+                                        color = if (isVisitorOnline) Color(0xFF10B981) else Color(0xFF94A3B8)
                                     )
                                 }
                             }
                             Box(
                                 modifier = Modifier
-                                    .size(12.dp)
-                                    .background(channelColor, CircleShape)
+                                    .size(11.dp)
+                                    .background(if (isVisitorOnline) Color(0xFF10B981) else Color(0xFF94A3B8), CircleShape)
                                     .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
                             )
                         }
@@ -214,9 +233,17 @@ fun ChatScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (isVisitorTyping) "typing..." else "via ${channel.replaceFirstChar { it.uppercase() }}",
+                                text = when {
+                                    isVisitorTyping -> "typing..."
+                                    isVisitorOnline -> "🟢 Online • via ${channel.replaceFirstChar { it.uppercase() }}"
+                                    else -> "⚪ Offline • via ${channel.replaceFirstChar { it.uppercase() }}"
+                                },
                                 fontSize = 11.sp,
-                                color = if (isVisitorTyping) Color(0xFFEF4444) else Color(0xFF94A3B8)
+                                color = when {
+                                    isVisitorTyping -> Color(0xFFDC2626)
+                                    isVisitorOnline -> Color(0xFF10B981)
+                                    else -> Color(0xFF94A3B8)
+                                }
                             )
                         }
                     }

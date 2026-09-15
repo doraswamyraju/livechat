@@ -3621,6 +3621,10 @@ function App() {
                   {/* Filter Sub-Tabs with Counts */}
                   {(() => {
                     const activeConvs = conversations.filter(c => !c.isArchived && c.status !== 'Archived');
+                    const countLive = activeConvs.filter(c => {
+                      const vis = typeof c.visitorId === 'object' ? c.visitorId : visitors.find(v => v._id === c.visitorId);
+                      return (!c.source || c.source === 'webchat') && vis?.isOnline;
+                    }).length;
                     const countAll = activeConvs.length;
                     const countMine = activeConvs.filter(c => c.assignedAgentId && (c.assignedAgentId._id === user.id || c.assignedAgentId === user.id)).length;
                     const countQueue = activeConvs.filter(c => c.status === 'Unassigned' || !c.assignedAgentId).length;
@@ -3629,30 +3633,38 @@ function App() {
                     return (
                       <div style={{ display: 'flex', gap: '4px' }}>
                         <button 
+                          className={`filter-tab ${inboxFilter === 'live' ? 'active' : ''}`} 
+                          onClick={() => setInboxFilter('live')}
+                          style={{ flex: 1, padding: '7px 2px', fontSize: '11px', color: inboxFilter === 'live' ? undefined : (countLive > 0 ? '#10B981' : undefined), fontWeight: countLive > 0 ? 700 : undefined }}
+                          title="Visitors currently browsing online right now"
+                        >
+                          🟢 Live <span className="inbox-count-badge" style={{ background: countLive > 0 ? '#10B981' : undefined, color: countLive > 0 ? 'white' : undefined }}>{countLive}</span>
+                        </button>
+                        <button 
                           className={`filter-tab ${inboxFilter === 'all' ? 'active' : ''}`} 
                           onClick={() => setInboxFilter('all')}
-                          style={{ flex: 1, padding: '7px 2px', fontSize: '11.5px' }}
+                          style={{ flex: 1, padding: '7px 2px', fontSize: '11px' }}
                         >
                           All <span className="inbox-count-badge">{countAll}</span>
                         </button>
                         <button 
                           className={`filter-tab ${inboxFilter === 'mine' ? 'active' : ''}`} 
                           onClick={() => setInboxFilter('mine')}
-                          style={{ flex: 1, padding: '7px 2px', fontSize: '11.5px' }}
+                          style={{ flex: 1, padding: '7px 2px', fontSize: '11px' }}
                         >
                           Mine <span className="inbox-count-badge">{countMine}</span>
                         </button>
                         <button 
                           className={`filter-tab ${inboxFilter === 'unassigned' ? 'active' : ''}`} 
                           onClick={() => setInboxFilter('unassigned')}
-                          style={{ flex: 1, padding: '7px 2px', fontSize: '11.5px' }}
+                          style={{ flex: 1, padding: '7px 2px', fontSize: '11px' }}
                         >
                           Queue <span className="inbox-count-badge">{countQueue}</span>
                         </button>
                         <button 
                           className={`filter-tab ${inboxFilter === 'archived' ? 'active' : ''}`} 
                           onClick={() => setInboxFilter('archived')}
-                          style={{ flex: 1, padding: '7px 2px', fontSize: '11.5px' }}
+                          style={{ flex: 1, padding: '7px 2px', fontSize: '11px' }}
                         >
                           Archived <span className="inbox-count-badge">{countArchived}</span>
                         </button>
@@ -3701,13 +3713,18 @@ function App() {
                       filtered = filtered.filter(c => c.source === 'instagram');
                     }
 
-                    // Archive filter logic
+                    // Archive / Live / Sub-tab filter logic
                     if (inboxFilter === 'archived') {
                       filtered = filtered.filter(c => c.isArchived || c.status === 'Archived');
                     } else {
                       filtered = filtered.filter(c => !c.isArchived && c.status !== 'Archived');
                       
-                      if (inboxFilter === 'mine') {
+                      if (inboxFilter === 'live') {
+                        filtered = filtered.filter(c => {
+                          const vis = typeof c.visitorId === 'object' ? c.visitorId : visitors.find(v => v._id === c.visitorId);
+                          return (!c.source || c.source === 'webchat') && vis?.isOnline;
+                        });
+                      } else if (inboxFilter === 'mine') {
                         filtered = filtered.filter(c => c.assignedAgentId && (c.assignedAgentId._id === user.id || c.assignedAgentId === user.id));
                       } else if (inboxFilter === 'unassigned') {
                         filtered = filtered.filter(c => c.status === 'Unassigned' || !c.assignedAgentId);
@@ -3940,7 +3957,11 @@ function App() {
 
                           <div className="room-preview" style={{ paddingLeft: '42px', fontWeight: hasUnread ? 600 : 400, color: hasUnread ? 'var(--text-primary)' : undefined }}>
                             {conv.status === 'Unassigned' && !hasUnread ? (
-                              <span style={{ color: '#F59E0B' }}>⚡ Waiting for agent...</span>
+                              isLiveWeb ? (
+                                <span style={{ color: '#F59E0B', fontWeight: 600 }}>⚡ Waiting for agent...</span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>⚪ Offline • Unassigned</span>
+                              )
                             ) : conv.status === 'Archived' || conv.isArchived ? (
                               <span style={{ color: 'var(--text-muted)' }}>📦 Archived conversation</span>
                             ) : (

@@ -831,7 +831,7 @@ fun UnifiedInboxTabContent(
                     city = "Unknown",
                     deviceType = "Desktop",
                     currentUrl = null,
-                    isOnline = true
+                    isOnline = false
                 )
 
                 ConversationCard(conv = conv, visitor = vis, onClick = { onSelectConversation(conv, vis) })
@@ -899,13 +899,24 @@ fun ConversationCard(
     val hasUnread = (conv.unreadCount ?: 0) > 0
     val isLive = visitor.isOnline
 
+    // Muted/grayed styling for offline chats vs vibrant styling for online chats
+    val cardBg = when {
+        isLive -> MaterialTheme.colorScheme.surface
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+    }
+    val cardBorder = when {
+        hasUnread -> Color(0xFFDC2626)
+        isLive -> Color(0xFF10B981).copy(alpha = 0.6f)
+        else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+    }
+
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, if (hasUnread) Color(0xFFDC2626) else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+            .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
     ) {
         Row(
             modifier = Modifier
@@ -917,7 +928,7 @@ fun ConversationCard(
             // Avatar with bottom-right status or channel badge
             Box(contentAlignment = Alignment.BottomEnd) {
                 Surface(
-                    color = if (isLive) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF64748B).copy(alpha = 0.12f),
+                    color = if (isLive) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF64748B).copy(alpha = 0.08f),
                     shape = CircleShape,
                     modifier = Modifier.size(48.dp)
                 ) {
@@ -926,7 +937,7 @@ fun ConversationCard(
                             text = visitor.name.take(1).uppercase(),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Black,
-                            color = if (isLive) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurface
+                            color = if (isLive) Color(0xFF10B981) else Color(0xFF94A3B8)
                         )
                     }
                 }
@@ -940,11 +951,11 @@ fun ConversationCard(
                             .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
                     )
                 } else {
-                    // Offline / Channel Indicator
+                    // Offline / Muted Indicator Dot
                     Box(
                         modifier = Modifier
-                            .size(13.dp)
-                            .background(chColor.copy(alpha = 0.85f), CircleShape)
+                            .size(11.dp)
+                            .background(Color(0xFF94A3B8), CircleShape)
                             .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
                     )
                 }
@@ -960,8 +971,8 @@ fun ConversationCard(
                         Text(
                             text = visitor.name,
                             fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            fontWeight = if (isLive || hasUnread) FontWeight.Bold else FontWeight.SemiBold,
+                            color = if (isLive || hasUnread) MaterialTheme.colorScheme.onSurface else Color(0xFF64748B)
                         )
                         if (hasUnread) {
                             Surface(color = Color(0xFFDC2626), shape = RoundedCornerShape(6.dp)) {
@@ -973,13 +984,23 @@ fun ConversationCard(
                                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                 )
                             }
-                        } else if (isUnassigned) {
-                            Surface(color = Color(0xFFFEF3C7), shape = RoundedCornerShape(6.dp)) {
+                        } else if (isLive) {
+                            Surface(color = Color(0xFF10B981).copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
                                 Text(
-                                    text = "WAITING",
+                                    text = "LIVE",
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color(0xFF10B981),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        } else if (isUnassigned) {
+                            Surface(color = Color(0xFFF1F5F9), shape = RoundedCornerShape(6.dp)) {
+                                Text(
+                                    text = "OFFLINE",
                                     fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFD97706),
+                                    color = Color(0xFF94A3B8),
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -997,14 +1018,14 @@ fun ConversationCard(
                     Text(
                         text = "via ${ch.replaceFirstChar { it.uppercase() }}",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = chColor
+                        fontWeight = if (isLive) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isLive) chColor else Color(0xFF94A3B8)
                     )
                     Text("•", fontSize = 10.sp, color = Color(0xFF94A3B8))
                     Text(
                         text = conv.lastMessage ?: (visitor.currentUrl?.let { "Browsing $it" } ?: "Conversation thread"),
                         fontSize = 12.sp,
-                        color = Color(0xFF94A3B8),
+                        color = if (isLive) Color(0xFF64748B) else Color(0xFF94A3B8),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
