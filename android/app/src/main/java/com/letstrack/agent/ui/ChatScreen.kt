@@ -10,12 +10,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -548,5 +548,324 @@ fun ChatScreen(
                 leadCreatedToast = true
             }
         )
+    }
+
+    if (showEditDialog) {
+        CustomerDetailsBottomSheet(
+            visitorId = visitorId,
+            conversationId = conversationId,
+            initialName = mutableVisitorName,
+            initialEmail = visitorEmail,
+            initialPhone = visitorPhone,
+            city = visitorCity,
+            country = visitorCountry,
+            device = visitorDevice,
+            currentUrl = visitorUrl,
+            channel = channel,
+            isOnline = isVisitorOnline,
+            onDismiss = { showEditDialog = false },
+            onSaved = { newName, newEmail, newPhone ->
+                mutableVisitorName = newName
+                visitorEmail = newEmail
+                visitorPhone = newPhone
+            },
+            onConvertToLead = {
+                showEditDialog = false
+                showCreateLeadDialog = true
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CustomerDetailsBottomSheet(
+    visitorId: String,
+    conversationId: String,
+    initialName: String,
+    initialEmail: String,
+    initialPhone: String,
+    city: String,
+    country: String,
+    device: String,
+    currentUrl: String,
+    channel: String,
+    isOnline: Boolean,
+    onDismiss: () -> Unit,
+    onSaved: (String, String, String) -> Unit,
+    onConvertToLead: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var name by remember { mutableStateOf(initialName) }
+    var email by remember { mutableStateOf(initialEmail) }
+    var phone by remember { mutableStateOf(initialPhone) }
+    var isSaving by remember { mutableStateOf(false) }
+    var saveSuccessToast by remember { mutableStateOf(false) }
+
+    val cleanPhone = phone.replace(Regex("[^0-9]"), "")
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Top Navigation Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text("Done", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
+                }
+                Text("Customer Details", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Button(
+                    onClick = {
+                        if (name.trim().isNotEmpty()) {
+                            isSaving = true
+                            coroutineScope.launch {
+                                try {
+                                    val body = mapOf(
+                                        "name" to name.trim(),
+                                        "email" to email.trim(),
+                                        "phoneNumber" to phone.trim()
+                                    )
+                                    NetworkClient.api.updateVisitor(NetworkClient.getAuthHeader(), visitorId, body)
+                                    onSaved(name.trim(), email.trim(), phone.trim())
+                                    saveSuccessToast = true
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                } finally {
+                                    isSaving = false
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    enabled = !isSaving
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Save", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+
+            // Hero Profile Card
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Big Avatar with Live Indicator
+                    Box(contentAlignment = Alignment.BottomEnd) {
+                        Surface(
+                            color = if (isOnline) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFDC2626).copy(alpha = 0.15f),
+                            shape = CircleShape,
+                            modifier = Modifier.size(72.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = name.take(1).uppercase(),
+                                    fontSize = 28.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (isOnline) Color(0xFF10B981) else Color(0xFFDC2626)
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .background(if (isOnline) Color(0xFF10B981) else Color(0xFF94A3B8), CircleShape)
+                                .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                        )
+                    }
+
+                    Text(
+                        text = if (name.isNotEmpty()) name else "Visitor",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    if (phone.isNotEmpty()) {
+                        Text(text = phone, fontSize = 13.sp, color = Color(0xFF94A3B8))
+                    }
+
+                    // Action Round Buttons (WhatsApp, Call, Mail, Lead)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        // WhatsApp
+                        QuickActionCircleButton(
+                            icon = Icons.Default.ChatBubble,
+                            label = "WhatsApp",
+                            color = Color(0xFF25D366),
+                            onClick = {
+                                if (cleanPhone.isNotEmpty()) {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://wa.me/$cleanPhone"))
+                                    context.startActivity(intent)
+                                }
+                            }
+                        )
+
+                        // Call
+                        QuickActionCircleButton(
+                            icon = Icons.Default.Phone,
+                            label = "Call",
+                            color = Color(0xFF3B82F6),
+                            onClick = {
+                                if (cleanPhone.isNotEmpty()) {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$cleanPhone"))
+                                    context.startActivity(intent)
+                                }
+                            }
+                        )
+
+                        // Email
+                        QuickActionCircleButton(
+                            icon = Icons.Default.Email,
+                            label = "Mail",
+                            color = Color(0xFF8B5CF6),
+                            onClick = {
+                                if (email.isNotEmpty()) {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:$email"))
+                                    context.startActivity(intent)
+                                }
+                            }
+                        )
+
+                        // Convert to Lead
+                        QuickActionCircleButton(
+                            icon = Icons.Default.Bolt,
+                            label = "Lead",
+                            color = Color(0xFFF59E0B),
+                            onClick = onConvertToLead
+                        )
+                    }
+                }
+            }
+
+            if (saveSuccessToast) {
+                Surface(
+                    color = Color(0xFF10B981).copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "✓ Contact information saved successfully!",
+                        color = Color(0xFF10B981),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
+            }
+
+            // Form Fields
+            Text("CONTACT INFORMATION", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Customer Name") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = phone,
+                onValueChange = { phone = it },
+                label = { Text("Phone Number") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email Address") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                singleLine = true
+            )
+
+            // Session & System Insights Card
+            Text("SESSION & TELEMETRY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Location", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                        Text("🗺️ $city, $country", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Device", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                        Text(if (device.lowercase() == "mobile") "📱 Mobile" else "💻 Desktop", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Browsing URL", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                        Text(currentUrl, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF3B82F6))
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Channel", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                        Text(channel.replaceFirstChar { it.uppercase() }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = getChannelBrandingColor(channel))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun QuickActionCircleButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Surface(
+            color = color.copy(alpha = 0.15f),
+            shape = CircleShape,
+            modifier = Modifier.size(44.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(20.dp))
+            }
+        }
+        Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
