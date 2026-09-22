@@ -32,6 +32,23 @@ struct AppleLinkAccountRequest: Codable {
     let fullName: String?
 }
 
+struct AppleRegisterTenantRequest: Codable {
+    let tenantName: String
+    let domain: String
+    let adminName: String?
+    let email: String?
+    let appleUserIdentifier: String
+    let identityToken: String?
+}
+
+struct RegisterTenantRequest: Codable {
+    let tenantName: String
+    let domain: String
+    let adminName: String
+    let email: String
+    let password: String
+}
+
 struct UserProfile: Codable, Identifiable, Hashable {
     let id: String
     let name: String
@@ -164,6 +181,7 @@ struct LoginResponse: Codable {
     let token: String
     let user: UserProfile
     let tenant: TenantDetails
+    var isNewTenant: Bool?
 }
 
 struct AnalyticsResponse: Codable {

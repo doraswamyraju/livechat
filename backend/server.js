@@ -510,6 +510,129 @@ app.post('/api/auth/apple-link-account', async (req, res) => {
   }
 });
 
+// 1f. Register New Tenant via Apple ID
+app.post('/api/auth/apple-register-tenant', async (req, res) => {
+  const { tenantName, domain, adminName, email: directEmail, appleUserIdentifier, identityToken } = req.body;
+
+  if (!tenantName || !domain || !appleUserIdentifier) {
+    return res.status(400).json({ error: 'Workspace name, website domain, and Apple ID are required.' });
+  }
+
+  try {
+    let email = directEmail;
+    let appleId = appleUserIdentifier;
+
+    if (identityToken) {
+      try {
+        const decoded = jwt.decode(identityToken);
+        if (decoded) {
+          if (!email && decoded.email) email = decoded.email;
+          if (!appleId && decoded.sub) appleId = decoded.sub;
+        }
+      } catch (err) {
+        console.warn('Apple token decode warning:', err.message);
+      }
+    }
+
+    if (!email) {
+      email = `apple_${appleId.slice(0, 8)}@letstrack.in`;
+    }
+
+    // Check if user already exists
+    let existingUser = await User.findOne({ 
+      $or: [{ email: email.toLowerCase() }, { appleUserIdentifier: appleId }] 
+    }).populate('tenantId');
+
+    if (existingUser) {
+      if (!existingUser.appleUserIdentifier) {
+        existingUser.appleUserIdentifier = appleId;
+        await existingUser.save();
+      }
+      const token = jwt.sign(
+        { userId: existingUser._id, tenantId: existingUser.tenantId?._id, role: existingUser.role },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+      return res.status(200).json({
+        token,
+        isNewTenant: false,
+        user: {
+          id: existingUser._id,
+          name: existingUser.name,
+          email: existingUser.email,
+          role: existingUser.role,
+          status: existingUser.status,
+          avatarUrl: existingUser.avatarUrl
+        },
+        tenant: {
+          id: existingUser.tenantId?._id,
+          name: existingUser.tenantId?.name,
+          domain: existingUser.tenantId?.domain,
+          apiKey: existingUser.tenantId?.apiKey
+        }
+      });
+    }
+
+    // Create New Tenant
+    const apiKey = 'lt_' + crypto.randomBytes(16).toString('hex');
+    const tenant = new Tenant({
+      name: tenantName,
+      domain: domain.replace(/^https?:\/\//i, '').split('/')[0],
+      apiKey
+    });
+    await tenant.save();
+
+    // Create Admin User
+    const randomPassword = crypto.randomBytes(16).toString('hex');
+    const passwordHash = await bcrypt.hash(randomPassword, 10);
+    const user = new User({
+      tenantId: tenant._id,
+      name: adminName || 'Workspace Admin',
+      email: email.toLowerCase(),
+      passwordHash,
+      appleUserIdentifier: appleId,
+      role: 'Admin',
+      status: 'Offline'
+    });
+    await user.save();
+
+    // Create default Widget Settings
+    const settings = new WidgetSettings({
+      tenantId: tenant._id
+    });
+    await settings.save();
+
+    // Generate JWT
+    const token = jwt.sign(
+      { userId: user._id, tenantId: tenant._id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.status(201).json({
+      token,
+      isNewTenant: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status
+      },
+      tenant: {
+        id: tenant._id,
+        name: tenant.name,
+        domain: tenant.domain,
+        apiKey: tenant.apiKey
+      }
+    });
+
+  } catch (err) {
+    console.error('Error in Apple tenant registration:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // 2. User Login
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;

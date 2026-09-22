@@ -21,10 +21,12 @@
 		5E0406282DA0CFF300C3B312 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E0406082DA0CFF300C3B312 /* ChatView.swift */; };
 		5E0406292DA0CFF300C3B312 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E0406092DA0CFF300C3B312 /* DashboardView.swift */; };
 		5E04062A2DA0CFF300C3B312 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E04060A2DA0CFF300C3B312 /* LoginView.swift */; };
+		5E04062B2DA0CFF300C3B312 /* WebsiteSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E04060B2DA0CFF300C3B312 /* WebsiteSetupView.swift */; };
 		5E0407032DA0CFF300C3B312 /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = 5E0407022DA0CFF300C3B312 /* SocketIO */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		13BE28052FEA7E0000A2F449 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5E0405A32DA0CFF300C3B312 /* LetsTrack.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LetsTrack.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E0406012DA0CFF300C3B312 /* LetsTrackApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LetsTrackApp.swift; sourceTree = "<group>"; };
 		5E0406022DA0CFF300C3B312 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
@@ -36,8 +38,8 @@
 		5E0406082DA0CFF300C3B312 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		5E0406092DA0CFF300C3B312 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		5E04060A2DA0CFF300C3B312 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		5E04060B2DA0CFF300C3B312 /* WebsiteSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteSetupView.swift; sourceTree = "<group>"; };
 		5E0408012DA0CFF300C3B312 /* LetsTrack.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LetsTrack.entitlements; sourceTree = "<group>"; };
-		13BE28052FEA7E0000A2F449 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +97,7 @@
 				5E0406082DA0CFF300C3B312 /* ChatView.swift */,
 				5E0406092DA0CFF300C3B312 /* DashboardView.swift */,
 				5E04060A2DA0CFF300C3B312 /* LoginView.swift */,
+				5E04060B2DA0CFF300C3B312 /* WebsiteSetupView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -190,6 +193,7 @@
 				5E0406282DA0CFF300C3B312 /* ChatView.swift in Sources */,
 				5E0406292DA0CFF300C3B312 /* DashboardView.swift in Sources */,
 				5E04062A2DA0CFF300C3B312 /* LoginView.swift in Sources */,
+				5E04062B2DA0CFF300C3B312 /* WebsiteSetupView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -209,7 +213,11 @@
 				INFOPLIST_KEY_CFBundleDisplayName = LetsTrack;
 				INFOPLIST_KEY_CFBundleURLTypes = "( { CFBundleTypeRole = Editor; CFBundleURLSchemes = ( \"com.googleusercontent.apps.101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34\" ); } )";
 				INFOPLIST_KEY_GIDClientID = "101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34.apps.googleusercontent.com";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSCameraUsageDescription = "LetsTrack needs camera access to capture and share photos in chats.";
 				INFOPLIST_KEY_NSContactsUsageDescription = "LetsTrack needs access to contacts to import and save lead contact details.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "LetsTrack uses Face ID to securely unlock your agent dashboard and protect customer conversations.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "LetsTrack needs photo library access to upload images in chats and update customer profile pictures.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -244,7 +252,11 @@
 				INFOPLIST_KEY_CFBundleDisplayName = LetsTrack;
 				INFOPLIST_KEY_CFBundleURLTypes = "( { CFBundleTypeRole = Editor; CFBundleURLSchemes = ( \"com.googleusercontent.apps.101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34\" ); } )";
 				INFOPLIST_KEY_GIDClientID = "101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34.apps.googleusercontent.com";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSCameraUsageDescription = "LetsTrack needs camera access to capture and share photos in chats.";
 				INFOPLIST_KEY_NSContactsUsageDescription = "LetsTrack needs access to contacts to import and save lead contact details.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "LetsTrack uses Face ID to securely unlock your agent dashboard and protect customer conversations.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "LetsTrack needs photo library access to upload images in chats and update customer profile pictures.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -421,20 +433,20 @@
 				minimumVersion = 12.15.0;
 			};
 		};
-		5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/socketio/socket.io-client-swift.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 16.1.0;
-			};
-		};
 		13BE28002FEA7E0000A2F449 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 8.0.0;
+			};
+		};
+		5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/socketio/socket.io-client-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 16.1.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -450,11 +462,6 @@
 			package = 13BE27FA2FEA7CC800A2F449 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseMessaging;
 		};
-		5E0407022DA0CFF300C3B312 /* SocketIO */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */;
-			productName = SocketIO;
-		};
 		13BE28012FEA7E0000A2F449 /* GoogleSignIn */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 13BE28002FEA7E0000A2F449 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
@@ -464,6 +471,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 13BE28002FEA7E0000A2F449 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignInSwift;
+		};
+		5E0407022DA0CFF300C3B312 /* SocketIO */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5E0407012DA0CFF300C3B312 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */;
+			productName = SocketIO;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

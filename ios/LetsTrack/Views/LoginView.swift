@@ -291,7 +291,7 @@ struct LoginView: View {
                 .environmentObject(theme)
         }
         .sheet(isPresented: $showLinkAppleSheet) {
-            LinkAppleAccountSheet(
+            AppleOnboardingSheet(
                 isPresented: $showLinkAppleSheet,
                 appleUserIdentifier: pendingAppleUserIdentifier,
                 identityToken: pendingAppleIdentityToken,
@@ -629,8 +629,8 @@ struct ResetPasswordSheet: View {
     }
 }
 
-// MARK: - Link Apple Account Sheet Modal
-struct LinkAppleAccountSheet: View {
+// MARK: - Apple Onboarding Sheet Modal (Create New Workspace or Link Existing)
+struct AppleOnboardingSheet: View {
     @Binding var isPresented: Bool
     let appleUserIdentifier: String
     let identityToken: String?
@@ -638,98 +638,168 @@ struct LinkAppleAccountSheet: View {
     
     @EnvironmentObject var theme: ThemeManager
     
+    @State private var selectedTab = 0 // 0: Create Workspace, 1: Link Existing
+    
+    // Create Workspace fields
+    @State private var workspaceName = ""
+    @State private var websiteDomain = ""
+    @State private var adminName = ""
+    
+    // Link Account fields
     @State private var linkEmail = ""
     @State private var linkPassword = ""
-    @State private var linkError: String? = nil
-    @State private var isLinking = false
+    
+    @State private var errorMessage: String? = nil
+    @State private var isProcessing = false
     
     var body: some View {
         ZStack {
             theme.backgroundColor.ignoresSafeArea()
             
-            VStack(spacing: 20) {
+            VStack(spacing: 16) {
                 // Header
-                VStack(spacing: 8) {
-                    Image(systemName: "link.badge.plus")
-                        .font(.system(size: 36))
+                VStack(spacing: 6) {
+                    Image(systemName: selectedTab == 0 ? "building.2.crop.circle.fill" : "link.badge.plus")
+                        .font(.system(size: 34))
                         .foregroundColor(theme.primaryColor)
-                        .padding(.top, 24)
+                        .padding(.top, 20)
                     
-                    Text("Link Workspace Account")
+                    Text(selectedTab == 0 ? "Welcome to LetsTrack" : "Link Workspace Account")
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(theme.onSurfaceColor)
                     
-                    Text("Connect your Apple ID with your registered LetsTrack workspace (e.g. your Gmail or Work email). You'll only need to do this once.")
+                    Text(selectedTab == 0 
+                         ? "Set up your brand workspace to connect live chat and customer channels." 
+                         : "Connect your Apple ID with your existing registered account for 1-tap sign in.")
                         .font(.system(size: 13))
                         .foregroundColor(theme.textGrayColor)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 20)
                 }
                 
-                VStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Registered Workspace Email")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(theme.onSurfaceColor)
-                        
-                        TextField("name@company.com", text: $linkEmail)
-                            .keyboardType(.emailAddress)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                            .padding(12)
-                            .background(theme.inputBackground)
-                            .foregroundColor(theme.onSurfaceColor)
-                            .cornerRadius(8)
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Workspace Password")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(theme.onSurfaceColor)
-                        
-                        SecureField("Enter your password", text: $linkPassword)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                            .padding(12)
-                            .background(theme.inputBackground)
-                            .foregroundColor(theme.onSurfaceColor)
-                            .cornerRadius(8)
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
-                    }
-                    
-                    if let err = linkError {
-                        HStack(spacing: 6) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(theme.secondaryColor)
-                                .font(.system(size: 12))
-                            Text(err)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(theme.secondaryColor)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    
-                    // Demo credentials quick fill
-                    Button(action: {
-                        linkEmail = "admin@vrhere.in"
-                        linkPassword = "password123"
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "sparkles")
-                                .foregroundColor(Color(red: 245/255, green: 158/255, blue: 11/255))
-                            Text("⚡ Fill Demo Credentials")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(theme.onSurfaceColor)
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 10)
-                        .background(theme.inputBackground)
-                        .cornerRadius(6)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                // Segmented Tab Picker
+                Picker("Account Mode", selection: $selectedTab) {
+                    Text("New Workspace").tag(0)
+                    Text("Link Existing").tag(1)
                 }
-                .padding(.horizontal)
+                .pickerStyle(SegmentedPickerStyle())
+                .padding(.horizontal, 20)
+                .onChange(of: selectedTab) { _ in
+                    errorMessage = nil
+                }
+                
+                ScrollView {
+                    VStack(spacing: 14) {
+                        if selectedTab == 0 {
+                            // CREATE WORKSPACE FORM
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Company / Workspace Name")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                                
+                                TextField("e.g. Acme Corporation", text: $workspaceName)
+                                    .padding(12)
+                                    .background(theme.inputBackground)
+                                    .foregroundColor(theme.onSurfaceColor)
+                                    .cornerRadius(8)
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Website Domain")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                                
+                                TextField("e.g. mywebsite.com", text: $websiteDomain)
+                                    .keyboardType(.URL)
+                                    .autocapitalization(.none)
+                                    .disableAutocorrection(true)
+                                    .padding(12)
+                                    .background(theme.inputBackground)
+                                    .foregroundColor(theme.onSurfaceColor)
+                                    .cornerRadius(8)
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Your Name")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                                
+                                TextField("Your display name", text: $adminName)
+                                    .padding(12)
+                                    .background(theme.inputBackground)
+                                    .foregroundColor(theme.onSurfaceColor)
+                                    .cornerRadius(8)
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                            }
+                        } else {
+                            // LINK EXISTING FORM
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Registered Workspace Email")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                                
+                                TextField("name@company.com", text: $linkEmail)
+                                    .keyboardType(.emailAddress)
+                                    .autocapitalization(.none)
+                                    .disableAutocorrection(true)
+                                    .padding(12)
+                                    .background(theme.inputBackground)
+                                    .foregroundColor(theme.onSurfaceColor)
+                                    .cornerRadius(8)
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Workspace Password")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(theme.onSurfaceColor)
+                                
+                                SecureField("Enter your password", text: $linkPassword)
+                                    .autocapitalization(.none)
+                                    .disableAutocorrection(true)
+                                    .padding(12)
+                                    .background(theme.inputBackground)
+                                    .foregroundColor(theme.onSurfaceColor)
+                                    .cornerRadius(8)
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                            }
+                            
+                            // Demo credentials quick fill
+                            Button(action: {
+                                linkEmail = "admin@vrhere.in"
+                                linkPassword = "password123"
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "sparkles")
+                                        .foregroundColor(Color(red: 245/255, green: 158/255, blue: 11/255))
+                                    Text("⚡ Fill Demo Credentials")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(theme.onSurfaceColor)
+                                }
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 10)
+                                .background(theme.inputBackground)
+                                .cornerRadius(6)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                        
+                        if let err = errorMessage {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(theme.secondaryColor)
+                                    .font(.system(size: 12))
+                                Text(err)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(theme.secondaryColor)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
                 
                 Spacer()
                 
@@ -742,12 +812,12 @@ struct LinkAppleAccountSheet: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
                     
-                    Button(action: performLink) {
+                    Button(action: submitAction) {
                         HStack {
-                            if isLinking {
+                            if isProcessing {
                                 ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
                             } else {
-                                Text("Link & Sign In")
+                                Text(selectedTab == 0 ? "Create & Sign In" : "Link & Sign In")
                                     .fontWeight(.bold)
                             }
                         }
@@ -763,23 +833,70 @@ struct LinkAppleAccountSheet: View {
                         .foregroundColor(.white)
                         .cornerRadius(8)
                     }
-                    .disabled(isLinking)
+                    .disabled(isProcessing)
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 24)
+            }
+        }
+        .onAppear {
+            if let name = fullName, !name.isEmpty {
+                adminName = name
             }
         }
     }
     
-    private func performLink() {
-        guard !linkEmail.trimmingCharacters(in: .whitespaces).isEmpty,
-              !linkPassword.trimmingCharacters(in: .whitespaces).isEmpty else {
-            linkError = "Please enter your workspace email and password."
+    private func submitAction() {
+        if selectedTab == 0 {
+            performCreateWorkspace()
+        } else {
+            performLinkAccount()
+        }
+    }
+    
+    private func performCreateWorkspace() {
+        guard !workspaceName.trimmingCharacters(in: .whitespaces).isEmpty,
+              !websiteDomain.trimmingCharacters(in: .whitespaces).isEmpty else {
+            errorMessage = "Please enter both Workspace Name and Website Domain."
             return
         }
         
-        isLinking = true
-        linkError = nil
+        isProcessing = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                _ = try await NetworkClient.shared.appleRegisterTenant(request: AppleRegisterTenantRequest(
+                    tenantName: workspaceName.trimmingCharacters(in: .whitespaces),
+                    domain: websiteDomain.trimmingCharacters(in: .whitespaces),
+                    adminName: adminName.trimmingCharacters(in: .whitespaces).isEmpty ? nil : adminName.trimmingCharacters(in: .whitespaces),
+                    email: nil,
+                    appleUserIdentifier: appleUserIdentifier,
+                    identityToken: identityToken
+                ))
+                await MainActor.run {
+                    isProcessing = false
+                    isPresented = false
+                    SocketManager.shared.connectSocket()
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isProcessing = false
+                }
+            }
+        }
+    }
+    
+    private func performLinkAccount() {
+        guard !linkEmail.trimmingCharacters(in: .whitespaces).isEmpty,
+              !linkPassword.trimmingCharacters(in: .whitespaces).isEmpty else {
+            errorMessage = "Please enter your workspace email and password."
+            return
+        }
+        
+        isProcessing = true
+        errorMessage = nil
         
         Task {
             do {
@@ -791,14 +908,14 @@ struct LinkAppleAccountSheet: View {
                     fullName: fullName
                 ))
                 await MainActor.run {
-                    isLinking = false
+                    isProcessing = false
                     isPresented = false
                     SocketManager.shared.connectSocket()
                 }
             } catch {
                 await MainActor.run {
-                    linkError = error.localizedDescription
-                    isLinking = false
+                    errorMessage = error.localizedDescription
+                    isProcessing = false
                 }
             }
         }
