@@ -160,11 +160,44 @@ final class NetworkClient: ObservableObject {
         }
         
         if !(200...299).contains(httpResponse.statusCode) {
+            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                let message = (errorJson["error"] as? String) ?? "Apple Sign-In failed on server."
+                let code = (errorJson["code"] as? String) ?? ""
+                throw NSError(domain: "NetworkClient", code: httpResponse.statusCode, userInfo: [
+                    NSLocalizedDescriptionKey: message,
+                    "code": code
+                ])
+            }
+            throw NSError(domain: "NetworkClient", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Apple Sign-In failed on server."])
+        }
+        
+        let loginResponse = try decoder.decode(LoginResponse.self, from: data)
+        
+        await MainActor.run {
+            self.setAuth(token: loginResponse.token, user: loginResponse.user, tenant: loginResponse.tenant)
+        }
+        
+        return loginResponse
+    }
+    
+    func linkAppleAccount(request: AppleLinkAccountRequest) async throws -> LoginResponse {
+        let url = URL(string: "\(baseURL)/api/auth/apple-link-account")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try encoder.encode(request)
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "NetworkClient", code: 500, userInfo: [NSLocalizedDescriptionKey: "Server response error."])
+        }
+        
+        if !(200...299).contains(httpResponse.statusCode) {
             if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let message = errorJson["error"] as? String {
                 throw NSError(domain: "NetworkClient", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: message])
             }
-            throw NSError(domain: "NetworkClient", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Apple Sign-In failed on server."])
+            throw NSError(domain: "NetworkClient", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Failed to link Apple account."])
         }
         
         let loginResponse = try decoder.decode(LoginResponse.self, from: data)

@@ -398,7 +398,11 @@ app.post('/api/auth/apple-login', async (req, res) => {
     }
 
     if (!user) {
-      return res.status(404).json({ error: 'No LetsTrack account found for this Apple ID or email. Please ensure your account is onboarded.' });
+      return res.status(404).json({ 
+        code: 'ACCOUNT_NOT_LINKED',
+        error: 'No LetsTrack account found for this Apple ID or email. Please link your registered workspace account.',
+        appleUserIdentifier: appleId
+      });
     }
 
     if (fullName && (!user.name || user.name === 'Agent' || user.name.trim() === '')) {
@@ -439,6 +443,69 @@ app.post('/api/auth/apple-login', async (req, res) => {
 
   } catch (err) {
     console.error('Error in Apple login:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 1e. Link Apple ID to Existing Account
+app.post('/api/auth/apple-link-account', async (req, res) => {
+  const { email, password, appleUserIdentifier, identityToken, fullName } = req.body;
+
+  if (!email || !password || !appleUserIdentifier) {
+    return res.status(400).json({ error: 'Email, password, and Apple ID are required to link your account.' });
+  }
+
+  try {
+    const user = await User.findOne({ email: email.toLowerCase().trim() }).populate('tenantId');
+    if (!user) {
+      return res.status(404).json({ error: 'No LetsTrack account found for this email. Please check your credentials.' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Incorrect workspace password.' });
+    }
+
+    // Link Apple ID permanently
+    user.appleUserIdentifier = appleUserIdentifier;
+    if (fullName && (!user.name || user.name === 'Agent' || user.name.trim() === '')) {
+      user.name = fullName;
+    }
+    await user.save();
+
+    const token = jwt.sign(
+      { userId: user._id, tenantId: user.tenantId?._id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    const isBeta = Boolean(user.isBetaTester || user.tenantId?.isBetaTester);
+    const activeBetaFeatures = user.betaFeatures?.length ? user.betaFeatures : (user.tenantId?.betaFeatures || []);
+
+    res.status(200).json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        avatarUrl: user.avatarUrl,
+        isBetaTester: isBeta,
+        betaFeatures: activeBetaFeatures
+      },
+      tenant: {
+        id: user.tenantId?._id,
+        name: user.tenantId?.name,
+        domain: user.tenantId?.domain,
+        apiKey: user.tenantId?.apiKey,
+        isBetaTester: Boolean(user.tenantId?.isBetaTester),
+        betaFeatures: user.tenantId?.betaFeatures || []
+      }
+    });
+
+  } catch (err) {
+    console.error('Error in Apple link account:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

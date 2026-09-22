@@ -16,6 +16,12 @@ struct LoginView: View {
     // Reset password dialog state
     @State private var showResetDialog = false
     
+    // Link Apple Account modal state
+    @State private var showLinkAppleSheet = false
+    @State private var pendingAppleUserIdentifier = ""
+    @State private var pendingAppleIdentityToken: String? = nil
+    @State private var pendingAppleFullName: String? = nil
+    
     var body: some View {
         ZStack {
             theme.backgroundColor.ignoresSafeArea()
@@ -284,6 +290,15 @@ struct LoginView: View {
             ResetPasswordSheet(isPresented: $showResetDialog)
                 .environmentObject(theme)
         }
+        .sheet(isPresented: $showLinkAppleSheet) {
+            LinkAppleAccountSheet(
+                isPresented: $showLinkAppleSheet,
+                appleUserIdentifier: pendingAppleUserIdentifier,
+                identityToken: pendingAppleIdentityToken,
+                fullName: pendingAppleFullName
+            )
+            .environmentObject(theme)
+        }
     }
     
     private func channelBadge(title: String, icon: String, color: Color) -> some View {
@@ -424,8 +439,17 @@ struct LoginView: View {
                     SocketManager.shared.connectSocket()
                 } catch {
                     await MainActor.run {
-                        self.errorMessage = error.localizedDescription
                         self.isAppleLoading = false
+                        let nsError = error as NSError
+                        let code = nsError.userInfo["code"] as? String
+                        if code == "ACCOUNT_NOT_LINKED" || nsError.code == 404 {
+                            self.pendingAppleUserIdentifier = userIdentifier
+                            self.pendingAppleIdentityToken = identityToken
+                            self.pendingAppleFullName = fullName
+                            self.showLinkAppleSheet = true
+                        } else {
+                            self.errorMessage = error.localizedDescription
+                        }
                     }
                 }
             }
@@ -599,6 +623,182 @@ struct ResetPasswordSheet: View {
                     isResetSuccess = false
                     resetMessage = error.localizedDescription
                     resetLoading = false
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Link Apple Account Sheet Modal
+struct LinkAppleAccountSheet: View {
+    @Binding var isPresented: Bool
+    let appleUserIdentifier: String
+    let identityToken: String?
+    let fullName: String?
+    
+    @EnvironmentObject var theme: ThemeManager
+    
+    @State private var linkEmail = ""
+    @State private var linkPassword = ""
+    @State private var linkError: String? = nil
+    @State private var isLinking = false
+    
+    var body: some View {
+        ZStack {
+            theme.backgroundColor.ignoresSafeArea()
+            
+            VStack(spacing: 20) {
+                // Header
+                VStack(spacing: 8) {
+                    Image(systemName: "link.badge.plus")
+                        .font(.system(size: 36))
+                        .foregroundColor(theme.primaryColor)
+                        .padding(.top, 24)
+                    
+                    Text("Link Workspace Account")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    
+                    Text("Connect your Apple ID with your registered LetsTrack workspace (e.g. your Gmail or Work email). You'll only need to do this once.")
+                        .font(.system(size: 13))
+                        .foregroundColor(theme.textGrayColor)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                }
+                
+                VStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Registered Workspace Email")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        
+                        TextField("name@company.com", text: $linkEmail)
+                            .keyboardType(.emailAddress)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .padding(12)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Workspace Password")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        
+                        SecureField("Enter your password", text: $linkPassword)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .padding(12)
+                            .background(theme.inputBackground)
+                            .foregroundColor(theme.onSurfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                    }
+                    
+                    if let err = linkError {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(theme.secondaryColor)
+                                .font(.system(size: 12))
+                            Text(err)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(theme.secondaryColor)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    
+                    // Demo credentials quick fill
+                    Button(action: {
+                        linkEmail = "admin@vrhere.in"
+                        linkPassword = "password123"
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                                .foregroundColor(Color(red: 245/255, green: 158/255, blue: 11/255))
+                            Text("⚡ Fill Demo Credentials")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 10)
+                        .background(theme.inputBackground)
+                        .cornerRadius(6)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .padding(.horizontal)
+                
+                Spacer()
+                
+                HStack(spacing: 12) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(theme.textGrayColor)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    
+                    Button(action: performLink) {
+                        HStack {
+                            if isLinking {
+                                ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Text("Link & Sign In")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(
+                            LinearGradient(
+                                colors: [theme.primaryColor, theme.secondaryColor],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                    .disabled(isLinking)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 24)
+            }
+        }
+    }
+    
+    private func performLink() {
+        guard !linkEmail.trimmingCharacters(in: .whitespaces).isEmpty,
+              !linkPassword.trimmingCharacters(in: .whitespaces).isEmpty else {
+            linkError = "Please enter your workspace email and password."
+            return
+        }
+        
+        isLinking = true
+        linkError = nil
+        
+        Task {
+            do {
+                _ = try await NetworkClient.shared.linkAppleAccount(request: AppleLinkAccountRequest(
+                    email: linkEmail.trimmingCharacters(in: .whitespaces),
+                    password: linkPassword.trimmingCharacters(in: .whitespaces),
+                    appleUserIdentifier: appleUserIdentifier,
+                    identityToken: identityToken,
+                    fullName: fullName
+                ))
+                await MainActor.run {
+                    isLinking = false
+                    isPresented = false
+                    SocketManager.shared.connectSocket()
+                }
+            } catch {
+                await MainActor.run {
+                    linkError = error.localizedDescription
+                    isLinking = false
                 }
             }
         }

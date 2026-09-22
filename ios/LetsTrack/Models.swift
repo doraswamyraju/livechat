@@ -24,6 +24,14 @@ struct AppleLoginRequest: Codable {
     let fullName: String?
 }
 
+struct AppleLinkAccountRequest: Codable {
+    let email: String
+    let password: String
+    let appleUserIdentifier: String
+    let identityToken: String?
+    let fullName: String?
+}
+
 struct UserProfile: Codable, Identifiable, Hashable {
     let id: String
     let name: String
