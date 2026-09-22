@@ -209,6 +209,35 @@ final class NetworkClient: ObservableObject {
         return loginResponse
     }
     
+    func linkAppleWithGoogle(request: AppleLinkGoogleRequest) async throws -> LoginResponse {
+        let url = URL(string: "\(baseURL)/api/auth/apple-link-google")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try encoder.encode(request)
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "NetworkClient", code: 500, userInfo: [NSLocalizedDescriptionKey: "Server response error."])
+        }
+        
+        if !(200...299).contains(httpResponse.statusCode) {
+            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let message = errorJson["error"] as? String {
+                throw NSError(domain: "NetworkClient", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: message])
+            }
+            throw NSError(domain: "NetworkClient", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Failed to link Google account."])
+        }
+        
+        let loginResponse = try decoder.decode(LoginResponse.self, from: data)
+        
+        await MainActor.run {
+            self.setAuth(token: loginResponse.token, user: loginResponse.user, tenant: loginResponse.tenant)
+        }
+        
+        return loginResponse
+    }
+    
     func appleRegisterTenant(request: AppleRegisterTenantRequest) async throws -> LoginResponse {
         let url = URL(string: "\(baseURL)/api/auth/apple-register-tenant")!
         var urlRequest = URLRequest(url: url)

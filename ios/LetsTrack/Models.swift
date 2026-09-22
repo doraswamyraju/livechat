@@ -32,6 +32,13 @@ struct AppleLinkAccountRequest: Codable {
     let fullName: String?
 }
 
+struct AppleLinkGoogleRequest: Codable {
+    let googleIdToken: String
+    let appleUserIdentifier: String
+    let identityToken: String?
+    let fullName: String?
+}
+
 struct AppleRegisterTenantRequest: Codable {
     let tenantName: String
     let domain: String

@@ -510,6 +510,84 @@ app.post('/api/auth/apple-link-account', async (req, res) => {
   }
 });
 
+// 1g. Link Apple ID with Google Account
+app.post('/api/auth/apple-link-google', async (req, res) => {
+  const { googleIdToken, googleCredential, appleUserIdentifier, identityToken, fullName } = req.body;
+  const tokenToVerify = googleIdToken || googleCredential;
+
+  if (!tokenToVerify || !appleUserIdentifier) {
+    return res.status(400).json({ error: 'Google credential and Apple ID are required.' });
+  }
+
+  try {
+    let email = '';
+    let name = '';
+    let picture = '';
+
+    const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${tokenToVerify}`);
+    if (googleRes.ok) {
+      const payload = await googleRes.json();
+      email = payload.email;
+      name = payload.name;
+      picture = payload.picture;
+    }
+
+    if (!email) {
+      return res.status(400).json({ error: 'Could not extract verified email from Google Sign-In.' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() }).populate('tenantId');
+    if (!user) {
+      return res.status(404).json({ error: `No LetsTrack workspace found for Google account (${email}).` });
+    }
+
+    // Link Apple ID permanently
+    user.appleUserIdentifier = appleUserIdentifier;
+    if (picture && !user.avatarUrl) {
+      user.avatarUrl = picture;
+    }
+    if (fullName && (!user.name || user.name === 'Agent' || user.name.trim() === '')) {
+      user.name = fullName;
+    }
+    await user.save();
+
+    const token = jwt.sign(
+      { userId: user._id, tenantId: user.tenantId?._id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    const isBeta = Boolean(user.isBetaTester || user.tenantId?.isBetaTester);
+    const activeBetaFeatures = user.betaFeatures?.length ? user.betaFeatures : (user.tenantId?.betaFeatures || []);
+
+    res.status(200).json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        avatarUrl: user.avatarUrl,
+        isBetaTester: isBeta,
+        betaFeatures: activeBetaFeatures
+      },
+      tenant: {
+        id: user.tenantId?._id,
+        name: user.tenantId?.name,
+        domain: user.tenantId?.domain,
+        apiKey: user.tenantId?.apiKey,
+        isBetaTester: Boolean(user.tenantId?.isBetaTester),
+        betaFeatures: user.tenantId?.betaFeatures || []
+      }
+    });
+
+  } catch (err) {
+    console.error('Error in Apple link with Google:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // 1f. Register New Tenant via Apple ID
 app.post('/api/auth/apple-register-tenant', async (req, res) => {
   const { tenantName, domain, adminName, email: directEmail, appleUserIdentifier, identityToken } = req.body;

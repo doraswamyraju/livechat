@@ -651,6 +651,7 @@ struct AppleOnboardingSheet: View {
     
     @State private var errorMessage: String? = nil
     @State private var isProcessing = false
+    @State private var isGoogleLinking = false
     
     var body: some View {
         ZStack {
@@ -734,7 +735,47 @@ struct AppleOnboardingSheet: View {
                                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
                             }
                         } else {
-                            // LINK EXISTING FORM
+                            // LINK EXISTING FORM (GOOGLE 1-TAP + FALLBACK)
+                            
+                            // 1-Tap Google Linking Button
+                            Button(action: performGoogleLink) {
+                                HStack(spacing: 10) {
+                                    if isGoogleLinking {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: theme.onSurfaceColor))
+                                    } else {
+                                        GoogleLogoView()
+                                            .frame(width: 18, height: 18)
+                                        
+                                        Text("Continue with Google to Link")
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundColor(theme.onSurfaceColor)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                                .background(theme.surfaceColor)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(theme.borderColor, lineWidth: 1)
+                                )
+                                .shadow(color: Color.black.opacity(theme.isDark ? 0.3 : 0.05), radius: 4, y: 2)
+                            }
+                            .disabled(isProcessing || isGoogleLinking)
+                            .padding(.top, 4)
+                            
+                            // Divider
+                            HStack {
+                                Rectangle().frame(height: 1).foregroundColor(theme.borderColor)
+                                Text("OR WORKSPACE CREDENTIALS")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(theme.textGrayColor)
+                                    .padding(.horizontal, 8)
+                                Rectangle().frame(height: 1).foregroundColor(theme.borderColor)
+                            }
+                            .padding(.vertical, 2)
+                            
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Registered Workspace Email")
                                     .font(.system(size: 12, weight: .bold))
@@ -817,7 +858,7 @@ struct AppleOnboardingSheet: View {
                             if isProcessing {
                                 ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
                             } else {
-                                Text(selectedTab == 0 ? "Create & Sign In" : "Link & Sign In")
+                                Text(selectedTab == 0 ? "Create & Sign In" : "Link with Password")
                                     .fontWeight(.bold)
                             }
                         }
@@ -833,7 +874,7 @@ struct AppleOnboardingSheet: View {
                         .foregroundColor(.white)
                         .cornerRadius(8)
                     }
-                    .disabled(isProcessing)
+                    .disabled(isProcessing || isGoogleLinking)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 24)
@@ -851,6 +892,69 @@ struct AppleOnboardingSheet: View {
             performCreateWorkspace()
         } else {
             performLinkAccount()
+        }
+    }
+    
+    private func performGoogleLink() {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
+            errorMessage = "Unable to present Google Sign-In interface."
+            return
+        }
+        
+        isGoogleLinking = true
+        errorMessage = nil
+        
+        if GIDSignIn.sharedInstance.configuration == nil {
+            if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+               let dict = NSDictionary(contentsOfFile: path),
+               let clientID = dict["CLIENT_ID"] as? String {
+                GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+            } else {
+                GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: "101383899067-du9bq7vrbo0jm02lv4ndtl5n1k4gml34.apps.googleusercontent.com")
+            }
+        }
+        
+        GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController) { result, error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.isGoogleLinking = false
+                    let nsError = error as NSError
+                    if nsError.code != GIDSignInError.canceled.rawValue {
+                        self.errorMessage = error.localizedDescription
+                    }
+                }
+                return
+            }
+            
+            guard let user = result?.user, let idToken = user.idToken?.tokenString else {
+                DispatchQueue.main.async {
+                    self.isGoogleLinking = false
+                    self.errorMessage = "Failed to retrieve Google ID Token."
+                }
+                return
+            }
+            
+            Task {
+                do {
+                    _ = try await NetworkClient.shared.linkAppleWithGoogle(request: AppleLinkGoogleRequest(
+                        googleIdToken: idToken,
+                        appleUserIdentifier: appleUserIdentifier,
+                        identityToken: identityToken,
+                        fullName: fullName
+                    ))
+                    await MainActor.run {
+                        self.isGoogleLinking = false
+                        self.isPresented = false
+                        SocketManager.shared.connectSocket()
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = error.localizedDescription
+                        self.isGoogleLinking = false
+                    }
+                }
+            }
         }
     }
     
