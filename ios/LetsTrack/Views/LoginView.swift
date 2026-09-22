@@ -1,5 +1,6 @@
 import SwiftUI
 import GoogleSignIn
+import AuthenticationServices
 
 struct LoginView: View {
     @StateObject private var networkClient = NetworkClient.shared
@@ -10,6 +11,7 @@ struct LoginView: View {
     @State private var errorMessage: String? = nil
     @State private var isLoading = false
     @State private var isGoogleLoading = false
+    @State private var isAppleLoading = false
     
     // Reset password dialog state
     @State private var showResetDialog = false
@@ -211,7 +213,31 @@ struct LoginView: View {
                             )
                             .shadow(color: Color.black.opacity(theme.isDark ? 0.3 : 0.05), radius: 4, y: 2)
                         }
-                        .disabled(isLoading || isGoogleLoading)
+                        .disabled(isLoading || isGoogleLoading || isAppleLoading)
+                        
+                        // Sign in with Apple Button
+                        SignInWithAppleButton(
+                            onRequest: { request in
+                                request.requestedScopes = [.fullName, .email]
+                            },
+                            onCompletion: { result in
+                                handleAppleSignInCompletion(result)
+                            }
+                        )
+                        .signInWithAppleButtonStyle(theme.isDark ? .white : .black)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 46)
+                        .cornerRadius(12)
+                        .overlay(
+                            Group {
+                                if isAppleLoading {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(theme.surfaceColor.opacity(0.8))
+                                        .overlay(ProgressView().progressViewStyle(CircularProgressViewStyle(tint: theme.onSurfaceColor)))
+                                }
+                            }
+                        )
+                        .disabled(isLoading || isGoogleLoading || isAppleLoading)
                         
                         // 1-Click Demo Sandbox Launcher
                         Button(action: fillDemoCredentials) {
@@ -359,6 +385,55 @@ struct LoginView: View {
                         self.isGoogleLoading = false
                     }
                 }
+            }
+        }
+    }
+    
+    private func handleAppleSignInCompletion(_ result: Result<ASAuthorization, Error>) {
+        switch result {
+        case .success(let authorization):
+            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                errorMessage = "Invalid Apple ID credentials."
+                return
+            }
+            
+            let userIdentifier = appleIDCredential.user
+            let identityToken = appleIDCredential.identityToken.flatMap { String(data: $0, encoding: .utf8) }
+            let authorizationCode = appleIDCredential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
+            let email = appleIDCredential.email
+            let fullName: String?
+            if let nameComponents = appleIDCredential.fullName {
+                let name = [nameComponents.givenName, nameComponents.familyName].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
+                fullName = name.isEmpty ? nil : name
+            } else {
+                fullName = nil
+            }
+            
+            isAppleLoading = true
+            errorMessage = nil
+            
+            Task {
+                do {
+                    _ = try await self.networkClient.appleLogin(request: AppleLoginRequest(
+                        identityToken: identityToken,
+                        authorizationCode: authorizationCode,
+                        userIdentifier: userIdentifier,
+                        email: email,
+                        fullName: fullName
+                    ))
+                    SocketManager.shared.connectSocket()
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = error.localizedDescription
+                        self.isAppleLoading = false
+                    }
+                }
+            }
+            
+        case .failure(let error):
+            let nsError = error as NSError
+            if nsError.code != ASAuthorizationError.canceled.rawValue {
+                self.errorMessage = error.localizedDescription
             }
         }
     }

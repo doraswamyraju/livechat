@@ -16,6 +16,14 @@ struct GoogleLoginRequest: Codable {
     let credential: String
 }
 
+struct AppleLoginRequest: Codable {
+    let identityToken: String?
+    let authorizationCode: String?
+    let userIdentifier: String
+    let email: String?
+    let fullName: String?
+}
+
 struct UserProfile: Codable, Identifiable, Hashable {
     let id: String
     let name: String

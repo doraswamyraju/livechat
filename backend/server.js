@@ -361,6 +361,88 @@ app.post('/api/auth/google-login', async (req, res) => {
   }
 });
 
+// 1d. Apple Sign-In Endpoint
+app.post('/api/auth/apple-login', async (req, res) => {
+  const { identityToken, authorizationCode, userIdentifier, email: directEmail, fullName } = req.body;
+
+  try {
+    let email = directEmail;
+    let appleId = userIdentifier;
+
+    if (identityToken) {
+      try {
+        const decoded = jwt.decode(identityToken);
+        if (decoded) {
+          if (!email && decoded.email) {
+            email = decoded.email;
+          }
+          if (!appleId && decoded.sub) {
+            appleId = decoded.sub;
+          }
+        }
+      } catch (err) {
+        console.warn('Apple token decode warning:', err.message);
+      }
+    }
+
+    let user = null;
+    if (appleId) {
+      user = await User.findOne({ appleUserIdentifier: appleId }).populate('tenantId');
+    }
+    if (!user && email) {
+      user = await User.findOne({ email: email.toLowerCase() }).populate('tenantId');
+      if (user && appleId && !user.appleUserIdentifier) {
+        user.appleUserIdentifier = appleId;
+        await user.save();
+      }
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'No LetsTrack account found for this Apple ID or email. Please ensure your account is onboarded.' });
+    }
+
+    if (fullName && (!user.name || user.name === 'Agent' || user.name.trim() === '')) {
+      user.name = fullName;
+      await user.save();
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, tenantId: user.tenantId?._id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    const isBeta = Boolean(user.isBetaTester || user.tenantId?.isBetaTester);
+    const activeBetaFeatures = user.betaFeatures?.length ? user.betaFeatures : (user.tenantId?.betaFeatures || []);
+
+    res.status(200).json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        avatarUrl: user.avatarUrl,
+        isBetaTester: isBeta,
+        betaFeatures: activeBetaFeatures
+      },
+      tenant: {
+        id: user.tenantId?._id,
+        name: user.tenantId?.name,
+        domain: user.tenantId?.domain,
+        apiKey: user.tenantId?.apiKey,
+        isBetaTester: Boolean(user.tenantId?.isBetaTester),
+        betaFeatures: user.tenantId?.betaFeatures || []
+      }
+    });
+
+  } catch (err) {
+    console.error('Error in Apple login:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // 2. User Login
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;

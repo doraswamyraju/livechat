@@ -56,6 +56,7 @@ const UserSchema = new mongoose.Schema({
   avatarUrl: { type: String, default: '' },
   fcmToken: { type: String, default: '' },
   fcmTokens: [{ type: String }],
+  appleUserIdentifier: { type: String, default: '' },
   isBanned: { type: Boolean, default: false },
   isBetaTester: { type: Boolean, default: false },
   betaFeatures: [{ type: String }],
