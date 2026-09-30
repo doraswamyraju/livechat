@@ -266,17 +266,35 @@ export default function SuperAdminDashboard({
 
       socket.on('agent-msg-received', (data) => {
         const { conversationId, message } = data;
+        if (!conversationId || !message) return;
         setConversations(prev => {
           const index = prev.findIndex(c => c._id === conversationId);
           if (index > -1) {
             const existing = prev[index];
             const prevMessages = existing.messages || [];
-            const isDup = message && prevMessages.some(m => m._id === message._id || (m.text === message.text && Math.abs(new Date(m.timestamp) - new Date(message.timestamp)) < 3000));
+            
+            // Check if there is an optimistic message waiting with the same text
+            const optimisticIndex = prevMessages.findIndex(m => 
+              m && (
+                m._id === message._id || 
+                (String(m._id).startsWith('rep_') && m.text === message.text) ||
+                (m.senderType === 'Agent' && m.text === message.text)
+              )
+            );
+
+            let updatedMessages;
+            if (optimisticIndex > -1) {
+              updatedMessages = [...prevMessages];
+              updatedMessages[optimisticIndex] = message;
+            } else {
+              updatedMessages = [...prevMessages, message];
+            }
+
             const updated = {
               ...existing,
               lastMessageText: message.text,
               updatedAt: message.timestamp || new Date().toISOString(),
-              messages: isDup ? prevMessages : [...prevMessages, message]
+              messages: updatedMessages
             };
             const remaining = prev.filter(c => c._id !== conversationId);
             return [updated, ...remaining];
