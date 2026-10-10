@@ -371,28 +371,32 @@ fun DashboardScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Image(
                             painter = painterResource(id = R.drawable.app_logo),
                             contentDescription = "Logo",
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .border(1.dp, Color(0xFFDC2626).copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(1.dp, Color(0xFFDC2626).copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
                             contentScale = ContentScale.Crop
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = NetworkClient.currentTenant?.name ?: "LetsTrack",
-                                    fontSize = 15.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 if (isSuperAdmin) {
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -402,68 +406,73 @@ fun DashboardScreen(
                                     ) {
                                         Text(
                                             text = "SUPER",
-                                            fontSize = 9.sp,
+                                            fontSize = 8.sp,
                                             fontWeight = FontWeight.Black,
                                             color = Color(0xFFA855F7),
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                         )
                                     }
                                 }
                             }
                             Text(
                                 text = if (isSuperAdmin) "SuperAdmin Console" else if (isAdmin) "Admin Console" else "Agent Workstation",
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 color = if (isSuperAdmin) Color(0xFFA855F7) else Color(0xFFDC2626),
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
+                    Spacer(modifier = Modifier.width(6.dp))
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         // Theme Toggle
                         IconButton(
                             onClick = { onThemeChange(if (isDark) "light" else "dark") },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(30.dp)
                         ) {
-                            Text(if (isDark) "☀️" else "🌙", fontSize = 14.sp)
+                            Text(if (isDark) "☀️" else "🌙", fontSize = 13.sp)
                         }
 
                         // Presence Status Button
                         Surface(
                             onClick = { showStatusDialog = true },
                             color = MaterialTheme.colorScheme.surface,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(8.dp)
+                                        .size(7.dp)
                                         .background(getStatusColor(selfStatus), CircleShape)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = selfStatus,
-                                    fontSize = 11.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1
                                 )
                             }
                         }
 
                         // Sign Out
-                        IconButton(onClick = onSignOut, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = onSignOut, modifier = Modifier.size(28.dp)) {
                             Icon(
                                 Icons.Default.ExitToApp,
                                 contentDescription = "Sign Out",
                                 tint = Color(0xFF94A3B8),
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -580,13 +589,14 @@ fun FloatingDock(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
+                .padding(horizontal = 2.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            DockItem(icon = Icons.Default.Assessment, label = "Overview", index = 0, isSelected = selectedTab == 0, onClick = { onSelectTab(0) })
-            DockItem(icon = Icons.Default.Sensors, label = "Radar", index = 1, isSelected = selectedTab == 1, onClick = { onSelectTab(1) })
+            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Assessment, label = "Overview", index = 0, isSelected = selectedTab == 0, onClick = { onSelectTab(0) })
+            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Sensors, label = "Radar", index = 1, isSelected = selectedTab == 1, onClick = { onSelectTab(1) })
             DockItem(
+                modifier = Modifier.weight(1f),
                 icon = Icons.Default.ChatBubble,
                 label = "Inbox",
                 index = 2,
@@ -594,12 +604,12 @@ fun FloatingDock(
                 badgeCount = unreadCount,
                 onClick = { onSelectTab(2) }
             )
-            DockItem(icon = Icons.Default.AssignmentInd, label = "Leads", index = 3, isSelected = selectedTab == 3, onClick = { onSelectTab(3) })
-            DockItem(icon = Icons.Default.Campaign, label = "Ads", index = 4, isSelected = selectedTab == 4, onClick = { onSelectTab(4) })
+            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.AssignmentInd, label = "Leads", index = 3, isSelected = selectedTab == 3, onClick = { onSelectTab(3) })
+            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Campaign, label = "Ads", index = 4, isSelected = selectedTab == 4, onClick = { onSelectTab(4) })
             if (isAdmin) {
-                DockItem(icon = Icons.Default.Group, label = "Team", index = 5, isSelected = selectedTab == 5, onClick = { onSelectTab(5) })
+                DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Group, label = "Team", index = 5, isSelected = selectedTab == 5, onClick = { onSelectTab(5) })
             }
-            DockItem(icon = Icons.Default.Settings, label = "Settings", index = if (isAdmin) 6 else 5, isSelected = selectedTab == (if (isAdmin) 6 else 5), onClick = { onSelectTab(if (isAdmin) 6 else 5) })
+            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Settings, label = "Settings", index = if (isAdmin) 6 else 5, isSelected = selectedTab == (if (isAdmin) 6 else 5), onClick = { onSelectTab(if (isAdmin) 6 else 5) })
         }
     }
 }
@@ -611,26 +621,27 @@ fun DockItem(
     index: Int,
     isSelected: Boolean = false,
     badgeCount: Int = 0,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
+        modifier = modifier
             .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .padding(horizontal = 2.dp, vertical = 2.dp)
     ) {
         Box(contentAlignment = Alignment.TopEnd) {
             Surface(
                 color = if (isSelected) Color(0xFFDC2626) else Color.Transparent,
                 shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.size(width = 44.dp, height = 30.dp)
+                modifier = Modifier.size(width = 38.dp, height = 28.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
                         tint = if (isSelected) Color.White else Color(0xFF94A3B8),
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
@@ -638,14 +649,14 @@ fun DockItem(
             if (badgeCount > 0) {
                 Box(
                     modifier = Modifier
-                        .offset(x = 4.dp, y = (-4).dp)
+                        .offset(x = 3.dp, y = (-3).dp)
                         .background(Color.Red, CircleShape)
-                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                        .padding(horizontal = 3.dp, vertical = 1.dp)
                 ) {
                     Text(
                         text = "$badgeCount",
                         color = Color.White,
-                        fontSize = 9.sp,
+                        fontSize = 8.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -654,9 +665,11 @@ fun DockItem(
 
         Text(
             text = label,
-            fontSize = 10.sp,
+            fontSize = 9.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
             color = if (isSelected) Color(0xFFDC2626) else Color(0xFF94A3B8),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 2.dp)
         )
     }
@@ -735,17 +748,21 @@ fun UnifiedInboxTabContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = "Unified Inbox",
-                        fontSize = 24.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "All conversations. One place.",
-                        fontSize = 13.sp,
-                        color = Color(0xFF94A3B8)
+                        fontSize = 12.sp,
+                        color = Color(0xFF94A3B8),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
