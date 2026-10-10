@@ -25,52 +25,59 @@ struct DashboardView: View {
     
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottom) {
-                theme.backgroundColor.ignoresSafeArea()
+            GeometryReader { geometry in
+                let screenWidth = geometry.size.width
                 
-                VStack(spacing: 0) {
-                    // Custom Top Navigation Bar Header
-                    customNavBarHeader
+                ZStack(alignment: .bottom) {
+                    theme.backgroundColor.ignoresSafeArea()
                     
-                    // Main content tab area
-                    TabView(selection: $selectedTab) {
-                        MetricsTab(onNavigateToTab: { tabIndex in
-                            selectedTab = tabIndex
-                        })
-                        .tag(0)
+                    VStack(spacing: 0) {
+                        // Custom Top Navigation Bar Header
+                        customNavBarHeader
                         
-                        TrafficTab(onNavigateToChat: navigateToChatScreen)
-                        .tag(1)
-                        
-                        UnifiedInboxTab(onNavigateToChat: navigateToChatScreen)
-                        .tag(2)
-                        
-                        LeadsTab(onNavigateToChat: navigateToChatScreen, onNavigateToAds: {
-                            selectedTab = 4
-                        })
-                        .tag(3)
-                        
-                        MetaAdsTab()
-                        .tag(4)
-                        
-                        if isAdmin {
-                            TeamTab()
-                                .tag(5)
+                        // Main content tab area
+                        TabView(selection: $selectedTab) {
+                            MetricsTab(onNavigateToTab: { tabIndex in
+                                selectedTab = tabIndex
+                            })
+                            .tag(0)
+                            
+                            TrafficTab(onNavigateToChat: navigateToChatScreen)
+                            .tag(1)
+                            
+                            UnifiedInboxTab(onNavigateToChat: navigateToChatScreen)
+                            .tag(2)
+                            
+                            LeadsTab(onNavigateToChat: navigateToChatScreen, onNavigateToAds: {
+                                selectedTab = 4
+                            })
+                            .tag(3)
+                            
+                            MetaAdsTab()
+                            .tag(4)
+                            
+                            if isAdmin {
+                                TeamTab()
+                                    .tag(5)
+                            }
+                            
+                            SettingsTab(onNavigateToAds: {
+                                selectedTab = 4
+                            })
+                            .tag(isAdmin ? 6 : 5)
                         }
+                        .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                        .frame(width: screenWidth)
                         
-                        SettingsTab(onNavigateToAds: {
-                            selectedTab = 4
-                        })
-                        .tag(isAdmin ? 6 : 5)
+                        // Bottom spacing for the floating glassmorphic dock
+                        Spacer().frame(height: 72)
                     }
-                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                    .frame(width: screenWidth)
                     
-                    // Bottom spacing for the floating glassmorphic dock
-                    Spacer().frame(height: 72)
+                    // Floating Glassmorphic Bottom Dock
+                    floatingGlassmorphicDock(availableWidth: screenWidth)
                 }
-                
-                // Floating Glassmorphic Bottom Dock
-                floatingGlassmorphicDock
+                .frame(width: screenWidth, height: geometry.size.height)
             }
             .navigationDestination(isPresented: $navigationToChat) {
                 if let conversationId = activeConversationId {
@@ -114,24 +121,26 @@ struct DashboardView: View {
     
     // Custom modern nav bar matching unified brand
     private var customNavBarHeader: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             Image("app_logo")
                 .resizable()
-                .frame(width: 36, height: 36)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.primaryColor.opacity(0.4), lineWidth: 1))
+                .frame(width: 32, height: 32)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.primaryColor.opacity(0.4), lineWidth: 1))
             
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 4) {
                     Text(networkClient.currentTenant?.name ?? "LetsTrack")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(theme.onSurfaceColor)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                     
                     if isSuperAdmin {
                         Text("SUPER")
-                            .font(.system(size: 9, weight: .black))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
+                            .font(.system(size: 8, weight: .black))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
                             .background(Color.purple.opacity(0.2))
                             .foregroundColor(Color.purple)
                             .cornerRadius(4)
@@ -139,56 +148,64 @@ struct DashboardView: View {
                 }
                 
                 Text(isSuperAdmin ? "SuperAdmin Console" : (isAdmin ? "Admin Console" : "Agent Workstation"))
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(isSuperAdmin ? Color.purple : theme.primaryColor)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
+            .layoutPriority(0)
             
-            Spacer()
+            Spacer(minLength: 4)
             
-            // Theme toggle
-            Button(action: {
-                theme.themeMode = theme.isDark ? "light" : "dark"
-            }) {
-                Image(systemName: theme.isDark ? "sun.max.fill" : "moon.fill")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(theme.isDark ? .yellow : theme.primaryColor)
-                    .frame(width: 32, height: 32)
-                    .background(theme.surfaceColor)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(theme.borderColor, lineWidth: 1))
-            }
-            
-            // Presence status badge button
-            Button(action: { showStatusDialog = true }) {
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(theme.getStatusColor(socketManager.selfStatus))
-                        .frame(width: 8, height: 8)
-                    
-                    Text(socketManager.selfStatus)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(theme.onSurfaceColor)
+            HStack(spacing: 6) {
+                // Theme toggle
+                Button(action: {
+                    theme.themeMode = theme.isDark ? "light" : "dark"
+                }) {
+                    Image(systemName: theme.isDark ? "sun.max.fill" : "moon.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(theme.isDark ? .yellow : theme.primaryColor)
+                        .frame(width: 30, height: 30)
+                        .background(theme.surfaceColor)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(theme.borderColor, lineWidth: 1))
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(theme.surfaceColor)
-                .cornerRadius(16)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(theme.borderColor, lineWidth: 1)
-                )
+                
+                // Presence status badge button
+                Button(action: { showStatusDialog = true }) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(theme.getStatusColor(socketManager.selfStatus))
+                            .frame(width: 7, height: 7)
+                        
+                        Text(socketManager.selfStatus)
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(theme.surfaceColor)
+                    .cornerRadius(14)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(theme.borderColor, lineWidth: 1)
+                    )
+                }
+                
+                // Sign Out
+                Button(action: { networkClient.clearAuth() }) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(theme.textGrayColor)
+                        .frame(width: 28, height: 28)
+                }
             }
-            
-            // Sign Out
-            Button(action: { networkClient.clearAuth() }) {
-                Image(systemName: "rectangle.portrait.and.arrow.right")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(theme.textGrayColor)
-                    .frame(width: 32, height: 32)
-            }
+            .layoutPriority(1)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(theme.surfaceColor)
         .overlay(
             Rectangle()
@@ -196,35 +213,42 @@ struct DashboardView: View {
                 .foregroundColor(theme.borderColor),
             alignment: .bottom
         )
+        .frame(maxWidth: .infinity)
     }
     
-    // Floating Glassmorphic Tab Bar Dock
-    private var floatingGlassmorphicDock: some View {
-        HStack(spacing: 0) {
-            DockItem(icon: "chart.bar.fill", label: "Overview", index: 0, selection: $selectedTab)
-            DockItem(icon: "antenna.radiowaves.left.and.right", label: "Radar", index: 1, selection: $selectedTab)
-            DockItem(icon: "bubble.left.and.bubble.right.fill", label: "Inbox", index: 2, selection: $selectedTab, badgeCount: socketManager.conversationsList.filter { ($0.unreadCount ?? 0) > 0 }.count)
-            DockItem(icon: "person.crop.rectangle.stack.fill", label: "Leads", index: 3, selection: $selectedTab)
-            DockItem(icon: "megaphone.fill", label: "Ads", index: 4, selection: $selectedTab)
+    // Floating Glassmorphic Tab Bar Dock (Auto-adapts to screen width)
+    private func floatingGlassmorphicDock(availableWidth: CGFloat) -> some View {
+        let tabCount: CGFloat = isAdmin ? 7 : 6
+        let horizontalDockPadding: CGFloat = availableWidth < 380 ? 8 : (availableWidth < 410 ? 12 : 16)
+        let innerDockPadding: CGFloat = availableWidth < 380 ? 4 : 6
+        let dockContentWidth = availableWidth - (horizontalDockPadding * 2) - (innerDockPadding * 2)
+        let itemWidth = max(32, dockContentWidth / tabCount)
+        
+        return HStack(spacing: 0) {
+            DockItem(icon: "chart.bar.fill", label: "Overview", index: 0, selection: $selectedTab, itemWidth: itemWidth)
+            DockItem(icon: "antenna.radiowaves.left.and.right", label: "Radar", index: 1, selection: $selectedTab, itemWidth: itemWidth)
+            DockItem(icon: "bubble.left.and.bubble.right.fill", label: "Inbox", index: 2, selection: $selectedTab, badgeCount: socketManager.conversationsList.filter { ($0.unreadCount ?? 0) > 0 }.count, itemWidth: itemWidth)
+            DockItem(icon: "person.crop.rectangle.stack.fill", label: "Leads", index: 3, selection: $selectedTab, itemWidth: itemWidth)
+            DockItem(icon: "megaphone.fill", label: "Ads", index: 4, selection: $selectedTab, itemWidth: itemWidth)
             
             if isAdmin {
-                DockItem(icon: "person.2.fill", label: "Team", index: 5, selection: $selectedTab)
+                DockItem(icon: "person.2.fill", label: "Team", index: 5, selection: $selectedTab, itemWidth: itemWidth)
             }
             
-            DockItem(icon: "gearshape.fill", label: "Settings", index: isAdmin ? 6 : 5, selection: $selectedTab)
+            DockItem(icon: "gearshape.fill", label: "Settings", index: isAdmin ? 6 : 5, selection: $selectedTab, itemWidth: itemWidth)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
+        .padding(.horizontal, innerDockPadding)
+        .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 28)
+            RoundedRectangle(cornerRadius: 26)
                 .fill(theme.isDark ? Color(red: 20/255, green: 28/255, blue: 44/255).opacity(0.85) : Color.white.opacity(0.9))
                 .background(
-                    RoundedRectangle(cornerRadius: 28)
+                    RoundedRectangle(cornerRadius: 26)
                         .fill(Material.ultraThinMaterial)
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 28)
+            RoundedRectangle(cornerRadius: 26)
                 .stroke(
                     LinearGradient(
                         colors: [
@@ -237,9 +261,9 @@ struct DashboardView: View {
                     lineWidth: 1
                 )
         )
-        .shadow(color: Color.black.opacity(theme.isDark ? 0.45 : 0.12), radius: 20, x: 0, y: 10)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 12)
+        .shadow(color: Color.black.opacity(theme.isDark ? 0.45 : 0.12), radius: 16, x: 0, y: 8)
+        .padding(.horizontal, horizontalDockPadding)
+        .padding(.bottom, 8)
     }
     
     private func navigateToChatScreen(conversationId: String, visitorName: String, visitorId: String) {
@@ -276,13 +300,14 @@ struct DashboardView: View {
     }
 }
 
-// MARK: - Dock Item Component
+// MARK: - Dock Item Component (Auto-adaptive)
 struct DockItem: View {
     let icon: String
     let label: String
     let index: Int
     @Binding var selection: Int
     var badgeCount: Int = 0
+    var itemWidth: CGFloat = 48
     @EnvironmentObject var theme: ThemeManager
     
     var isSelected: Bool {
@@ -295,16 +320,16 @@ struct DockItem: View {
                 selection = index
             }
         }) {
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: icon)
-                        .font(.system(size: isSelected ? 18 : 16, weight: isSelected ? .bold : .medium))
+                        .font(.system(size: isSelected ? (itemWidth < 46 ? 15 : 17) : (itemWidth < 46 ? 14 : 15), weight: isSelected ? .bold : .medium))
                         .foregroundColor(isSelected ? .white : theme.textGrayColor)
-                        .frame(width: 44, height: 32)
+                        .frame(width: min(itemWidth - 2, isSelected ? 40 : 34), height: 28)
                         .background(
                             isSelected ?
                                 AnyView(
-                                    RoundedRectangle(cornerRadius: 16)
+                                    RoundedRectangle(cornerRadius: 14)
                                         .fill(
                                             LinearGradient(
                                                 colors: [theme.primaryColor, theme.secondaryColor],
@@ -319,19 +344,22 @@ struct DockItem: View {
                     
                     if badgeCount > 0 {
                         Text("\(badgeCount)")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: 8, weight: .bold))
                             .foregroundColor(.white)
-                            .padding(.horizontal, 4)
+                            .padding(.horizontal, 3)
                             .padding(.vertical, 1)
                             .background(Color.red)
                             .clipShape(Capsule())
-                            .offset(x: 6, y: -4)
+                            .offset(x: 4, y: -3)
                     }
                 }
                 
                 Text(label)
-                    .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                    .font(.system(size: itemWidth < 46 ? 8.5 : 10, weight: isSelected ? .bold : .medium))
                     .foregroundColor(isSelected ? theme.primaryColor : theme.textGrayColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .frame(maxWidth: itemWidth)
             }
             .frame(maxWidth: .infinity)
         }
@@ -417,44 +445,46 @@ struct UnifiedInboxTab: View {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack {
                         Text("Unified Inbox")
-                            .font(.system(size: 24, weight: .black))
+                            .font(.system(size: 22, weight: .black))
                             .foregroundColor(theme.onSurfaceColor)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
                         
-                        Spacer()
+                        Spacer(minLength: 6)
                         
                         let liveCount = socketManager.visitorsList.filter { $0.isOnline }.count
-                        HStack(spacing: 6) {
+                        HStack(spacing: 5) {
                             if liveCount > 0 {
-                                HStack(spacing: 4) {
+                                HStack(spacing: 3) {
                                     Circle()
                                         .fill(Color(red: 16/255, green: 185/255, blue: 129/255))
-                                        .frame(width: 6, height: 6)
+                                        .frame(width: 5, height: 5)
                                     Text("\(liveCount) Live")
-                                        .font(.system(size: 11, weight: .bold))
+                                        .font(.system(size: 10, weight: .bold))
                                         .foregroundColor(Color(red: 16/255, green: 185/255, blue: 129/255))
                                 }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
                                 .background(Color(red: 16/255, green: 185/255, blue: 129/255).opacity(0.12))
-                                .cornerRadius(10)
+                                .cornerRadius(8)
                             }
                             
                             Text("\(filteredConversations.count) Chats")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(theme.textGrayColor)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
                                 .background(theme.inputBackground)
-                                .cornerRadius(10)
+                                .cornerRadius(8)
                         }
                     }
                     
                     Text("All conversations. One place.")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundColor(theme.textGrayColor)
                 }
                 .padding(.horizontal)
-                .padding(.top, 12)
+                .padding(.top, 10)
                 
                 // Search & Filter Row
                 HStack(spacing: 10) {

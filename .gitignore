@@ -24,6 +24,8 @@ Thumbs.db
 # Private Keys & Cloud Credentials
 **/firebase-key.json
 **/google-services.json
+*.jks
+*.keystore
 
 # Swift Package Manager & Xcode
 **/.build/
