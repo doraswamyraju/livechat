@@ -62,6 +62,7 @@ fun DashboardScreen(
     var agentsList by remember { mutableStateOf<List<UserProfile>>(emptyList()) }
     var selfStatus by remember { mutableStateOf(NetworkClient.currentUser?.status ?: "Offline") }
     var showStatusDialog by remember { mutableStateOf(false) }
+    var showMoreSheet by remember { mutableStateOf(false) }
     var metaStatus by remember { mutableStateOf<MetaStatusResponse?>(null) }
     val context = LocalContext.current
 
@@ -508,6 +509,19 @@ fun DashboardScreen(
                             }
                         }
 
+                        // Settings Shortcut
+                        IconButton(
+                            onClick = { selectedTab = if (isAdmin) 6 else 5 },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = if (selectedTab == (if (isAdmin) 6 else 5)) Color(0xFFDC2626) else Color(0xFF94A3B8),
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+
                         // Sign Out
                         IconButton(onClick = onSignOut, modifier = Modifier.size(28.dp)) {
                             Icon(
@@ -584,6 +598,7 @@ fun DashboardScreen(
             isDark = isDark,
             unreadCount = conversationsList.count { (it.unreadCount ?: 0) > 0 },
             onSelectTab = { selectedTab = it },
+            onOpenMore = { showMoreSheet = true },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 12.dp, start = 12.dp, end = 12.dp)
@@ -601,6 +616,92 @@ fun DashboardScreen(
                 onDismiss = { showStatusDialog = false }
             )
         }
+
+        // More Options Slide-Up Bottom Sheet (Radar, Team, Settings)
+        if (showMoreSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showMoreSheet = false },
+                containerColor = MaterialTheme.colorScheme.surface,
+                dragHandle = { BottomSheetDefaults.DragHandle() }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 36.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "More Options",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Workstation tools, management & settings",
+                                fontSize = 12.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                        }
+                        IconButton(onClick = { showMoreSheet = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF94A3B8))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // Radar Item
+                    MoreOptionCard(
+                        icon = Icons.Default.Sensors,
+                        iconTint = Color(0xFF06B6D4),
+                        iconBg = Color(0xFF06B6D4).copy(alpha = 0.12f),
+                        title = "Visitor Radar",
+                        description = "Live real-time website visitors and active browsing journeys",
+                        isSelected = selectedTab == 1,
+                        onClick = {
+                            selectedTab = 1
+                            showMoreSheet = false
+                        }
+                    )
+
+                    // Team Item (Admin only)
+                    if (isAdmin) {
+                        MoreOptionCard(
+                            icon = Icons.Default.Group,
+                            iconTint = Color(0xFFA855F7),
+                            iconBg = Color(0xFFA855F7).copy(alpha = 0.12f),
+                            title = "Team Management",
+                            description = "Manage agents, assign roles, and review team performance",
+                            isSelected = selectedTab == 5,
+                            onClick = {
+                                selectedTab = 5
+                                showMoreSheet = false
+                            }
+                        )
+                    }
+
+                    // Settings Item
+                    MoreOptionCard(
+                        icon = Icons.Default.Settings,
+                        iconTint = Color(0xFFDC2626),
+                        iconBg = Color(0xFFDC2626).copy(alpha = 0.12f),
+                        title = "Settings & Channels",
+                        description = "Meta FB/IG accounts, website snippet, themes & notifications",
+                        isSelected = selectedTab == (if (isAdmin) 6 else 5),
+                        onClick = {
+                            selectedTab = if (isAdmin) 6 else 5
+                            showMoreSheet = false
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -612,8 +713,10 @@ fun FloatingDock(
     isDark: Boolean,
     unreadCount: Int,
     onSelectTab: (Int) -> Unit,
+    onOpenMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isMoreSelected = selectedTab == 1 || selectedTab == 5 || selectedTab == 6
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -635,12 +738,11 @@ fun FloatingDock(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 2.dp, vertical = 4.dp),
+                .padding(horizontal = 4.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Assessment, label = "Overview", index = 0, isSelected = selectedTab == 0, onClick = { onSelectTab(0) })
-            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Sensors, label = "Radar", index = 1, isSelected = selectedTab == 1, onClick = { onSelectTab(1) })
             DockItem(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.ChatBubble,
@@ -652,10 +754,80 @@ fun FloatingDock(
             )
             DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.AssignmentInd, label = "Leads", index = 3, isSelected = selectedTab == 3, onClick = { onSelectTab(3) })
             DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Campaign, label = "Ads", index = 4, isSelected = selectedTab == 4, onClick = { onSelectTab(4) })
-            if (isAdmin) {
-                DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Group, label = "Team", index = 5, isSelected = selectedTab == 5, onClick = { onSelectTab(5) })
+            DockItem(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.MoreHoriz,
+                label = "More",
+                index = -1,
+                isSelected = isMoreSelected,
+                onClick = onOpenMore
+            )
+        }
+    }
+}
+
+@Composable
+fun MoreOptionCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    iconBg: Color,
+    title: String,
+    description: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surface
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                1.dp,
+                if (isSelected) iconTint else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                RoundedCornerShape(16.dp)
+            )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Surface(
+                color = iconBg,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(24.dp))
+                }
             }
-            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Settings, label = "Settings", index = if (isAdmin) 6 else 5, isSelected = selectedTab == (if (isAdmin) 6 else 5), onClick = { onSelectTab(if (isAdmin) 6 else 5) })
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = description,
+                    fontSize = 11.5.sp,
+                    color = Color(0xFF94A3B8),
+                    lineHeight = 15.sp
+                )
+            }
+
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = if (isSelected) iconTint else Color(0xFF94A3B8),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
@@ -1048,18 +1220,28 @@ fun ConversationCard(
     onClick: () -> Unit
 ) {
     val ch = (conv.channel ?: visitor.resolvedChannel).lowercase()
+    val isSocial = ch.contains("facebook") || ch.contains("fb") || ch.contains("instagram") || ch.contains("ig") || ch.contains("whatsapp") || ch.contains("meta")
     val chColor = getChannelBrandingColor(ch)
     val isUnassigned = conv.status == "Unassigned"
     val hasUnread = (conv.unreadCount ?: 0) > 0
-    val isLive = visitor.isOnline
+    val isLive = visitor.isOnline || isSocial
 
-    // Muted/grayed styling for offline chats vs vibrant styling for online chats
+    val displayName = when {
+        visitor.name.isNotBlank() && visitor.name != "Customer" -> visitor.name
+        ch.contains("instagram") || ch.contains("ig") -> "Instagram User"
+        ch.contains("facebook") || ch.contains("fb") -> "Facebook User"
+        ch.contains("whatsapp") -> "WhatsApp Contact"
+        else -> visitor.name
+    }
+
+    // Muted/grayed styling only for truly offline webchat visitors, vibrant styling for live or social chats
     val cardBg = when {
-        isLive -> MaterialTheme.colorScheme.surface
+        isLive || hasUnread -> MaterialTheme.colorScheme.surface
         else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
     }
     val cardBorder = when {
         hasUnread -> Color(0xFFDC2626)
+        isSocial -> chColor.copy(alpha = 0.45f)
         isLive -> Color(0xFF10B981).copy(alpha = 0.6f)
         else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
     }
@@ -1082,21 +1264,37 @@ fun ConversationCard(
             // Avatar with bottom-right status or channel badge
             Box(contentAlignment = Alignment.BottomEnd) {
                 Surface(
-                    color = if (isLive) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF64748B).copy(alpha = 0.08f),
+                    color = when {
+                        isSocial -> chColor.copy(alpha = 0.15f)
+                        isLive -> Color(0xFF10B981).copy(alpha = 0.15f)
+                        else -> Color(0xFF64748B).copy(alpha = 0.08f)
+                    },
                     shape = CircleShape,
                     modifier = Modifier.size(48.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = visitor.name.take(1).uppercase(),
+                            text = displayName.take(1).uppercase(),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Black,
-                            color = if (isLive) Color(0xFF10B981) else Color(0xFF94A3B8)
+                            color = when {
+                                isSocial -> chColor
+                                isLive -> Color(0xFF10B981)
+                                else -> Color(0xFF94A3B8)
+                            }
                         )
                     }
                 }
 
-                if (isLive) {
+                if (isSocial) {
+                    // Channel-branded status indicator dot
+                    Box(
+                        modifier = Modifier
+                            .size(13.dp)
+                            .background(chColor, CircleShape)
+                            .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                    )
+                } else if (isLive) {
                     // Live Online Green Pulse Dot
                     Box(
                         modifier = Modifier
@@ -1123,7 +1321,7 @@ fun ConversationCard(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = visitor.name,
+                            text = displayName,
                             fontSize = 15.sp,
                             fontWeight = if (isLive || hasUnread) FontWeight.Bold else FontWeight.SemiBold,
                             color = if (isLive || hasUnread) MaterialTheme.colorScheme.onSurface else Color(0xFF64748B)
@@ -1136,6 +1334,21 @@ fun ConversationCard(
                                     fontWeight = FontWeight.Black,
                                     color = Color.White,
                                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
+                            }
+                        } else if (isSocial) {
+                            Surface(color = chColor.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
+                                Text(
+                                    text = when {
+                                        ch.contains("instagram") || ch.contains("ig") -> "INSTAGRAM"
+                                        ch.contains("facebook") || ch.contains("fb") -> "FACEBOOK"
+                                        ch.contains("whatsapp") -> "WHATSAPP"
+                                        else -> ch.uppercase()
+                                    },
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = chColor,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
                         } else if (isLive) {
@@ -1170,7 +1383,12 @@ fun ConversationCard(
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "via ${ch.replaceFirstChar { it.uppercase() }}",
+                        text = "via ${when {
+                            ch.contains("instagram") || ch.contains("ig") -> "Instagram"
+                            ch.contains("facebook") || ch.contains("fb") -> "Facebook"
+                            ch.contains("whatsapp") -> "WhatsApp"
+                            else -> ch.replaceFirstChar { it.uppercase() }
+                        }}",
                         fontSize = 11.sp,
                         fontWeight = if (isLive) FontWeight.Bold else FontWeight.Normal,
                         color = if (isLive) chColor else Color(0xFF94A3B8)
@@ -1179,7 +1397,7 @@ fun ConversationCard(
                     Text(
                         text = conv.lastMessage ?: (visitor.currentUrl?.let { "Browsing $it" } ?: "Conversation thread"),
                         fontSize = 12.sp,
-                        color = if (isLive) Color(0xFF64748B) else Color(0xFF94A3B8),
+                        color = if (isLive) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f) else Color(0xFF94A3B8),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -2866,11 +3084,12 @@ fun getLeadStatusColor(status: String): Color {
 }
 
 fun getChannelBrandingColor(channel: String): Color {
-    return when (channel.lowercase()) {
-        "whatsapp", "whatsapp-web", "whatsapp-api" -> Color(0xFF25D366)
-        "instagram", "ig" -> Color(0xFFE1306C)
-        "facebook", "fb" -> Color(0xFF1877F2)
-        "meta_ads", "meta ads" -> Color(0xFF0081FB)
+    val low = channel.lowercase()
+    return when {
+        low.contains("whatsapp") -> Color(0xFF25D366)
+        low.contains("instagram") || low.contains("ig") -> Color(0xFFE1306C)
+        low.contains("facebook") || low.contains("fb") -> Color(0xFF1877F2)
+        low.contains("meta") -> Color(0xFF0081FB)
         else -> Color(0xFF3B82F6) // Modern blue for livechat web
     }
 }

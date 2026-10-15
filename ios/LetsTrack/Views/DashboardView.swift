@@ -8,6 +8,7 @@ struct DashboardView: View {
     
     @State private var selectedTab = 2 // Default to Unified Inbox (2) or Overview (0)
     @State private var showStatusDialog = false
+    @State private var showMoreSheet = false
     
     // For navigation triggers to Chat screen
     @State private var activeConversationId: String? = nil
@@ -95,6 +96,14 @@ struct DashboardView: View {
             .sheet(isPresented: $showStatusDialog) {
                 StatusChangerSheet(isPresented: $showStatusDialog)
                     .environmentObject(theme)
+            }
+            .sheet(isPresented: $showMoreSheet) {
+                MoreOptionsSheet(
+                    isPresented: $showMoreSheet,
+                    selectedTab: $selectedTab,
+                    isAdmin: isAdmin
+                )
+                .environmentObject(theme)
             }
             .onReceive(socketManager.startConversationSuccessPublisher) { conversation in
                 let visitor = socketManager.visitorsList.first(where: { $0.id == conversation.visitorId })
@@ -194,6 +203,17 @@ struct DashboardView: View {
                     )
                 }
                 
+                // Settings Shortcut
+                Button(action: {
+                    theme.triggerHaptic(style: .light)
+                    selectedTab = isAdmin ? 6 : 5
+                }) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(selectedTab == (isAdmin ? 6 : 5) ? theme.primaryColor : theme.textGrayColor)
+                        .frame(width: 28, height: 28)
+                }
+
                 // Sign Out
                 Button(action: { networkClient.clearAuth() }) {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
@@ -218,24 +238,37 @@ struct DashboardView: View {
     
     // Floating Glassmorphic Tab Bar Dock (Auto-adapts to screen width)
     private func floatingGlassmorphicDock(availableWidth: CGFloat) -> some View {
-        let tabCount: CGFloat = isAdmin ? 7 : 6
-        let horizontalDockPadding: CGFloat = availableWidth < 380 ? 8 : (availableWidth < 410 ? 12 : 16)
+        let tabCount: CGFloat = 5
+        let horizontalDockPadding: CGFloat = availableWidth < 380 ? 10 : (availableWidth < 410 ? 14 : 18)
         let innerDockPadding: CGFloat = availableWidth < 380 ? 4 : 6
         let dockContentWidth = availableWidth - (horizontalDockPadding * 2) - (innerDockPadding * 2)
-        let itemWidth = max(32, dockContentWidth / tabCount)
+        let itemWidth = max(44, dockContentWidth / tabCount)
+        let isMoreSelected = selectedTab == 1 || selectedTab == 5 || selectedTab == 6
         
         return HStack(spacing: 0) {
             DockItem(icon: "chart.bar.fill", label: "Overview", index: 0, selection: $selectedTab, itemWidth: itemWidth)
-            DockItem(icon: "antenna.radiowaves.left.and.right", label: "Radar", index: 1, selection: $selectedTab, itemWidth: itemWidth)
             DockItem(icon: "bubble.left.and.bubble.right.fill", label: "Inbox", index: 2, selection: $selectedTab, badgeCount: socketManager.conversationsList.filter { ($0.unreadCount ?? 0) > 0 }.count, itemWidth: itemWidth)
             DockItem(icon: "person.crop.rectangle.stack.fill", label: "Leads", index: 3, selection: $selectedTab, itemWidth: itemWidth)
             DockItem(icon: "megaphone.fill", label: "Ads", index: 4, selection: $selectedTab, itemWidth: itemWidth)
             
-            if isAdmin {
-                DockItem(icon: "person.2.fill", label: "Team", index: 5, selection: $selectedTab, itemWidth: itemWidth)
+            // "More" Toggle Button (Opens Slide-up Sheet with Radar, Team, Settings)
+            Button(action: {
+                theme.triggerHaptic(style: .medium)
+                showMoreSheet = true
+            }) {
+                VStack(spacing: 3) {
+                    Image(systemName: "ellipsis.circle.fill")
+                        .font(.system(size: 19, weight: isMoreSelected ? .bold : .medium))
+                        .foregroundColor(isMoreSelected ? theme.primaryColor : theme.textGrayColor)
+                        .frame(height: 22)
+                    
+                    Text("More")
+                        .font(.system(size: 10, weight: isMoreSelected ? .bold : .medium))
+                        .foregroundColor(isMoreSelected ? theme.primaryColor : theme.textGrayColor)
+                }
+                .frame(width: itemWidth)
+                .padding(.vertical, 4)
             }
-            
-            DockItem(icon: "gearshape.fill", label: "Settings", index: isAdmin ? 6 : 5, selection: $selectedTab, itemWidth: itemWidth)
         }
         .padding(.horizontal, innerDockPadding)
         .padding(.vertical, 6)
@@ -623,12 +656,14 @@ struct UnifiedInboxTab: View {
     
     private func conversationRowCard(conv: ConversationDto) -> some View {
         let visitor = socketManager.visitorsList.first(where: { $0.id == conv.visitorId })
-        let visitorName = visitor?.name ?? "Customer"
         let channel = (conv.channel ?? visitor?.resolvedChannel ?? "livechat").lowercased()
+        let isSocial = channel.contains("facebook") || channel.contains("fb") || channel.contains("instagram") || channel.contains("ig") || channel.contains("whatsapp") || channel.contains("meta")
+        let defaultName = isSocial ? (channel.contains("instagram") || channel.contains("ig") ? "Instagram User" : (channel.contains("facebook") || channel.contains("fb") ? "Facebook User" : "WhatsApp Contact")) : "Customer"
+        let visitorName = (visitor?.name.isEmpty == false && visitor?.name != "Customer") ? visitor!.name : defaultName
         let channelColor = theme.getChannelColor(channel)
         let unreadCount = conv.unreadCount ?? 0
         let isUnassigned = conv.status == "Unassigned"
-        let isOnline = visitor?.isOnline == true
+        let isOnline = (visitor?.isOnline == true) || isSocial
         
         return Button(action: {
             onNavigateToChat(conv.id, visitorName, conv.visitorId)
@@ -637,7 +672,14 @@ struct UnifiedInboxTab: View {
                 // Avatar with bottom-right channel badge overlay
                 ZStack(alignment: .bottomTrailing) {
                     Circle()
-                        .fill(isOnline ? 
+                        .fill(
+                            isSocial ?
+                            LinearGradient(
+                                colors: [channelColor.opacity(0.18), channelColor.opacity(0.35)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ) :
+                            (isOnline ? 
                             LinearGradient(
                                 colors: [Color(red: 34/255, green: 197/255, blue: 94/255).opacity(0.18), Color(red: 16/255, green: 185/255, blue: 129/255).opacity(0.35)],
                                 startPoint: .topLeading,
@@ -647,16 +689,22 @@ struct UnifiedInboxTab: View {
                                 colors: [Color(red: 148/255, green: 163/255, blue: 184/255).opacity(0.12), Color(red: 100/255, green: 116/255, blue: 139/255).opacity(0.18)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
-                            )
+                            ))
                         )
                         .frame(width: 48, height: 48)
                         .overlay(
                             Text(String(visitorName.prefix(1)).uppercased())
                                 .font(.system(size: 18, weight: .black))
-                                .foregroundColor(isOnline ? Color(red: 16/255, green: 185/255, blue: 129/255) : Color(red: 148/255, green: 163/255, blue: 184/255))
+                                .foregroundColor(isSocial ? channelColor : (isOnline ? Color(red: 16/255, green: 185/255, blue: 129/255) : Color(red: 148/255, green: 163/255, blue: 184/255)))
                         )
                     
-                    if isOnline {
+                    if isSocial {
+                        Circle()
+                            .fill(channelColor)
+                            .frame(width: 13, height: 13)
+                            .overlay(Circle().stroke(theme.surfaceColor, lineWidth: 2))
+                            .offset(x: 2, y: 2)
+                    } else if isOnline {
                         Circle()
                             .fill(Color(red: 34/255, green: 197/255, blue: 94/255))
                             .frame(width: 14, height: 14)
@@ -688,6 +736,14 @@ struct UnifiedInboxTab: View {
                                 .padding(.vertical, 2)
                                 .background(Color(red: 220/255, green: 38/255, blue: 38/255))
                                 .cornerRadius(6)
+                        } else if isSocial {
+                            Text(theme.getChannelLabel(channel).uppercased())
+                                .font(.system(size: 8.5, weight: .black))
+                                .foregroundColor(channelColor)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(channelColor.opacity(0.14))
+                                .cornerRadius(6)
                         } else if isOnline {
                             Text("LIVE")
                                 .font(.system(size: 9, weight: .black))
@@ -714,7 +770,7 @@ struct UnifiedInboxTab: View {
                     }
                     
                     HStack(spacing: 4) {
-                        Text("via \(getChannelLabel(channel))")
+                        Text("via \(theme.getChannelLabel(channel))")
                             .font(.system(size: 11, weight: isOnline ? .semibold : .medium))
                             .foregroundColor(isOnline ? channelColor : Color(red: 148/255, green: 163/255, blue: 184/255))
                         
@@ -724,7 +780,7 @@ struct UnifiedInboxTab: View {
                         
                         Text(conv.lastMessage ?? (visitor?.currentUrl != nil ? "Browsing \(visitor!.currentUrl!)" : "Started conversation"))
                             .font(.system(size: 12))
-                            .foregroundColor(isOnline ? theme.textGrayColor : theme.textGrayColor.opacity(0.75))
+                            .foregroundColor(isOnline ? theme.onSurfaceColor.opacity(0.8) : theme.textGrayColor.opacity(0.75))
                             .lineLimit(1)
                     }
                 }
@@ -738,7 +794,7 @@ struct UnifiedInboxTab: View {
             .cornerRadius(16)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(unreadCount > 0 ? Color(red: 220/255, green: 38/255, blue: 38/255).opacity(0.5) : (isOnline ? Color(red: 16/255, green: 185/255, blue: 129/255).opacity(0.3) : theme.borderColor.opacity(0.5)), lineWidth: 1)
+                    .stroke(unreadCount > 0 ? Color(red: 220/255, green: 38/255, blue: 38/255).opacity(0.5) : (isSocial ? channelColor.opacity(0.35) : (isOnline ? Color(red: 16/255, green: 185/255, blue: 129/255).opacity(0.3) : theme.borderColor.opacity(0.5))), lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(theme.isDark ? 0.2 : (isOnline ? 0.04 : 0.01)), radius: 6, y: 2)
         }
@@ -758,16 +814,7 @@ struct UnifiedInboxTab: View {
     }
     
     private func getChannelLabel(_ channel: String) -> String {
-        switch channel {
-        case "whatsapp":
-            return "WhatsApp API"
-        case "instagram":
-            return "Instagram DM"
-        case "facebook":
-            return "Facebook Messenger"
-        default:
-            return "LiveChat"
-        }
+        theme.getChannelLabel(channel)
     }
     
     private var emptyInboxView: some View {
@@ -5771,6 +5818,136 @@ struct StatusChangerSheet: View {
             .background(theme.surfaceColor)
             .cornerRadius(10)
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+        }
+    }
+}
+
+// MARK: - More Options Slide-Up Bottom Sheet (Radar, Team, Settings)
+struct MoreOptionsSheet: View {
+    @Binding var isPresented: Bool
+    @Binding var selectedTab: Int
+    let isAdmin: Bool
+    @EnvironmentObject var theme: ThemeManager
+    
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Access live visitor radar, team members, and workspace settings")
+                    .font(.system(size: 13))
+                    .foregroundColor(theme.textGrayColor)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 4)
+                
+                VStack(spacing: 12) {
+                    // Radar Option
+                    moreOptionRow(
+                        icon: "antenna.radiowaves.left.and.right",
+                        iconColor: Color(red: 6/255, green: 182/255, blue: 212/255),
+                        title: "Visitor Radar",
+                        subtitle: "Live real-time website visitors and active browsing journeys",
+                        isSelected: selectedTab == 1,
+                        action: {
+                            selectedTab = 1
+                            isPresented = false
+                        }
+                    )
+                    
+                    // Team Option (Admin only)
+                    if isAdmin {
+                        moreOptionRow(
+                            icon: "person.2.fill",
+                            iconColor: Color(red: 168/255, green: 85/255, blue: 247/255),
+                            title: "Team Management",
+                            subtitle: "Manage agents, assign roles, and review team performance",
+                            isSelected: selectedTab == 5,
+                            action: {
+                                selectedTab = 5
+                                isPresented = false
+                            }
+                        )
+                    }
+                    
+                    // Settings Option
+                    moreOptionRow(
+                        icon: "gearshape.fill",
+                        iconColor: theme.primaryColor,
+                        title: "Settings & Channels",
+                        subtitle: "Meta FB/IG accounts, website snippet, themes & notifications",
+                        isSelected: selectedTab == (isAdmin ? 6 : 5),
+                        action: {
+                            selectedTab = isAdmin ? 6 : 5
+                            isPresented = false
+                        }
+                    )
+                }
+                .padding(.horizontal, 20)
+                
+                Spacer()
+            }
+            .navigationTitle("More Options")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(theme.primaryColor)
+                }
+            }
+            .background(theme.surfaceColor.ignoresSafeArea())
+        }
+        .presentationDetents([.fraction(isAdmin ? 0.48 : 0.42)])
+        .presentationDragIndicator(.visible)
+    }
+    
+    private func moreOptionRow(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        subtitle: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: {
+            theme.triggerHaptic(style: .rigid)
+            action()
+        }) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(iconColor.opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(iconColor)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    
+                    Text(subtitle)
+                        .font(.system(size: 11.5))
+                        .foregroundColor(theme.textGrayColor)
+                        .lineLimit(2)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(isSelected ? iconColor : theme.textGrayColor.opacity(0.4))
+            }
+            .padding(14)
+            .background(isSelected ? theme.inputBackground : theme.surfaceColor)
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(isSelected ? iconColor.opacity(0.6) : theme.borderColor, lineWidth: 1)
+            )
         }
     }
 }

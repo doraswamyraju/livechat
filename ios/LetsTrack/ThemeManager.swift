@@ -132,18 +132,30 @@ class ThemeManager: ObservableObject {
     
     // Channel-specific branding colors
     func getChannelColor(_ channel: String) -> Color {
-        switch channel.lowercased() {
-        case "whatsapp":
+        let low = channel.lowercased()
+        if low.contains("whatsapp") {
             return Color(red: 37/255, green: 211/255, blue: 102/255)
-        case "instagram":
+        } else if low.contains("instagram") || low.contains("ig") {
             return Color(red: 225/255, green: 48/255, blue: 108/255)
-        case "facebook":
+        } else if low.contains("facebook") || low.contains("fb") {
             return Color(red: 24/255, green: 119/255, blue: 242/255)
-        case "meta_ads", "meta ads", "facebook_ads":
+        } else if low.contains("meta") {
             return Color(red: 0/255, green: 129/255, blue: 251/255)
-        default:
+        } else {
             return primaryColor
         }
+    }
+    
+    func getChannelLabel(_ channel: String) -> String {
+        let low = channel.lowercased()
+        if low.contains("instagram") || low.contains("ig") {
+            return "Instagram DM"
+        } else if low.contains("facebook") || low.contains("fb") {
+            return "Facebook Messenger"
+        } else if low.contains("whatsapp") {
+            return "WhatsApp"
+        }
+        return "LiveChat"
     }
 }
 

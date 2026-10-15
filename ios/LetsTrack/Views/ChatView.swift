@@ -273,16 +273,34 @@ struct ChatView: View {
                             .foregroundColor(theme.onSurfaceColor)
                             .lineLimit(1)
                         
+                        let ch = channel.lowercased()
+                        let isSocial = ch.contains("facebook") || ch.contains("fb") || ch.contains("instagram") || ch.contains("ig") || ch.contains("whatsapp") || ch.contains("meta")
+                        let chColor = theme.getChannelColor(ch)
+                        
                         HStack(spacing: 4) {
-                            if channel == "livechat" {
+                            if isVisitorTyping {
                                 Circle()
-                                    .fill(isVisitorTyping ? theme.secondaryColor : Color.green)
+                                    .fill(theme.secondaryColor)
                                     .frame(width: 6, height: 6)
-                                Text(isVisitorTyping ? "typing..." : "Online")
+                                Text("typing...")
                                     .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(isVisitorTyping ? theme.secondaryColor : Color.green)
+                                    .foregroundColor(theme.secondaryColor)
+                            } else if isSocial {
+                                Circle()
+                                    .fill(chColor)
+                                    .frame(width: 6, height: 6)
+                                Text("Connected • \(theme.getChannelLabel(ch))")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(chColor)
+                            } else if channel == "livechat" {
+                                Circle()
+                                    .fill(Color.green)
+                                    .frame(width: 6, height: 6)
+                                Text("Online")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(Color.green)
                             } else {
-                                Text(isVisitorTyping ? "typing..." : channel.capitalized)
+                                Text(channel.capitalized)
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundColor(theme.textGrayColor)
                             }

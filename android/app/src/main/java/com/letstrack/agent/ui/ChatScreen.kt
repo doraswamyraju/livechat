@@ -200,9 +200,18 @@ fun ChatScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.clickable { showEditDialog = true }
                     ) {
+                        val ch = channel.lowercase()
+                        val isSocial = ch.contains("facebook") || ch.contains("fb") || ch.contains("instagram") || ch.contains("ig") || ch.contains("whatsapp") || ch.contains("meta")
+                        val chColor = getChannelBrandingColor(ch)
+                        val isEffectiveLive = isVisitorOnline || isSocial
+
                         Box(contentAlignment = Alignment.BottomEnd) {
                             Surface(
-                                color = if (isVisitorOnline) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF64748B).copy(alpha = 0.12f),
+                                color = when {
+                                    isSocial -> chColor.copy(alpha = 0.15f)
+                                    isEffectiveLive -> Color(0xFF10B981).copy(alpha = 0.15f)
+                                    else -> Color(0xFF64748B).copy(alpha = 0.12f)
+                                },
                                 shape = CircleShape,
                                 modifier = Modifier.size(36.dp)
                             ) {
@@ -211,14 +220,25 @@ fun ChatScreen(
                                         text = mutableVisitorName.take(1).uppercase(),
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Black,
-                                        color = if (isVisitorOnline) Color(0xFF10B981) else Color(0xFF94A3B8)
+                                        color = when {
+                                            isSocial -> chColor
+                                            isEffectiveLive -> Color(0xFF10B981)
+                                            else -> Color(0xFF94A3B8)
+                                        }
                                     )
                                 }
                             }
                             Box(
                                 modifier = Modifier
                                     .size(11.dp)
-                                    .background(if (isVisitorOnline) Color(0xFF10B981) else Color(0xFF94A3B8), CircleShape)
+                                    .background(
+                                        when {
+                                            isSocial -> chColor
+                                            isEffectiveLive -> Color(0xFF10B981)
+                                            else -> Color(0xFF94A3B8)
+                                        },
+                                        CircleShape
+                                    )
                                     .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
                             )
                         }
@@ -235,13 +255,20 @@ fun ChatScreen(
                             Text(
                                 text = when {
                                     isVisitorTyping -> "typing..."
-                                    isVisitorOnline -> "🟢 Online • via ${channel.replaceFirstChar { it.uppercase() }}"
+                                    isSocial -> "🟢 Connected • via ${when {
+                                        ch.contains("instagram") || ch.contains("ig") -> "Instagram"
+                                        ch.contains("facebook") || ch.contains("fb") -> "Facebook"
+                                        ch.contains("whatsapp") -> "WhatsApp"
+                                        else -> ch.replaceFirstChar { it.uppercase() }
+                                    }}"
+                                    isEffectiveLive -> "🟢 Online • via ${channel.replaceFirstChar { it.uppercase() }}"
                                     else -> "⚪ Offline • via ${channel.replaceFirstChar { it.uppercase() }}"
                                 },
                                 fontSize = 11.sp,
                                 color = when {
                                     isVisitorTyping -> Color(0xFFDC2626)
-                                    isVisitorOnline -> Color(0xFF10B981)
+                                    isSocial -> chColor
+                                    isEffectiveLive -> Color(0xFF10B981)
                                     else -> Color(0xFF94A3B8)
                                 }
                             )
@@ -679,9 +706,18 @@ fun CustomerDetailsBottomSheet(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // Big Avatar with Live Indicator
+                    val ch = channel.lowercase()
+                    val isSocial = ch.contains("facebook") || ch.contains("fb") || ch.contains("instagram") || ch.contains("ig") || ch.contains("whatsapp") || ch.contains("meta")
+                    val chColor = getChannelBrandingColor(ch)
+                    val isEffectiveLive = isOnline || isSocial
+
                     Box(contentAlignment = Alignment.BottomEnd) {
                         Surface(
-                            color = if (isOnline) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFDC2626).copy(alpha = 0.15f),
+                            color = when {
+                                isSocial -> chColor.copy(alpha = 0.2f)
+                                isEffectiveLive -> Color(0xFF10B981).copy(alpha = 0.2f)
+                                else -> Color(0xFF64748B).copy(alpha = 0.12f)
+                            },
                             shape = CircleShape,
                             modifier = Modifier.size(72.dp)
                         ) {
@@ -690,14 +726,25 @@ fun CustomerDetailsBottomSheet(
                                     text = name.take(1).uppercase(),
                                     fontSize = 28.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = if (isOnline) Color(0xFF10B981) else Color(0xFFDC2626)
+                                    color = when {
+                                        isSocial -> chColor
+                                        isEffectiveLive -> Color(0xFF10B981)
+                                        else -> Color(0xFF94A3B8)
+                                    }
                                 )
                             }
                         }
                         Box(
                             modifier = Modifier
                                 .size(18.dp)
-                                .background(if (isOnline) Color(0xFF10B981) else Color(0xFF94A3B8), CircleShape)
+                                .background(
+                                    when {
+                                        isSocial -> chColor
+                                        isEffectiveLive -> Color(0xFF10B981)
+                                        else -> Color(0xFF94A3B8)
+                                    },
+                                    CircleShape
+                                )
                                 .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
                         )
                     }
