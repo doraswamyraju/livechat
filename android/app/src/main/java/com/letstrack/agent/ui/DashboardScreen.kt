@@ -405,15 +405,17 @@ fun DashboardScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Modern Top Bar
+            // Modern Top Bar (Maintains status bar and camera notch insets)
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 2.dp,
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .statusBarsPadding()
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -588,8 +590,8 @@ fun DashboardScreen(
                 }
             }
 
-            // Bottom space to avoid overlapping with floating dock
-            Spacer(modifier = Modifier.height(76.dp))
+            // Bottom space to avoid overlapping with floating dock and system navigation bar
+            Spacer(modifier = Modifier.navigationBarsPadding().height(80.dp))
         }
 
         // Floating Glassmorphic Dock
@@ -602,7 +604,8 @@ fun DashboardScreen(
             onOpenMore = { showMoreSheet = true },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 12.dp, start = 12.dp, end = 12.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 8.dp, start = 12.dp, end = 12.dp)
         )
 
         // Presence Changer Modal
@@ -628,8 +631,9 @@ fun DashboardScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .navigationBarsPadding()
                         .padding(horizontal = 20.dp)
-                        .padding(bottom = 36.dp),
+                        .padding(bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Row(

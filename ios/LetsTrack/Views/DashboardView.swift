@@ -2494,7 +2494,7 @@ struct SocialTab: View {
                 ForEach(subTabs, id: \.0) { tab in
                     let isSelected = selectedSubTab == tab.0
                     Button(action: {
-                        theme.triggerHaptic(style: .selection)
+                        theme.triggerHaptic(style: .light)
                         selectedSubTab = tab.0
                     }) {
                         Text(tab.1)

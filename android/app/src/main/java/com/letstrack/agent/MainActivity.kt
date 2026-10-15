@@ -2,6 +2,7 @@ package com.letstrack.agent
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import com.google.firebase.messaging.FirebaseMessaging
 import androidx.compose.foundation.background
@@ -44,6 +45,7 @@ class MainActivity : ComponentActivity() {
     private val _intentFlow = kotlinx.coroutines.flow.MutableStateFlow<android.content.Intent?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         
         _intentFlow.value = intent
@@ -357,6 +359,8 @@ fun LoginView(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
