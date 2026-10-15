@@ -2105,7 +2105,7 @@ function App() {
       if (window.google?.accounts?.id) {
         try {
           window.google.accounts.id.initialize({
-            client_id: '931640963201-op9i4jmb31lcm8f4v5ggc0ik1oe1vvjk.apps.googleusercontent.com',
+            client_id: '555140790013-cb93s5qrn53rc2nu020b0s1hosi0gaoc.apps.googleusercontent.com',
             callback: (response) => {
               if (response && response.credential) {
                 handleGoogleLogin(response.credential);

@@ -589,7 +589,7 @@ fun LoginView(
                             val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
                                 com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
                             )
-                                .requestIdToken("931640963201-op9i4jmb31lcm8f4v5ggc0ik1oe1vvjk.apps.googleusercontent.com")
+                                .requestIdToken("555140790013-cb93s5qrn53rc2nu020b0s1hosi0gaoc.apps.googleusercontent.com")
                                 .requestEmail()
                                 .build()
 
