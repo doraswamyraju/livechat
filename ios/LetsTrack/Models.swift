@@ -233,10 +233,10 @@ struct VisitorDto: Codable, Identifiable, Equatable {
     var lastSeen: String?
     
     var resolvedChannel: String {
-        if let ch = channel, !ch.isEmpty { return ch }
-        if let src = source, !src.isEmpty { return src }
+        if let ch = channel, !ch.isEmpty { return ch.lowercased() }
+        if let src = source, !src.isEmpty { return src.lowercased() }
         let lowName = name.lowercased()
-        if lowName.contains("whatsapp") || (phoneNumber != nil && !phoneNumber!.isEmpty) {
+        if lowName.contains("whatsapp") {
             return "whatsapp"
         } else if lowName.contains("insta") || lowName.contains("ig") {
             return "instagram"
@@ -947,6 +947,7 @@ struct SocialCommentDto: Identifiable, Codable {
 }
 
 struct SocialInsightsDto: Codable {
+    var period: String?
     let totalReach: Int
     let totalImpressions: Int
     let totalEngagements: Int

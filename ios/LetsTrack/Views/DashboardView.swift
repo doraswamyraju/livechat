@@ -1,5 +1,6 @@
 import SwiftUI
 import LocalAuthentication
+import PhotosUI
 
 struct DashboardView: View {
     @StateObject private var socketManager = SocketManager.shared
@@ -413,6 +414,7 @@ struct UnifiedInboxTab: View {
     @State private var searchText = ""
     @State private var filterStatus = "all" // "all", "open", "unassigned"
     @State private var metaStatus: MetaStatusResponse? = nil
+    @State private var isDisconnectingMeta = false
     
     var channelCounts: [String: Int] {
         var counts: [String: Int] = ["all": 0, "whatsapp": 0, "instagram": 0, "facebook": 0, "livechat": 0]
@@ -549,8 +551,60 @@ struct UnifiedInboxTab: View {
                 }
                 .padding(.horizontal)
                 
-                // Connect Facebook & Instagram Banner (Only if NOT already authenticated)
-                if metaStatus?.connected != true {
+                // Meta Connection Status Banner (Connect or Disconnect)
+                if let meta = metaStatus, meta.connected {
+                    HStack(spacing: 12) {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 8, height: 8)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text("Meta Connected")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(Color.green)
+                                Text("FB & IG")
+                                    .font(.system(size: 8, weight: .black))
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Color.green.opacity(0.15))
+                                    .foregroundColor(.green)
+                                    .cornerRadius(3)
+                            }
+                            Text("\(meta.pageName ?? "Facebook Page") • \(meta.instagramHandle ?? "@letstrack_live")")
+                                .font(.system(size: 11))
+                                .foregroundColor(theme.textGrayColor)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            isDisconnectingMeta = true
+                            Task {
+                                try? await NetworkClient.shared.disconnectMeta()
+                                metaStatus = try? await NetworkClient.shared.getMetaStatus()
+                                isDisconnectingMeta = false
+                            }
+                        }) {
+                            if isDisconnectingMeta {
+                                ProgressView().scaleEffect(0.7)
+                            } else {
+                                Text("Disconnect")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.red)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.red.opacity(0.1))
+                                    .cornerRadius(6)
+                            }
+                        }
+                    }
+                    .padding(10)
+                    .background(theme.surfaceColor)
+                    .cornerRadius(10)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.green.opacity(0.3), lineWidth: 1))
+                    .padding(.horizontal)
+                } else {
                     HStack(spacing: 12) {
                         Text("💬")
                             .font(.system(size: 20))
@@ -563,7 +617,7 @@ struct UnifiedInboxTab: View {
                                 .foregroundColor(theme.textGrayColor)
                         }
                         Spacer()
-                        Link(destination: URL(string: "https://letstrack.manacity.in/")!) {
+                        Link(destination: URL(string: "https://www.facebook.com/v26.0/dialog/oauth?client_id=1311990813621733&redirect_uri=https%3A%2F%2Fletstrack.manacity.in%2F&response_type=token&scope=public_profile%2Cemail%2Cpages_show_list%2Cpages_read_engagement%2Cpages_manage_posts%2Cpages_read_user_content%2Cpages_manage_engagement%2Cpages_messaging%2Cpages_manage_metadata%2Cinstagram_basic%2Cinstagram_manage_comments%2Cinstagram_manage_insights%2Cinstagram_content_publish%2Cinstagram_manage_messages%2Cwhatsapp_business_management%2Cwhatsapp_business_messaging%2Cads_read%2Cads_management")!) {
                             Text("Connect ⚡")
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundColor(.white)
@@ -2352,14 +2406,23 @@ struct SocialTab: View {
     @StateObject private var networkClient = NetworkClient.shared
     @EnvironmentObject var theme: ThemeManager
     
-    @State private var selectedSubTab: String = "create"
+    @State private var selectedSubTab: String = "all"
     @State private var posts: [SocialPostDto] = []
     @State private var comments: [SocialCommentDto] = []
     @State private var insights: SocialInsightsDto? = nil
+    @State private var metaStatus: MetaStatusResponse? = nil
     
     @State private var isLoading = false
     @State private var isPublishing = false
+    @State private var isDisconnectingMeta = false
+    @State private var isUploadingPhoto = false
+    @State private var selectedPostPhotoItem: PhotosPickerItem? = nil
     @State private var toastMessage: String? = nil
+    
+    // Performance filter state
+    @State private var selectedPeriod: String = "1week"
+    @State private var customStartDate: Date = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+    @State private var customEndDate: Date = Date()
     
     // Create Post Form State
     @State private var postText: String = ""
@@ -2373,12 +2436,12 @@ struct SocialTab: View {
     @State private var isSendingReply: Bool = false
     
     let subTabs = [
-        ("create", "✍️ Create Post"),
-        ("all", "📱 All Posts"),
-        ("instagram", "📸 Instagram"),
-        ("facebook", "📘 Facebook"),
+        ("all", "📱 All Posts (10)"),
+        ("instagram", "📸 Instagram (5)"),
+        ("facebook", "📘 Facebook (5)"),
         ("comments", "💬 Comments"),
-        ("performance", "📊 Performance")
+        ("performance", "📊 Performance"),
+        ("create", "✍️ Create Post")
     ]
     
     var filteredPosts: [SocialPostDto] {
@@ -2414,7 +2477,10 @@ struct SocialTab: View {
                     .padding(.horizontal)
                 }
                 
-                // 3. Top Horizontal Scroll Chips
+                // 3. Meta Connection / Disconnection Status Banner
+                metaConnectionCard
+                
+                // 4. Top Horizontal Scroll Chips
                 topHorizontalChips
                 
                 // 4. Content based on SubTab
@@ -2622,20 +2688,71 @@ struct SocialTab: View {
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
             .padding(.horizontal)
             
-            // Media Image URL Card
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Post Media Image (Required for Instagram)")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(theme.onSurfaceColor)
-                
+            // Media Image Upload & URL Card
+            VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Image(systemName: "photo")
+                    Text("Post Media Image")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    Spacer()
+                    if publishToInstagram {
+                        Text("Required for IG")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(Color(red: 225/255, green: 48/255, blue: 108/255))
+                    }
+                }
+                
+                // 1. PhotosPicker Upload Button
+                PhotosPicker(selection: $selectedPostPhotoItem, matching: .images) {
+                    HStack(spacing: 8) {
+                        if isUploadingPhoto {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("Uploading Image to Server...")
+                                .font(.system(size: 13, weight: .semibold))
+                        } else {
+                            Image(systemName: "photo.badge.plus")
+                                .font(.system(size: 15, weight: .bold))
+                            Text(postMediaUrl.isEmpty ? "Choose Photo from Library" : "Change Photo from Library")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                    }
+                    .foregroundColor(theme.primaryColor)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(theme.primaryColor.opacity(0.1))
+                    .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(theme.primaryColor.opacity(0.35), lineWidth: 1)
+                    )
+                }
+                .disabled(isUploadingPhoto)
+                .onChange(of: selectedPostPhotoItem) { newItem in
+                    guard let item = newItem else { return }
+                    Task {
+                        isUploadingPhoto = true
+                        if let data = try? await item.loadTransferable(type: Data.self) {
+                            if let uploadedUrl = try? await networkClient.uploadImage(data: data) {
+                                postMediaUrl = uploadedUrl
+                            }
+                        }
+                        isUploadingPhoto = false
+                    }
+                }
+                
+                // 2. Direct URL fallback input
+                HStack {
+                    Image(systemName: "link")
                         .foregroundColor(theme.textGrayColor)
-                    TextField("https://example.com/banner.jpg", text: $postMediaUrl)
+                    TextField("Or enter direct image URL...", text: $postMediaUrl)
                         .font(.system(size: 13))
                     
                     if !postMediaUrl.isEmpty {
-                        Button(action: { postMediaUrl = "" }) {
+                        Button(action: { 
+                            postMediaUrl = ""
+                            selectedPostPhotoItem = nil
+                        }) {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(theme.textGrayColor)
                         }
@@ -2646,7 +2763,7 @@ struct SocialTab: View {
                 .cornerRadius(10)
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
                 
-                // Quick Presets
+                // 3. Quick Presets
                 HStack(spacing: 8) {
                     Text("Presets:")
                         .font(.system(size: 11, weight: .semibold))
@@ -3096,6 +3213,69 @@ struct SocialTab: View {
     // MARK: - SubView: Performance & Insights
     private var performanceView: some View {
         VStack(spacing: 16) {
+            // 1. Timeframe Selection Bar (1 Day, 1 Week, Custom Dates)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Performance Timeframe")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    Spacer()
+                    if isLoading {
+                        ProgressView().scaleEffect(0.7)
+                    }
+                }
+                
+                HStack(spacing: 8) {
+                    ForEach([("1day", "1 Day"), ("1week", "1 Week"), ("custom", "Custom Dates")], id: \.0) { item in
+                        let isSel = selectedPeriod == item.0
+                        Button(action: {
+                            theme.triggerHaptic(style: .light)
+                            selectedPeriod = item.0
+                            Task { await loadInsights() }
+                        }) {
+                            Text(item.1)
+                                .font(.system(size: 12, weight: isSel ? .bold : .medium))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(isSel ? theme.primaryColor : theme.surfaceColor)
+                                .foregroundColor(isSel ? .white : theme.onSurfaceColor)
+                                .cornerRadius(8)
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(isSel ? Color.clear : theme.borderColor, lineWidth: 1))
+                        }
+                    }
+                }
+                
+                // Custom Date Pickers
+                if selectedPeriod == "custom" {
+                    HStack(spacing: 8) {
+                        DatePicker("", selection: $customStartDate, displayedComponents: .date)
+                            .labelsHidden()
+                        Text("to")
+                            .font(.system(size: 12))
+                            .foregroundColor(theme.textGrayColor)
+                        DatePicker("", selection: $customEndDate, displayedComponents: .date)
+                            .labelsHidden()
+                        
+                        Button(action: {
+                            Task { await loadInsights() }
+                        }) {
+                            Text("Apply")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(theme.primaryColor)
+                                .cornerRadius(8)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+            }
+            .padding(14)
+            .background(theme.surfaceColor)
+            .cornerRadius(14)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+            
             if let ins = insights {
                 // 4-Card Carousel
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -3191,6 +3371,103 @@ struct SocialTab: View {
         .padding(.horizontal)
     }
     
+    // MARK: - Meta Connection Card (Top of Social Studio)
+    private var metaConnectionCard: some View {
+        Group {
+            if let meta = metaStatus, meta.connected {
+                HStack(spacing: 12) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 10, height: 10)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("Meta Connected")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(Color.green)
+                            Text("FB & IG")
+                                .font(.system(size: 8, weight: .black))
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.green.opacity(0.15))
+                                .foregroundColor(.green)
+                                .cornerRadius(3)
+                        }
+                        
+                        Text("\(meta.pageName ?? "Facebook Page") • \(meta.instagramHandle ?? "@letstrack_live")")
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: disconnectMetaAction) {
+                        if isDisconnectingMeta {
+                            ProgressView().scaleEffect(0.7)
+                        } else {
+                            Text("Disconnect")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.red)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(8)
+                        }
+                    }
+                    .disabled(isDisconnectingMeta)
+                }
+                .padding(12)
+                .background(theme.surfaceColor)
+                .cornerRadius(12)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.green.opacity(0.3), lineWidth: 1))
+                .padding(.horizontal)
+            } else {
+                HStack(spacing: 12) {
+                    Text("⚡")
+                        .font(.system(size: 22))
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Connect Meta (Facebook & Instagram)")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        Text("Publish posts, reply to comments & view analytics")
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                    
+                    Spacer()
+                    
+                    Link(destination: URL(string: "https://www.facebook.com/v26.0/dialog/oauth?client_id=1311990813621733&redirect_uri=https%3A%2F%2Fletstrack.manacity.in%2F&response_type=token&scope=public_profile%2Cemail%2Cpages_show_list%2Cpages_read_engagement%2Cpages_manage_posts%2Cpages_read_user_content%2Cpages_manage_engagement%2Cpages_messaging%2Cpages_manage_metadata%2Cinstagram_basic%2Cinstagram_manage_comments%2Cinstagram_manage_insights%2Cinstagram_content_publish%2Cinstagram_manage_messages%2Cwhatsapp_business_management%2Cwhatsapp_business_messaging%2Cads_read%2Cads_management")!) {
+                        Text("Connect ⚡")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(red: 24/255, green: 119/255, blue: 242/255), Color(red: 225/255, green: 48/255, blue: 108/255)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(8)
+                    }
+                }
+                .padding(12)
+                .background(
+                    LinearGradient(
+                        colors: [Color.blue.opacity(0.08), Color.pink.opacity(0.08)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(12)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.blue.opacity(0.25), lineWidth: 1))
+                .padding(.horizontal)
+            }
+        }
+    }
+    
     private func socialStatCard(title: String, value: String, subtext: String, color: Color, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -3222,18 +3499,56 @@ struct SocialTab: View {
     private func loadData() async {
         isLoading = true
         do {
+            let df = ISO8601DateFormatter()
             async let fetchedPosts = networkClient.getSocialPosts()
             async let fetchedComments = networkClient.getSocialComments()
-            async let fetchedInsights = networkClient.getSocialInsights()
+            async let fetchedInsights = networkClient.getSocialInsights(
+                period: selectedPeriod,
+                startDate: selectedPeriod == "custom" ? df.string(from: customStartDate) : nil,
+                endDate: selectedPeriod == "custom" ? df.string(from: customEndDate) : nil
+            )
+            async let fetchedMeta = networkClient.getMetaStatus()
             
-            let (p, c, i) = try await (fetchedPosts, fetchedComments, fetchedInsights)
+            let (p, c, i, m) = try await (fetchedPosts, fetchedComments, fetchedInsights, fetchedMeta)
             self.posts = p
             self.comments = c
             self.insights = i
+            self.metaStatus = m
         } catch {
             print("Failed to load social data: \(error)")
         }
         isLoading = false
+    }
+    
+    private func loadInsights() async {
+        do {
+            let df = ISO8601DateFormatter()
+            let i = try await networkClient.getSocialInsights(
+                period: selectedPeriod,
+                startDate: selectedPeriod == "custom" ? df.string(from: customStartDate) : nil,
+                endDate: selectedPeriod == "custom" ? df.string(from: customEndDate) : nil
+            )
+            self.insights = i
+        } catch {
+            print("Failed to load insights: \(error)")
+        }
+    }
+    
+    private func disconnectMetaAction() {
+        isDisconnectingMeta = true
+        Task {
+            do {
+                try await networkClient.disconnectMeta()
+                self.metaStatus = try? await networkClient.getMetaStatus()
+                toastMessage = "Meta accounts disconnected successfully."
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                    toastMessage = nil
+                }
+            } catch {
+                toastMessage = "Failed to disconnect: \(error.localizedDescription)"
+            }
+            isDisconnectingMeta = false
+        }
     }
     
     private func publishPost() {
@@ -5300,6 +5615,8 @@ struct SettingsTab: View {
     @State private var webhookPingResult: String? = nil
     @State private var tenantsList: [TenantWorkspaceDto] = []
     @State private var isLoadingTenants = false
+    @State private var metaStatus: MetaStatusResponse? = nil
+    @State private var isDisconnectingMeta = false
     
     // Logout Alert
     @State private var showLogoutConfirm = false
@@ -6139,9 +6456,78 @@ struct SettingsTab: View {
             }
             
             VStack(spacing: 8) {
-                channelRow(icon: "bubble.left.fill", title: "WhatsApp Cloud API", subtitle: "+91 98765 43210", isConnected: true, color: Color(red: 22/255, green: 163/255, blue: 74/255))
-                channelRow(icon: "camera.fill", title: "Instagram Business DM", subtitle: "@letstrack_live", isConnected: true, color: Color(red: 225/255, green: 48/255, blue: 108/255))
-                channelRow(icon: "person.2.fill", title: "Facebook Pages Messenger", subtitle: "LetsTrack Omnichannel", isConnected: true, color: Color(red: 24/255, green: 119/255, blue: 242/255))
+                channelRow(
+                    icon: "bubble.left.fill",
+                    title: "WhatsApp Cloud API",
+                    subtitle: "Under Development (Coming Soon)",
+                    isConnected: false,
+                    color: Color(red: 22/255, green: 163/255, blue: 74/255)
+                )
+                channelRow(
+                    icon: "camera.fill",
+                    title: "Instagram Business DM",
+                    subtitle: metaStatus?.instagramHandle ?? "Not connected",
+                    isConnected: metaStatus?.connected == true,
+                    color: Color(red: 225/255, green: 48/255, blue: 108/255)
+                )
+                channelRow(
+                    icon: "person.2.fill",
+                    title: "Facebook Pages Messenger",
+                    subtitle: metaStatus?.pageName ?? "Not connected",
+                    isConnected: metaStatus?.connected == true,
+                    color: Color(red: 24/255, green: 119/255, blue: 242/255)
+                )
+            }
+            
+            // Connect / Disconnect Buttons in Settings
+            if metaStatus?.connected == true {
+                Button(action: {
+                    isDisconnectingMeta = true
+                    Task {
+                        try? await networkClient.disconnectMeta()
+                        let newMeta = try? await networkClient.getMetaStatus()
+                        await MainActor.run {
+                            self.metaStatus = newMeta
+                            self.isDisconnectingMeta = false
+                        }
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        if isDisconnectingMeta {
+                            ProgressView().scaleEffect(0.7)
+                        } else {
+                            Image(systemName: "link.badge.plus")
+                        }
+                        Text("Disconnect Meta Accounts")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+                    .background(Color.red.opacity(0.1))
+                    .foregroundColor(.red)
+                    .cornerRadius(8)
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.3), lineWidth: 1))
+                }
+                .disabled(isDisconnectingMeta)
+            } else {
+                Link(destination: URL(string: "https://www.facebook.com/v26.0/dialog/oauth?client_id=1311990813621733&redirect_uri=https%3A%2F%2Fletstrack.manacity.in%2F&response_type=token&scope=public_profile%2Cemail%2Cpages_show_list%2Cpages_read_engagement%2Cpages_manage_posts%2Cpages_read_user_content%2Cpages_manage_engagement%2Cpages_messaging%2Cpages_manage_metadata%2Cinstagram_basic%2Cinstagram_manage_comments%2Cinstagram_manage_insights%2Cinstagram_content_publish%2Cinstagram_manage_messages%2Cwhatsapp_business_management%2Cwhatsapp_business_messaging%2Cads_read%2Cads_management")!) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "bolt.fill")
+                        Text("Connect Facebook & Instagram ⚡")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+                    .background(
+                        LinearGradient(
+                            colors: [Color(red: 24/255, green: 119/255, blue: 242/255), Color(red: 225/255, green: 48/255, blue: 108/255)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                }
             }
             
             Button(action: pingOmnichannelWebhook) {
@@ -6509,6 +6895,11 @@ struct SettingsTab: View {
                     if let head = wSettings.headingText { self.widgetHeading = head }
                     if let welc = wSettings.welcomeMessage { self.widgetWelcome = welc }
                     if let pos = wSettings.position { self.widgetPosition = pos }
+                }
+            }
+            if let meta = try? await networkClient.getMetaStatus() {
+                await MainActor.run {
+                    self.metaStatus = meta
                 }
             }
         }

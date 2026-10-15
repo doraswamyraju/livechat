@@ -87,7 +87,7 @@ data class VisitorDto(
             if (!channel.isNullOrEmpty()) return channel
             if (!source.isNullOrEmpty()) return source
             val low = name.lowercase()
-            if (low.contains("whatsapp") || (!phoneNumber.isNullOrEmpty())) return "whatsapp"
+            if (low.contains("whatsapp")) return "whatsapp"
             if (low.contains("instagram") || low.contains("ig")) return "instagram"
             if (low.contains("facebook") || low.contains("fb")) return "facebook"
             return "livechat"

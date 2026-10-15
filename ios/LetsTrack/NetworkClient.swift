@@ -979,8 +979,14 @@ final class NetworkClient: ObservableObject {
         return true
     }
     
-    func getSocialInsights() async throws -> SocialInsightsDto? {
-        let url = URL(string: "\(baseURL)/api/tenant/social/insights")!
+    func getSocialInsights(period: String = "1week", startDate: String? = nil, endDate: String? = nil) async throws -> SocialInsightsDto? {
+        var components = URLComponents(string: "\(baseURL)/api/tenant/social/insights")!
+        var queryItems = [URLQueryItem(name: "period", value: period)]
+        if let s = startDate { queryItems.append(URLQueryItem(name: "startDate", value: s)) }
+        if let e = endDate { queryItems.append(URLQueryItem(name: "endDate", value: e)) }
+        components.queryItems = queryItems
+        
+        guard let url = components.url else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
