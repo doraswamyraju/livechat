@@ -3561,6 +3561,129 @@ app.post('/api/superadmin/meta/disconnect', authenticateToken, requireSuperAdmin
   }
 });
 
+// ============================================
+// 11d. Tenant-Level Meta Integration (Facebook Pages & Instagram Direct Messages)
+// ============================================
+app.get('/api/tenant/meta/status', authenticateToken, async (req, res) => {
+  try {
+    const integration = await Integration.findOne({ tenantId: req.user.tenantId });
+    const meta = integration?.meta;
+    const isConnected = Boolean(meta?.enabled && (meta?.pageId || meta?.instagramAccountId));
+    res.status(200).json({
+      connected: isConnected,
+      pageId: meta?.pageId || null,
+      pageName: meta?.pageName || null,
+      facebookUrl: meta?.facebookUrl || null,
+      instagramAccountId: meta?.instagramAccountId || null,
+      instagramHandle: meta?.instagramHandle || null,
+      instagramUrl: meta?.instagramUrl || null
+    });
+  } catch (err) {
+    console.error('[TenantMeta] Error fetching status:', err);
+    res.status(500).json({ error: 'Failed to retrieve Meta status' });
+  }
+});
+
+app.post('/api/tenant/meta/connect', authenticateToken, async (req, res) => {
+  const { accessToken, selectedPageId } = req.body;
+  if (!accessToken) {
+    return res.status(400).json({ error: 'Meta access token is required' });
+  }
+
+  try {
+    // 1. Discover Facebook Pages
+    const fbRes = await fetch(`https://graph.facebook.com/v26.0/me/accounts?fields=id,name,link,access_token&access_token=${accessToken}`);
+    const fbData = await fbRes.json();
+
+    if (!fbData.data || fbData.data.length === 0) {
+      return res.status(400).json({ error: 'No Facebook Pages found associated with this account. Please create or manage a Facebook Page first.' });
+    }
+
+    // Select specific page or first page
+    let page = fbData.data.find(p => p.id === selectedPageId) || fbData.data[0];
+
+    // Discover linked Instagram Business Account
+    let instagramId = null;
+    let instagramHandle = null;
+    let instagramUrl = null;
+
+    try {
+      const igRes = await fetch(`https://graph.facebook.com/v26.0/${page.id}?fields=instagram_business_account{id,username,name}&access_token=${page.access_token || accessToken}`);
+      const igData = await igRes.json();
+      if (igData && igData.instagram_business_account) {
+        const ig = igData.instagram_business_account;
+        instagramId = ig.id;
+        instagramHandle = ig.username ? `@${ig.username}` : (ig.name ? `@${ig.name}` : null);
+        instagramUrl = ig.username ? `https://instagram.com/${ig.username}` : null;
+      }
+    } catch (igErr) {
+      console.warn('[TenantMeta] Instagram discovery warning:', igErr.message);
+    }
+
+    let integration = await Integration.findOne({ tenantId: req.user.tenantId });
+    if (!integration) {
+      integration = new Integration({ tenantId: req.user.tenantId });
+    }
+
+    integration.meta = {
+      enabled: true,
+      pageId: page.id,
+      pageName: page.name || 'Connected Facebook Page',
+      instagramAccountId: instagramId || undefined,
+      instagramHandle: instagramHandle || '',
+      facebookUrl: page.link || `https://facebook.com/${page.id}`,
+      pageAccessToken: page.access_token || accessToken,
+      verifyToken: integration.meta?.verifyToken || 'letstrack_meta_review_token_2026'
+    };
+
+    // Auto-subscribe webhook to Page for messaging
+    try {
+      await fetch(`https://graph.facebook.com/v26.0/${page.id}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_reads,message_deliveries,message_reactions,messaging_seen&access_token=${page.access_token || accessToken}`, {
+        method: 'POST'
+      });
+    } catch (subErr) {
+      console.warn('[TenantMeta] Auto-subscribe warning:', subErr.message);
+    }
+
+    await integration.save();
+
+    res.status(200).json({
+      success: true,
+      message: `🎉 Facebook Page "${page.name}" ${instagramHandle ? `& Instagram (${instagramHandle})` : ''} connected successfully!`,
+      meta: {
+        connected: true,
+        pageId: page.id,
+        pageName: page.name,
+        instagramAccountId: instagramId,
+        instagramHandle: instagramHandle,
+        facebookUrl: page.link || `https://facebook.com/${page.id}`
+      }
+    });
+  } catch (err) {
+    console.error('[TenantMeta] Connection error:', err);
+    res.status(500).json({ error: err.message || 'Failed to connect Meta accounts' });
+  }
+});
+
+app.post('/api/tenant/meta/disconnect', authenticateToken, async (req, res) => {
+  try {
+    let integration = await Integration.findOne({ tenantId: req.user.tenantId });
+    if (integration && integration.meta) {
+      integration.meta.enabled = false;
+      integration.meta.pageAccessToken = '';
+      await integration.save();
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Facebook Page & Instagram account disconnected.',
+      connected: false
+    });
+  } catch (err) {
+    console.error('[TenantMeta] Disconnect error:', err);
+    res.status(500).json({ error: err.message || 'Failed to disconnect Meta accounts' });
+  }
+});
+
 // 11c. WhatsApp Cloud API Onboarding Wizard Endpoint
 app.post('/api/superadmin/whatsapp-api/onboard', authenticateToken, requireSuperAdmin, async (req, res) => {
   const { phoneNumberId, wabaId, displayNumber, displayName, pin } = req.body;

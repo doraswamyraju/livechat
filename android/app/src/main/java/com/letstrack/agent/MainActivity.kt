@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity() {
             try {
                 val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
                 val idToken = account?.idToken
-                if (idToken != null) {
+                if (!idToken.isNullOrEmpty()) {
                     kotlinx.coroutines.MainScope().launch {
                         try {
                             val res = NetworkClient.api.googleLogin(com.letstrack.agent.network.GoogleLoginRequest(idToken))
@@ -122,14 +122,57 @@ class MainActivity : ComponentActivity() {
                                 .putString("user_profile", gson.toJson(res.user))
                                 .putString("tenant_details", gson.toJson(res.tenant))
                                 .apply()
+
+                            try {
+                                com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { fcmTask ->
+                                    if (fcmTask.isSuccessful) {
+                                        val fcmToken = fcmTask.result
+                                        kotlinx.coroutines.MainScope().launch {
+                                            try {
+                                                NetworkClient.api.registerFcmToken(
+                                                    NetworkClient.getAuthHeader(),
+                                                    com.letstrack.agent.network.FcmTokenRequest(fcmToken)
+                                                )
+                                            } catch (err: Exception) {
+                                                err.printStackTrace()
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+
+                            android.widget.Toast.makeText(this@MainActivity, "Welcome, ${res.user.name}!", android.widget.Toast.LENGTH_SHORT).show()
                             recreate()
                         } catch (e: Exception) {
                             e.printStackTrace()
+                            val msg = if (e is retrofit2.HttpException && e.code() == 404) {
+                                "No LetsTrack account found for Google email: ${account.email ?: ""}. Please onboard this account first."
+                            } else {
+                                "LetsTrack login error: ${e.localizedMessage ?: e.message}"
+                            }
+                            android.widget.Toast.makeText(this@MainActivity, msg, android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
+                } else {
+                    android.widget.Toast.makeText(this@MainActivity, "Google Sign-In succeeded but returned empty ID Token.", android.widget.Toast.LENGTH_LONG).show()
+                }
+            } catch (e: com.google.android.gms.common.api.ApiException) {
+                e.printStackTrace()
+                val msg = when (e.statusCode) {
+                    10 -> "Google Sign-In Error (DEVELOPER_ERROR 10): SHA-1 mismatch or OAuth Client ID misconfigured in Google Cloud Console."
+                    12500 -> "Google Sign-In Failed (12500): Check Play Services or network."
+                    12501 -> null // User cancelled
+                    7 -> "Network error during Google Sign-In. Please check your connection."
+                    else -> "Google Sign-In error (${e.statusCode}): ${e.localizedMessage ?: "Failed"}"
+                }
+                if (msg != null) {
+                    android.widget.Toast.makeText(this@MainActivity, msg, android.widget.Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                android.widget.Toast.makeText(this@MainActivity, "Google Sign-In exception: ${e.localizedMessage ?: e.message}", android.widget.Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -542,19 +585,27 @@ fun LoginView(
                 // Google Sign In Button
                 OutlinedButton(
                     onClick = {
-                        val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
-                            com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
-                        )
-                            .requestIdToken("931640963201-op9i4jmb31lcm8f4v5ggc0ik1oe1vvjk.apps.googleusercontent.com")
-                            .requestEmail()
-                            .build()
+                        try {
+                            val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
+                                com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
+                            )
+                                .requestIdToken("931640963201-op9i4jmb31lcm8f4v5ggc0ik1oe1vvjk.apps.googleusercontent.com")
+                                .requestEmail()
+                                .build()
 
-                        val googleSignInClient = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
-                        val signInIntent = googleSignInClient.signInIntent
-                        
-                        val activity = context as? ComponentActivity
-                        if (activity != null) {
-                            activity.startActivityForResult(signInIntent, 9001)
+                            val googleSignInClient = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
+                            googleSignInClient.signOut().addOnCompleteListener {
+                                val signInIntent = googleSignInClient.signInIntent
+                                val activity = context as? ComponentActivity
+                                if (activity != null) {
+                                    activity.startActivityForResult(signInIntent, 9001)
+                                } else {
+                                    android.widget.Toast.makeText(context, "Activity context unavailable", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            android.widget.Toast.makeText(context, "Google Sign-In initialization error: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
                         }
                     },
                     modifier = Modifier

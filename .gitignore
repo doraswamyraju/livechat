@@ -26,6 +26,8 @@ Thumbs.db
 **/google-services.json
 *.jks
 *.keystore
+*.bak
+*.pem
 
 # Swift Package Manager & Xcode
 **/.build/

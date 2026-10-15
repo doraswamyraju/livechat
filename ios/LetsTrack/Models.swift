@@ -16,6 +16,16 @@ struct GoogleLoginRequest: Codable {
     let credential: String
 }
 
+struct MetaStatusResponse: Codable {
+    let connected: Bool
+    let pageId: String?
+    let pageName: String?
+    let facebookUrl: String?
+    let instagramAccountId: String?
+    let instagramHandle: String?
+    let instagramUrl: String?
+}
+
 struct AppleLoginRequest: Codable {
     let identityToken: String?
     let authorizationCode: String?

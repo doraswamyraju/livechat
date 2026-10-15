@@ -376,6 +376,7 @@ struct UnifiedInboxTab: View {
     @State private var selectedChannel = "all" // "all", "whatsapp", "instagram", "facebook", "livechat"
     @State private var searchText = ""
     @State private var filterStatus = "all" // "all", "open", "unassigned"
+    @State private var metaStatus: MetaStatusResponse? = nil
     
     var channelCounts: [String: Int] {
         var counts: [String: Int] = ["all": 0, "whatsapp": 0, "instagram": 0, "facebook": 0, "livechat": 0]
@@ -512,6 +513,43 @@ struct UnifiedInboxTab: View {
                 }
                 .padding(.horizontal)
                 
+                // Connect Facebook & Instagram Banner (Only if NOT already authenticated)
+                if metaStatus?.connected != true {
+                    HStack(spacing: 12) {
+                        Text("💬")
+                            .font(.system(size: 20))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Connect Facebook & Instagram")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(theme.onSurfaceColor)
+                            Text("Receive customer DMs directly in this inbox")
+                                .font(.system(size: 11))
+                                .foregroundColor(theme.textGrayColor)
+                        }
+                        Spacer()
+                        Link(destination: URL(string: "https://letstrack.manacity.in/")!) {
+                            Text("Connect ⚡")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color(red: 24/255, green: 119/255, blue: 242/255))
+                                .cornerRadius(8)
+                        }
+                    }
+                    .padding(12)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.08), Color.pink.opacity(0.08)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(12)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.blue.opacity(0.25), lineWidth: 1))
+                    .padding(.horizontal)
+                }
+                
                 // Horizontal Channel Filter Pills with Counts
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -537,6 +575,13 @@ struct UnifiedInboxTab: View {
                 }
             }
             .padding(.bottom, 24)
+            .task {
+                do {
+                    metaStatus = try await NetworkClient.shared.getMetaStatus()
+                } catch {
+                    // Fail gracefully
+                }
+            }
         }
     }
     

@@ -883,4 +883,32 @@ final class NetworkClient: ObservableObject {
             throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to delete pitch."])
         }
     }
+    
+    // ============================================
+    // TENANT META (FACEBOOK & INSTAGRAM DMS)
+    // ============================================
+    func getMetaStatus() async throws -> MetaStatusResponse {
+        let url = URL(string: "\(baseURL)/api/tenant/meta/status")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to retrieve Meta status."])
+        }
+        return try decoder.decode(MetaStatusResponse.self, from: data)
+    }
+    
+    func disconnectMeta() async throws {
+        let url = URL(string: "\(baseURL)/api/tenant/meta/disconnect")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (_, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to disconnect Meta assets."])
+        }
+    }
 }

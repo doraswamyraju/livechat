@@ -17,6 +17,16 @@ import java.net.URISyntaxException
 data class LoginRequest(val email: String, val password: String)
 data class GoogleLoginRequest(val idToken: String)
 
+data class MetaStatusResponse(
+    val connected: Boolean = false,
+    val pageId: String? = null,
+    val pageName: String? = null,
+    val facebookUrl: String? = null,
+    val instagramAccountId: String? = null,
+    val instagramHandle: String? = null,
+    val instagramUrl: String? = null
+)
+
 data class UserProfile(
     val id: String,
     val name: String,
@@ -263,6 +273,12 @@ interface LetsTrackApi {
 
     @POST("/api/auth/reset-password")
     suspend fun resetPassword(@Body request: ResetPasswordRequest): ResetPasswordResponse
+
+    @GET("/api/tenant/meta/status")
+    suspend fun getMetaStatus(@Header("Authorization") token: String): MetaStatusResponse
+
+    @POST("/api/tenant/meta/disconnect")
+    suspend fun disconnectMeta(@Header("Authorization") token: String): retrofit2.Response<Unit>
 
     @GET("/api/analytics/summary")
     suspend fun getAnalytics(@Header("Authorization") token: String): AnalyticsResponse

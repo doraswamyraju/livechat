@@ -62,6 +62,47 @@ fun DashboardScreen(
     var agentsList by remember { mutableStateOf<List<UserProfile>>(emptyList()) }
     var selfStatus by remember { mutableStateOf(NetworkClient.currentUser?.status ?: "Offline") }
     var showStatusDialog by remember { mutableStateOf(false) }
+    var metaStatus by remember { mutableStateOf<MetaStatusResponse?>(null) }
+    val context = LocalContext.current
+
+    val refreshMetaStatus: () -> Unit = {
+        coroutineScope.launch {
+            try {
+                metaStatus = NetworkClient.api.getMetaStatus(NetworkClient.getAuthHeader())
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshMetaStatus()
+    }
+
+    val onConnectMeta: () -> Unit = {
+        val appId = "1311990813621733"
+        val redirectUri = Uri.encode("https://letstrack.manacity.in/")
+        val scope = Uri.encode("public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,pages_read_user_content,pages_manage_engagement,pages_messaging,pages_manage_metadata,instagram_basic,instagram_manage_comments,instagram_manage_insights,instagram_content_publish,instagram_manage_messages")
+        val authUrl = "https://www.facebook.com/v26.0/dialog/oauth?client_id=$appId&redirect_uri=$redirectUri&response_type=token&scope=$scope"
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Could not open browser", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val onDisconnectMeta: () -> Unit = {
+        coroutineScope.launch {
+            try {
+                NetworkClient.api.disconnectMeta(NetworkClient.getAuthHeader())
+                metaStatus = MetaStatusResponse(connected = false)
+                Toast.makeText(context, "Meta accounts disconnected", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to disconnect Meta", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // Connect real-time socket listeners
     DisposableEffect(Unit) {
@@ -358,6 +399,7 @@ fun DashboardScreen(
                 }
             }
         }
+        refreshMetaStatus()
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -485,6 +527,8 @@ fun DashboardScreen(
                     0 -> OverviewTabContent(
                         analytics = analytics,
                         visitorsList = visitorsList,
+                        metaStatus = metaStatus,
+                        onConnectMeta = onConnectMeta,
                         onNavigateToTab = { selectedTab = it }
                     )
                     1 -> RadarTabContent(
@@ -505,6 +549,8 @@ fun DashboardScreen(
                     2 -> UnifiedInboxTabContent(
                         conversationsList = conversationsList,
                         visitorsList = visitorsList,
+                        metaStatus = metaStatus,
+                        onConnectMeta = onConnectMeta,
                         onSelectConversation = { conv, vis ->
                             onNavigateToChat(
                                 conv._id, vis.name, vis._id, vis.country, vis.city,
@@ -522,8 +568,8 @@ fun DashboardScreen(
                         }
                     )
                     4 -> MetaAdsTabContent()
-                    5 -> if (isAdmin) TeamTabContent(agentsList = agentsList) else SettingsTabContent(isDark = isDark, onThemeChange = onThemeChange)
-                    6 -> SettingsTabContent(isDark = isDark, onThemeChange = onThemeChange)
+                    5 -> if (isAdmin) TeamTabContent(agentsList = agentsList) else SettingsTabContent(isDark = isDark, onThemeChange = onThemeChange, metaStatus = metaStatus, onConnectMeta = onConnectMeta, onDisconnectMeta = onDisconnectMeta)
+                    6 -> SettingsTabContent(isDark = isDark, onThemeChange = onThemeChange, metaStatus = metaStatus, onConnectMeta = onConnectMeta, onDisconnectMeta = onDisconnectMeta)
                 }
             }
 
@@ -680,6 +726,8 @@ fun DockItem(
 fun UnifiedInboxTabContent(
     conversationsList: List<ConversationDto>,
     visitorsList: List<VisitorDto>,
+    metaStatus: MetaStatusResponse? = null,
+    onConnectMeta: () -> Unit = {},
     onSelectConversation: (ConversationDto, VisitorDto) -> Unit
 ) {
     var selectedChannel by remember { mutableStateOf("all") }
@@ -815,6 +863,78 @@ fun UnifiedInboxTabContent(
                 ),
                 singleLine = true
             )
+        }
+
+        // Connect Facebook & Instagram Banner (Only if NOT already authenticated)
+        if (metaStatus?.connected != true) {
+            item {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1877F2).copy(alpha = 0.35f)),
+                    shadowElevation = 2.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0xFF1877F2).copy(alpha = 0.08f),
+                                        Color(0xFFE1306C).copy(alpha = 0.08f)
+                                    )
+                                )
+                            )
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(Color(0xFF1877F2), Color(0xFFE1306C))
+                                        ),
+                                        RoundedCornerShape(8.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("💬", fontSize = 18.sp)
+                            }
+                            Column {
+                                Text(
+                                    text = "Connect Facebook & Instagram",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Receive customer DMs directly in this inbox",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = onConnectMeta,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF1877F2)
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("Connect ⚡", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+            }
         }
 
         item {
@@ -1507,6 +1627,8 @@ fun VisitorCard(visitor: VisitorDto, onClick: () -> Unit) {
 fun OverviewTabContent(
     analytics: AnalyticsResponse?,
     visitorsList: List<VisitorDto>,
+    metaStatus: MetaStatusResponse? = null,
+    onConnectMeta: () -> Unit = {},
     onNavigateToTab: (Int) -> Unit
 ) {
     var showAllUrls by remember { mutableStateOf(false) }
@@ -1604,6 +1726,99 @@ fun OverviewTabContent(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF10B981)
                         )
+                    }
+                }
+            }
+        }
+
+        // Omnichannel Meta Status Card
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        1.dp,
+                        if (metaStatus?.connected == true) Color(0xFF10B981).copy(alpha = 0.4f) else Color(0xFF1877F2).copy(alpha = 0.35f),
+                        RoundedCornerShape(16.dp)
+                    )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(
+                                    if (metaStatus?.connected == true) Color(0xFF10B981) else Color(0xFF1877F2),
+                                    RoundedCornerShape(10.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(if (metaStatus?.connected == true) "✓" else "⚡", fontSize = 18.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = if (metaStatus?.connected == true) "Meta DMs Active" else "Meta Omnichannel",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Surface(
+                                    color = if (metaStatus?.connected == true) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFF3B82F6).copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = if (metaStatus?.connected == true) "Connected" else "Available",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (metaStatus?.connected == true) Color(0xFF10B981) else Color(0xFF3B82F6),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = if (metaStatus?.connected == true) {
+                                    "Synced with ${metaStatus.pageName ?: "Facebook Page"}${if (!metaStatus.instagramHandle.isNullOrEmpty()) " & ${metaStatus.instagramHandle}" else ""}"
+                                } else {
+                                    "Connect Facebook Page & Instagram to receive DMs"
+                                },
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF94A3B8),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    if (metaStatus?.connected != true) {
+                        Button(
+                            onClick = onConnectMeta,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text("Connect", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = { onNavigateToTab(2) },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text("Inbox", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -2126,7 +2341,10 @@ fun TeamTabContent(agentsList: List<UserProfile>) {
 @Composable
 fun SettingsTabContent(
     isDark: Boolean,
-    onThemeChange: (String) -> Unit
+    onThemeChange: (String) -> Unit,
+    metaStatus: MetaStatusResponse? = null,
+    onConnectMeta: () -> Unit = {},
+    onDisconnectMeta: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -2194,6 +2412,113 @@ fun SettingsTabContent(
                             color = Color(0xFF10B981),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
+                    }
+                }
+            }
+        }
+
+        // Meta (Facebook & Instagram) Channels Card
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("💬", fontSize = 18.sp)
+                            Column {
+                                Text("Facebook & Instagram Channels", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Meta DMs & Customer Conversations", fontSize = 11.5.sp, color = Color(0xFF94A3B8))
+                            }
+                        }
+                        Surface(
+                            color = if (metaStatus?.connected == true) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFEF4444).copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = if (metaStatus?.connected == true) "● Active" else "○ Inactive",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (metaStatus?.connected == true) Color(0xFF10B981) else Color(0xFFEF4444),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+
+                    // Channel details
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Box(modifier = Modifier.size(24.dp).background(Color(0xFF1877F2), CircleShape), contentAlignment = Alignment.Center) {
+                                        Text("f", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                    Text("Facebook Page", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                }
+                                Text(
+                                    text = metaStatus?.pageName ?: (if (metaStatus?.connected == true) "Connected" else "Not linked"),
+                                    fontSize = 12.sp,
+                                    color = if (metaStatus?.connected == true) Color(0xFF10B981) else Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Box(modifier = Modifier.size(24.dp).background(Color(0xFFE1306C), CircleShape), contentAlignment = Alignment.Center) {
+                                        Text("📸", fontSize = 11.sp)
+                                    }
+                                    Text("Instagram Business", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                }
+                                Text(
+                                    text = metaStatus?.instagramHandle ?: (if (metaStatus?.connected == true) "Connected" else "Not linked"),
+                                    fontSize = 12.sp,
+                                    color = if (metaStatus?.connected == true) Color(0xFF10B981) else Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    // Action buttons
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        if (metaStatus?.connected == true) {
+                            OutlinedButton(
+                                onClick = onDisconnectMeta,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Disconnect Meta Channels", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            Button(
+                                onClick = onConnectMeta,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Connect Facebook & Instagram ⚡", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
                     }
                 }
             }

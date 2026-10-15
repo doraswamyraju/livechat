@@ -394,6 +394,9 @@ function App() {
     whatsappApi: { enabled: false, phoneNumberId: '', accessToken: '', verifyToken: '' },
     meta: { enabled: false, pageId: '', instagramAccountId: '', pageAccessToken: '', verifyToken: '' }
   });
+  // Tenant-Level Meta (Facebook & Instagram DMs) States
+  const [metaStatus, setMetaStatus] = useState({ connected: false, pageName: '', instagramHandle: '' });
+  const [connectingMeta, setConnectingMeta] = useState(false);
   const [waWebStatus, setWaWebStatus] = useState('DISCONNECTED');
   const [waWebQr, setWaWebQr] = useState(null);
   const [waWebLoading, setWaWebLoading] = useState(false);
@@ -1581,6 +1584,7 @@ function App() {
 
     // Fetch integration configurations
     fetchIntegrations();
+    fetchTenantMetaStatus();
     fetchAgentsData();
 
     if (activeTab === 'billing') {
@@ -1974,6 +1978,94 @@ function App() {
       showToast('Upsell Pitch deleted successfully');
     } catch (err) {
       showToast(err.message, 'error');
+    }
+  };
+
+  // Fetch tenant Meta connection status
+  const fetchTenantMetaStatus = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/tenant/meta/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMetaStatus(data);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch Meta status:', err);
+    }
+  };
+
+  const handleConnectMeta = () => {
+    setConnectingMeta(true);
+    const appId = '1311990813621733';
+    const redirectUri = encodeURIComponent(
+      window.location.origin.includes('letstrack') 
+        ? 'https://letstrack.manacity.in/' 
+        : 'https://manacity.in/'
+    );
+    const scope = encodeURIComponent('public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,pages_read_user_content,pages_manage_engagement,pages_messaging,pages_manage_metadata,instagram_basic,instagram_manage_comments,instagram_manage_insights,instagram_content_publish,instagram_manage_messages');
+    const authUrl = `https://www.facebook.com/v26.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+
+    const width = 600;
+    const height = 700;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+
+    const popup = window.open(
+      authUrl,
+      'Meta Business OAuth Login',
+      `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,status=yes`
+    );
+
+    const checkPopup = setInterval(() => {
+      try {
+        if (popup && popup.location && popup.location.href.includes('access_token')) {
+          const hashParams = new URLSearchParams(popup.location.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          popup.close();
+          clearInterval(checkPopup);
+
+          fetch(`${BACKEND_URL}/api/tenant/meta/connect`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ accessToken })
+          })
+            .then(async res => {
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Failed to connect Meta accounts');
+              showToast(data.message || 'Facebook Page & Instagram connected!');
+              setMetaStatus(data.meta || { connected: true });
+              setConnectingMeta(false);
+            })
+            .catch(err => {
+              showToast(err.message || 'Error connecting Meta assets', 'error');
+              setConnectingMeta(false);
+            });
+        }
+      } catch (e) {
+        // Cross-origin access until redirect
+      }
+    }, 500);
+  };
+
+  const handleDisconnectMeta = async () => {
+    if (!window.confirm('Are you sure you want to disconnect Facebook & Instagram for this workspace?')) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/tenant/meta/disconnect`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Meta accounts disconnected');
+        setMetaStatus({ connected: false });
+      }
+    } catch (err) {
+      showToast('Error disconnecting Meta accounts', 'error');
     }
   };
 
@@ -2607,6 +2699,115 @@ function App() {
           {activeTab === 'analytics' && (
 
             <div>
+              {/* Omnichannel Facebook & Instagram Connection Card */}
+              <div className="glass-card" style={{
+                padding: '16px 20px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: metaStatus.connected 
+                  ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(24, 119, 242, 0.05))'
+                  : 'linear-gradient(135deg, rgba(24, 119, 242, 0.08), rgba(225, 48, 108, 0.08))',
+                border: metaStatus.connected 
+                  ? '1px solid rgba(16, 185, 129, 0.3)' 
+                  : '1px solid rgba(24, 119, 242, 0.25)',
+                borderRadius: '14px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '10px',
+                    background: metaStatus.connected ? '#10B981' : 'linear-gradient(135deg, #1877F2, #E1306C)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    fontSize: '20px'
+                  }}>
+                    {metaStatus.connected ? '✓' : '⚡'}
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '700' }}>
+                        {metaStatus.connected ? 'Meta Omnichannel Messaging Active' : 'Connect Facebook Page & Instagram Account'}
+                      </h4>
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontWeight: 700,
+                        background: metaStatus.connected ? '#dcfce7' : '#eff6ff',
+                        color: metaStatus.connected ? '#16a34a' : '#1d4ed8'
+                      }}>
+                        {metaStatus.connected ? 'Connected' : 'Action Required'}
+                      </span>
+                    </div>
+                    <p style={{ margin: '3px 0 0 0', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                      {metaStatus.connected
+                        ? `Synced with Facebook Page "${metaStatus.pageName || 'Connected'}" ${metaStatus.instagramHandle ? `and Instagram (${metaStatus.instagramHandle})` : ''}`
+                        : 'Receive customer DMs from Facebook & Instagram directly in your unified inbox with real-time alerts.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  {metaStatus.connected ? (
+                    <>
+                      <button
+                        onClick={() => setActiveTab('chat')}
+                        style={{
+                          background: 'var(--card-bg)',
+                          border: '1px solid var(--border-color)',
+                          color: 'var(--text-primary)',
+                          borderRadius: '8px',
+                          padding: '8px 14px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Open Inbox
+                      </button>
+                      <button
+                        onClick={handleDisconnectMeta}
+                        style={{
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          color: '#ef4444',
+                          borderRadius: '8px',
+                          padding: '8px 14px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleConnectMeta}
+                      disabled={connectingMeta}
+                      style={{
+                        background: 'linear-gradient(135deg, #1877F2, #E1306C)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '9px 18px',
+                        fontSize: '12.5px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(24, 119, 242, 0.35)'
+                      }}
+                    >
+                      {connectingMeta ? 'Connecting...' : 'Connect Facebook & Instagram ⚡'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="analytics-stats-row">
                 <div className="stat-card glass-card" onClick={() => setActiveTab('monitor')} style={{ cursor: 'pointer' }}>
                   <div className="stat-title">Online Visitors</div>
@@ -3544,6 +3745,46 @@ function App() {
                       + Chat
                     </button>
                   </div>
+
+                  {/* Connect Facebook & Instagram Banner (Only if NOT already authenticated) */}
+                  {!metaStatus.connected && (
+                    <div style={{
+                      background: 'linear-gradient(135deg, rgba(24, 119, 242, 0.08), rgba(225, 48, 108, 0.08))',
+                      border: '1px solid rgba(24, 119, 242, 0.25)',
+                      borderRadius: '10px',
+                      padding: '10px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>💬</span>
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)' }}>Connect Facebook & Instagram</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Receive customer DMs directly in this inbox</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleConnectMeta}
+                        disabled={connectingMeta}
+                        style={{
+                          background: 'linear-gradient(135deg, #1877F2, #E1306C)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '6px 12px',
+                          fontSize: '11.5px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          boxShadow: '0 2px 6px rgba(24, 119, 242, 0.3)'
+                        }}
+                      >
+                        {connectingMeta ? 'Connecting...' : 'Connect Now ⚡'}
+                      </button>
+                    </div>
+                  )}
 
                   {/* Channel categories pills with Live Counts */}
                   {(() => {
@@ -5362,6 +5603,107 @@ function App() {
           {/* F. PROFILE & SETTINGS VIEW */}
           {activeTab === 'profile' && (
             <div className="monitor-grid">
+              {/* Meta (Facebook & Instagram) Channels Card */}
+              <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '20px' }}>💬</span>
+                      Facebook & Instagram Messaging
+                    </h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                      Connect your brand Facebook Page and Instagram Business Account to handle customer DMs directly in LetsTrack.
+                    </p>
+                  </div>
+                  <span style={{
+                    fontSize: '11px',
+                    padding: '3px 10px',
+                    borderRadius: '12px',
+                    fontWeight: 700,
+                    background: metaStatus.connected ? '#dcfce7' : '#fef2f2',
+                    color: metaStatus.connected ? '#16a34a' : '#ef4444'
+                  }}>
+                    {metaStatus.connected ? '● Active & Synced' : '○ Not Connected'}
+                  </span>
+                </div>
+
+                <div style={{
+                  padding: '16px',
+                  borderRadius: '12px',
+                  background: 'var(--bg-secondary, rgba(0,0,0,0.02))',
+                  border: '1px solid var(--border-color)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#1877F2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>f</div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: '600' }}>Facebook Page</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{metaStatus.pageName || (metaStatus.connected ? 'Connected' : 'Not linked')}</div>
+                      </div>
+                    </div>
+                    {metaStatus.connected && (
+                      <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>Connected</span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>📸</div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: '600' }}>Instagram Business Account</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{metaStatus.instagramHandle || (metaStatus.connected ? 'Connected' : 'Not linked')}</div>
+                      </div>
+                    </div>
+                    {metaStatus.connected && metaStatus.instagramHandle && (
+                      <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>Connected</span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                  {metaStatus.connected ? (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectMeta}
+                      style={{
+                        padding: '10px 16px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(239, 68, 68, 0.4)',
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        color: '#ef4444',
+                        fontWeight: '600',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Disconnect Meta Accounts
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleConnectMeta}
+                      disabled={connectingMeta}
+                      style={{
+                        padding: '11px 20px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'linear-gradient(135deg, #1877F2, #E1306C)',
+                        color: '#fff',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(24, 119, 242, 0.3)'
+                      }}
+                    >
+                      {connectingMeta ? 'Connecting...' : 'Connect Facebook & Instagram Accounts ⚡'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Profile details */}
               <div className="glass-card" style={{ padding: '24px' }}>
                 <h3 className="card-title" style={{ marginBottom: '20px' }}>Your Profile Info</h3>
