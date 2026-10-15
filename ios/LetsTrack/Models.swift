@@ -909,4 +909,51 @@ struct BrandLogoView: View {
     }
 }
 
+// MARK: - Social Module DTOs (Facebook & Instagram Feed, Posts, Comments, Insights)
+struct SocialPostDto: Identifiable, Codable {
+    var id: String { _id ?? "\(channel)_\(timestamp)" }
+    let _id: String?
+    let channel: String
+    let authorName: String
+    let authorHandle: String
+    let text: String
+    let mediaUrl: String?
+    let timestamp: String
+    let likesCount: Int?
+    let commentsCount: Int?
+    let sharesCount: Int?
+    let permalink: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case _id = "id"
+        case channel, authorName, authorHandle, text, mediaUrl, timestamp, likesCount, commentsCount, sharesCount, permalink
+    }
+}
+
+struct SocialCommentDto: Identifiable, Codable {
+    var id: String { _id ?? "\(postId)_\(timestamp)" }
+    let _id: String?
+    let postId: String
+    let channel: String
+    let authorName: String
+    let text: String
+    let timestamp: String
+    let postTitle: String
+    
+    enum CodingKeys: String, CodingKey {
+        case _id = "id"
+        case postId, channel, authorName, text, timestamp, postTitle
+    }
+}
+
+struct SocialInsightsDto: Codable {
+    let totalReach: Int
+    let totalImpressions: Int
+    let totalEngagements: Int
+    let engagementRate: Double
+    let facebookFollowers: Int?
+    let instagramFollowers: Int?
+}
+
+
 

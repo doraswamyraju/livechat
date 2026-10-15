@@ -50,11 +50,11 @@ struct DashboardView: View {
                             .tag(2)
                             
                             LeadsTab(onNavigateToChat: navigateToChatScreen, onNavigateToAds: {
-                                selectedTab = 4
+                                selectedTab = 7
                             })
                             .tag(3)
                             
-                            MetaAdsTab()
+                            SocialTab()
                             .tag(4)
                             
                             if isAdmin {
@@ -63,9 +63,12 @@ struct DashboardView: View {
                             }
                             
                             SettingsTab(onNavigateToAds: {
-                                selectedTab = 4
+                                selectedTab = 7
                             })
                             .tag(isAdmin ? 6 : 5)
+                            
+                            MetaAdsTab()
+                            .tag(7)
                         }
                         .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                         .frame(width: screenWidth)
@@ -243,13 +246,13 @@ struct DashboardView: View {
         let innerDockPadding: CGFloat = availableWidth < 380 ? 4 : 6
         let dockContentWidth = availableWidth - (horizontalDockPadding * 2) - (innerDockPadding * 2)
         let itemWidth = max(44, dockContentWidth / tabCount)
-        let isMoreSelected = selectedTab == 1 || selectedTab == 5 || selectedTab == 6
+        let isMoreSelected = selectedTab == 1 || selectedTab == 5 || selectedTab == 6 || selectedTab == 7
         
         return HStack(spacing: 0) {
             DockItem(icon: "chart.bar.fill", label: "Overview", index: 0, selection: $selectedTab, itemWidth: itemWidth)
             DockItem(icon: "bubble.left.and.bubble.right.fill", label: "Inbox", index: 2, selection: $selectedTab, badgeCount: socketManager.conversationsList.filter { ($0.unreadCount ?? 0) > 0 }.count, itemWidth: itemWidth)
             DockItem(icon: "person.crop.rectangle.stack.fill", label: "Leads", index: 3, selection: $selectedTab, itemWidth: itemWidth)
-            DockItem(icon: "megaphone.fill", label: "Ads", index: 4, selection: $selectedTab, itemWidth: itemWidth)
+            DockItem(icon: "square.and.arrow.up.fill", label: "Social", index: 4, selection: $selectedTab, itemWidth: itemWidth)
             
             // "More" Toggle Button (Opens Slide-up Sheet with Radar, Team, Settings)
             Button(action: {
@@ -2340,6 +2343,948 @@ struct LeadDetailSheet: View {
             } catch {
                 print("Failed to delete lead: \(error)")
             }
+        }
+    }
+}
+
+// MARK: - SOCIAL STUDIO TAB (Facebook Page & Instagram Organic Posts, Comments, Performance)
+struct SocialTab: View {
+    @StateObject private var networkClient = NetworkClient.shared
+    @EnvironmentObject var theme: ThemeManager
+    
+    @State private var selectedSubTab: String = "create"
+    @State private var posts: [SocialPostDto] = []
+    @State private var comments: [SocialCommentDto] = []
+    @State private var insights: SocialInsightsDto? = nil
+    
+    @State private var isLoading = false
+    @State private var isPublishing = false
+    @State private var toastMessage: String? = nil
+    
+    // Create Post Form State
+    @State private var postText: String = ""
+    @State private var postMediaUrl: String = ""
+    @State private var publishToFacebook: Bool = true
+    @State private var publishToInstagram: Bool = true
+    
+    // Comments Reply State
+    @State private var replyingCommentId: String? = nil
+    @State private var replyText: String = ""
+    @State private var isSendingReply: Bool = false
+    
+    let subTabs = [
+        ("create", "✍️ Create Post"),
+        ("all", "📱 All Posts"),
+        ("instagram", "📸 Instagram"),
+        ("facebook", "📘 Facebook"),
+        ("comments", "💬 Comments"),
+        ("performance", "📊 Performance")
+    ]
+    
+    var filteredPosts: [SocialPostDto] {
+        switch selectedSubTab {
+        case "instagram":
+            return posts.filter { $0.channel.lowercased().contains("insta") }
+        case "facebook":
+            return posts.filter { $0.channel.lowercased().contains("face") || $0.channel.lowercased().contains("fb") }
+        default:
+            return posts
+        }
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // 1. Top Header with Title and Refresh
+                headerSection
+                
+                // 2. Toast Message Banner
+                if let msg = toastMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text(msg)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(Color.green.opacity(0.12))
+                    .cornerRadius(8)
+                    .padding(.horizontal)
+                }
+                
+                // 3. Top Horizontal Scroll Chips
+                topHorizontalChips
+                
+                // 4. Content based on SubTab
+                if isLoading && posts.isEmpty && comments.isEmpty && insights == nil {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                } else {
+                    switch selectedSubTab {
+                    case "create":
+                        createPostView
+                    case "all", "instagram", "facebook":
+                        postsFeedView
+                    case "comments":
+                        commentsView
+                    case "performance":
+                        performanceView
+                    default:
+                        EmptyView()
+                    }
+                }
+            }
+            .padding(.bottom, 24)
+        }
+        .background(theme.backgroundColor.ignoresSafeArea())
+        .task {
+            await loadData()
+        }
+        .refreshable {
+            await loadData()
+        }
+    }
+    
+    private var headerSection: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text("Social Studio")
+                        .font(.system(size: 24, weight: .black))
+                        .foregroundColor(theme.onSurfaceColor)
+                    
+                    Text("FB & IG")
+                        .font(.system(size: 9, weight: .black))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color(red: 225/255, green: 48/255, blue: 108/255).opacity(0.15))
+                        .foregroundColor(Color(red: 225/255, green: 48/255, blue: 108/255))
+                        .cornerRadius(4)
+                }
+                
+                Text("Publish posts, reply to comments & monitor engagement")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(theme.textGrayColor)
+            }
+            
+            Spacer()
+            
+            Button(action: {
+                Task { await loadData() }
+            }) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(theme.onSurfaceColor)
+                    .padding(9)
+                    .background(theme.inputBackground)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(theme.borderColor, lineWidth: 1))
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 12)
+    }
+    
+    private var topHorizontalChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(subTabs, id: \.0) { tab in
+                    let isSelected = selectedSubTab == tab.0
+                    Button(action: {
+                        theme.triggerHaptic(style: .selection)
+                        selectedSubTab = tab.0
+                    }) {
+                        Text(tab.1)
+                            .font(.system(size: 13, weight: isSelected ? .bold : .medium))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(isSelected ? theme.primaryColor : theme.surfaceColor)
+                            .foregroundColor(isSelected ? .white : theme.onSurfaceColor)
+                            .cornerRadius(20)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(isSelected ? Color.clear : theme.borderColor, lineWidth: 1)
+                            )
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+    
+    // MARK: - SubView: Create Post Composer
+    private var createPostView: some View {
+        VStack(spacing: 16) {
+            // Target Channel Selection Card
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Publish Target Channels")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(theme.onSurfaceColor)
+                
+                HStack(spacing: 12) {
+                    // Facebook Toggle
+                    Button(action: { publishToFacebook.toggle() }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: publishToFacebook ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(publishToFacebook ? Color(red: 24/255, green: 119/255, blue: 242/255) : theme.textGrayColor)
+                            Text("📘 Facebook Page")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(theme.onSurfaceColor)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(publishToFacebook ? Color(red: 24/255, green: 119/255, blue: 242/255).opacity(0.1) : theme.inputBackground)
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(publishToFacebook ? Color(red: 24/255, green: 119/255, blue: 242/255).opacity(0.5) : theme.borderColor, lineWidth: 1)
+                        )
+                    }
+                    
+                    // Instagram Toggle
+                    Button(action: { publishToInstagram.toggle() }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: publishToInstagram ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(publishToInstagram ? Color(red: 225/255, green: 48/255, blue: 108/255) : theme.textGrayColor)
+                            Text("📸 Instagram")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(theme.onSurfaceColor)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(publishToInstagram ? Color(red: 225/255, green: 48/255, blue: 108/255).opacity(0.1) : theme.inputBackground)
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(publishToInstagram ? Color(red: 225/255, green: 48/255, blue: 108/255).opacity(0.5) : theme.borderColor, lineWidth: 1)
+                        )
+                    }
+                }
+            }
+            .padding(14)
+            .background(theme.surfaceColor)
+            .cornerRadius(14)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+            .padding(.horizontal)
+            
+            // Post Caption Card
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Post Caption")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    Spacer()
+                    Text("\(postText.count)/2200")
+                        .font(.system(size: 11))
+                        .foregroundColor(theme.textGrayColor)
+                }
+                
+                TextEditor(text: $postText)
+                    .frame(minHeight: 110)
+                    .padding(8)
+                    .background(theme.inputBackground)
+                    .cornerRadius(10)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+                
+                // Quick Hashtag Chips
+                Text("Quick Hashtags:")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(theme.textGrayColor)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(["#LetsTrack", "#BusinessGrowth", "#SpecialOffer", "#CustomerSuccess", "#AIHelp", "#LiveUpdates"], id: \.self) { tag in
+                            Button(action: {
+                                if !postText.contains(tag) {
+                                    postText += (postText.isEmpty ? "" : " ") + tag
+                                }
+                            }) {
+                                Text(tag)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(theme.primaryColor)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(theme.primaryColor.opacity(0.1))
+                                    .cornerRadius(6)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(14)
+            .background(theme.surfaceColor)
+            .cornerRadius(14)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+            .padding(.horizontal)
+            
+            // Media Image URL Card
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Post Media Image (Required for Instagram)")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(theme.onSurfaceColor)
+                
+                HStack {
+                    Image(systemName: "photo")
+                        .foregroundColor(theme.textGrayColor)
+                    TextField("https://example.com/banner.jpg", text: $postMediaUrl)
+                        .font(.system(size: 13))
+                    
+                    if !postMediaUrl.isEmpty {
+                        Button(action: { postMediaUrl = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(theme.textGrayColor)
+                        }
+                    }
+                }
+                .padding(10)
+                .background(theme.inputBackground)
+                .cornerRadius(10)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.borderColor, lineWidth: 1))
+                
+                // Quick Presets
+                HStack(spacing: 8) {
+                    Text("Presets:")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(theme.textGrayColor)
+                    
+                    Button(action: { postMediaUrl = "https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800" }) {
+                        Text("Business")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(theme.primaryColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(theme.inputBackground)
+                            .cornerRadius(6)
+                    }
+                    Button(action: { postMediaUrl = "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800" }) {
+                        Text("Analytics")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(theme.primaryColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(theme.inputBackground)
+                            .cornerRadius(6)
+                    }
+                    Button(action: { postMediaUrl = "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800" }) {
+                        Text("Team")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(theme.primaryColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(theme.inputBackground)
+                            .cornerRadius(6)
+                    }
+                }
+            }
+            .padding(14)
+            .background(theme.surfaceColor)
+            .cornerRadius(14)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+            .padding(.horizontal)
+            
+            // Live Feed Preview Card
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Image(systemName: "eye.fill")
+                        .foregroundColor(theme.primaryColor)
+                    Text("Live Feed Post Preview")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    Spacer()
+                    if publishToFacebook {
+                        Text("FB")
+                            .font(.system(size: 9, weight: .black))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color(red: 24/255, green: 119/255, blue: 242/255).opacity(0.15))
+                            .foregroundColor(Color(red: 24/255, green: 119/255, blue: 242/255))
+                            .cornerRadius(4)
+                    }
+                    if publishToInstagram {
+                        Text("IG")
+                            .font(.system(size: 9, weight: .black))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color(red: 225/255, green: 48/255, blue: 108/255).opacity(0.15))
+                            .foregroundColor(Color(red: 225/255, green: 48/255, blue: 108/255))
+                            .cornerRadius(4)
+                    }
+                }
+                
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(theme.primaryColor.opacity(0.2))
+                        .frame(width: 36, height: 36)
+                        .overlay(
+                            Text(String((networkClient.currentTenant?.name ?? "L").prefix(1)))
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(theme.primaryColor)
+                        )
+                    
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(networkClient.currentTenant?.name ?? "LetsTrack Page")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        Text("@letstrack_live • Just now")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                }
+                
+                Text(postText.isEmpty ? "Your caption will appear here as you type in the composer..." : postText)
+                    .font(.system(size: 13))
+                    .foregroundColor(postText.isEmpty ? theme.textGrayColor.opacity(0.6) : theme.onSurfaceColor)
+                    .padding(.vertical, 2)
+                
+                if let url = URL(string: postMediaUrl), !postMediaUrl.isEmpty {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: 180)
+                                .clipped()
+                                .cornerRadius(10)
+                        default:
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(theme.inputBackground)
+                                .frame(height: 140)
+                                .overlay(
+                                    VStack(spacing: 4) {
+                                        Image(systemName: "photo")
+                                            .foregroundColor(theme.textGrayColor)
+                                        Text("Media Image Preview")
+                                            .font(.system(size: 11))
+                                            .foregroundColor(theme.textGrayColor)
+                                    }
+                                )
+                        }
+                    }
+                }
+            }
+            .padding(14)
+            .background(theme.surfaceColor)
+            .cornerRadius(14)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+            .padding(.horizontal)
+            
+            // Publish Button
+            Button(action: publishPost) {
+                HStack(spacing: 8) {
+                    if isPublishing {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    } else {
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 14, weight: .bold))
+                    }
+                    Text(isPublishing ? "Publishing to Meta..." : "Publish Post Now")
+                        .font(.system(size: 15, weight: .bold))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    LinearGradient(
+                        colors: [Color(red: 24/255, green: 119/255, blue: 242/255), Color(red: 225/255, green: 48/255, blue: 108/255)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(12)
+                .shadow(color: Color(red: 225/255, green: 48/255, blue: 108/255).opacity(0.35), radius: 8, y: 4)
+            }
+            .disabled(isPublishing || postText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .opacity((isPublishing || postText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ? 0.6 : 1.0)
+            .padding(.horizontal)
+        }
+    }
+    
+    // MARK: - SubView: Feed & Posts List
+    private var postsFeedView: some View {
+        VStack(spacing: 14) {
+            if filteredPosts.isEmpty {
+                VStack(spacing: 14) {
+                    Image(systemName: "photo.stack")
+                        .font(.system(size: 44))
+                        .foregroundColor(theme.textGrayColor.opacity(0.5))
+                    Text("No published posts found")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    Text("Create and publish your first post to Facebook and Instagram directly from LetsTrack.")
+                        .font(.system(size: 12))
+                        .foregroundColor(theme.textGrayColor)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                    
+                    Button(action: { selectedSubTab = "create" }) {
+                        Text("Create Post Now")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(theme.primaryColor)
+                            .cornerRadius(10)
+                    }
+                }
+                .padding(.vertical, 40)
+            } else {
+                ForEach(filteredPosts) { post in
+                    postCard(post)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    private func postCard(_ post: SocialPostDto) -> some View {
+        let isInstagram = post.channel.lowercased().contains("insta")
+        let channelColor = isInstagram ? Color(red: 225/255, green: 48/255, blue: 108/255) : Color(red: 24/255, green: 119/255, blue: 242/255)
+        
+        return VStack(alignment: .leading, spacing: 10) {
+            // Header
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(channelColor.opacity(0.15))
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        Text(isInstagram ? "📸" : "📘")
+                            .font(.system(size: 16))
+                    )
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 6) {
+                        Text(post.authorName)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        
+                        Text(isInstagram ? "INSTAGRAM" : "FACEBOOK")
+                            .font(.system(size: 8, weight: .black))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(channelColor.opacity(0.15))
+                            .foregroundColor(channelColor)
+                            .cornerRadius(4)
+                    }
+                    
+                    Text("\(post.authorHandle) • \(post.timestamp)")
+                        .font(.system(size: 10.5))
+                        .foregroundColor(theme.textGrayColor)
+                }
+                
+                Spacer()
+                
+                if let pl = post.permalink, let url = URL(string: pl) {
+                    Link(destination: url) {
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(theme.textGrayColor)
+                    }
+                }
+            }
+            
+            // Post Text
+            Text(post.text)
+                .font(.system(size: 13))
+                .foregroundColor(theme.onSurfaceColor)
+                .lineSpacing(2)
+            
+            // Media Image
+            if let imgUrl = post.mediaUrl, let url = URL(string: imgUrl) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: 200)
+                            .clipped()
+                            .cornerRadius(10)
+                    default:
+                        EmptyView()
+                    }
+                }
+            }
+            
+            Divider().background(theme.borderColor)
+            
+            // Engagement Counters
+            HStack(spacing: 20) {
+                HStack(spacing: 4) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color.red)
+                    Text("\(post.likesCount ?? 0)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(theme.textGrayColor)
+                }
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "bubble.right.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(theme.primaryColor)
+                    Text("\(post.commentsCount ?? 0)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(theme.textGrayColor)
+                }
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "arrowshape.turn.up.right.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color.green)
+                    Text("\(post.sharesCount ?? 0)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(theme.textGrayColor)
+                }
+                
+                Spacer()
+            }
+        }
+        .padding(14)
+        .background(theme.surfaceColor)
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    // MARK: - SubView: Customer Comments Stream & Reply
+    private var commentsView: some View {
+        VStack(spacing: 14) {
+            if comments.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .font(.system(size: 40))
+                        .foregroundColor(theme.textGrayColor.opacity(0.5))
+                    Text("No comments yet")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    Text("Comments left by customers on your Facebook and Instagram posts will appear here with instant reply.")
+                        .font(.system(size: 12))
+                        .foregroundColor(theme.textGrayColor)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                }
+                .padding(.vertical, 40)
+            } else {
+                ForEach(comments) { comment in
+                    commentCard(comment)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    private func commentCard(_ comment: SocialCommentDto) -> some View {
+        let isInstagram = comment.channel.lowercased().contains("insta")
+        let channelColor = isInstagram ? Color(red: 225/255, green: 48/255, blue: 108/255) : Color(red: 24/255, green: 119/255, blue: 242/255)
+        let isReplying = replyingCommentId == comment.id
+        
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(channelColor.opacity(0.15))
+                    .frame(width: 32, height: 32)
+                    .overlay(
+                        Text(String(comment.authorName.prefix(1)))
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(channelColor)
+                    )
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 6) {
+                        Text(comment.authorName)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(theme.onSurfaceColor)
+                        
+                        Text(isInstagram ? "IG" : "FB")
+                            .font(.system(size: 8, weight: .black))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(channelColor.opacity(0.15))
+                            .foregroundColor(channelColor)
+                            .cornerRadius(3)
+                    }
+                    
+                    Text("on: \"\(comment.postTitle)\" • \(comment.timestamp)")
+                        .font(.system(size: 10.5))
+                        .foregroundColor(theme.textGrayColor)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+            }
+            
+            // Comment Text Bubble
+            Text(comment.text)
+                .font(.system(size: 13))
+                .foregroundColor(theme.onSurfaceColor)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(theme.inputBackground)
+                .cornerRadius(10)
+            
+            // Reply Form / Button
+            if !isReplying {
+                Button(action: {
+                    replyingCommentId = comment.id
+                    replyText = ""
+                }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrowshape.turn.up.left.fill")
+                            .font(.system(size: 11))
+                        Text("Reply as Page")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundColor(channelColor)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(channelColor.opacity(0.1))
+                    .cornerRadius(8)
+                }
+            } else {
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        TextField("Write response to customer...", text: $replyText)
+                            .font(.system(size: 13))
+                            .padding(8)
+                            .background(theme.surfaceColor)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.borderColor, lineWidth: 1))
+                        
+                        Button(action: {
+                            sendReply(commentId: comment.id)
+                        }) {
+                            if isSendingReply {
+                                ProgressView()
+                                    .frame(width: 24, height: 24)
+                            } else {
+                                Text("Send")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(channelColor)
+                                    .cornerRadius(8)
+                            }
+                        }
+                        .disabled(isSendingReply || replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        
+                        Button(action: { replyingCommentId = nil }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.textGrayColor)
+                                .padding(8)
+                        }
+                    }
+                }
+                .padding(8)
+                .background(theme.inputBackground)
+                .cornerRadius(10)
+            }
+        }
+        .padding(14)
+        .background(theme.surfaceColor)
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    // MARK: - SubView: Performance & Insights
+    private var performanceView: some View {
+        VStack(spacing: 16) {
+            if let ins = insights {
+                // 4-Card Carousel
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        socialStatCard(
+                            title: "Total Reach",
+                            value: "\(ins.totalReach.formattedWithCommas())",
+                            subtext: "Unique Meta accounts",
+                            color: Color(red: 16/255, green: 185/255, blue: 129/255),
+                            icon: "person.3.fill"
+                        )
+                        socialStatCard(
+                            title: "Impressions",
+                            value: "\(ins.totalImpressions.formattedWithCommas())",
+                            subtext: "Post content views",
+                            color: Color(red: 59/255, green: 130/255, blue: 246/255),
+                            icon: "eye.fill"
+                        )
+                        socialStatCard(
+                            title: "Engagements",
+                            value: "\(ins.totalEngagements.formattedWithCommas())",
+                            subtext: "Likes, comments & shares",
+                            color: Color(red: 220/255, green: 38/255, blue: 38/255),
+                            icon: "heart.fill"
+                        )
+                        socialStatCard(
+                            title: "Engagement Rate",
+                            value: "\(String(format: "%.1f", ins.engagementRate))%",
+                            subtext: "Industry benchmark: 2.2%",
+                            color: Color(red: 245/255, green: 158/255, blue: 11/255),
+                            icon: "chart.line.uptrend.xyaxis"
+                        )
+                    }
+                }
+                
+                // Audience Distribution Card
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Channel Audience Breakdown")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(theme.onSurfaceColor)
+                    
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("📘 Facebook Page")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(Color(red: 24/255, green: 119/255, blue: 242/255))
+                            Text("\((ins.facebookFollowers ?? 0).formattedWithCommas()) Followers")
+                                .font(.system(size: 15, weight: .black))
+                                .foregroundColor(theme.onSurfaceColor)
+                        }
+                        
+                        Spacer()
+                        
+                        VStack(alignment: .trailing, spacing: 3) {
+                            Text("📸 Instagram Feed")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(Color(red: 225/255, green: 48/255, blue: 108/255))
+                            Text("\((ins.instagramFollowers ?? 0).formattedWithCommas()) Followers")
+                                .font(.system(size: 15, weight: .black))
+                                .foregroundColor(theme.onSurfaceColor)
+                        }
+                    }
+                    
+                    // Ratio Bar
+                    let fbCount = Double(ins.facebookFollowers ?? 1)
+                    let igCount = Double(ins.instagramFollowers ?? 1)
+                    let total = max(1.0, fbCount + igCount)
+                    let fbRatio = fbCount / total
+                    
+                    GeometryReader { geo in
+                        HStack(spacing: 3) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(red: 24/255, green: 119/255, blue: 242/255))
+                                .frame(width: max(8, geo.size.width * CGFloat(fbRatio)))
+                            
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(red: 225/255, green: 48/255, blue: 108/255))
+                                .frame(width: max(8, geo.size.width * CGFloat(1 - fbRatio) - 3))
+                        }
+                    }
+                    .frame(height: 8)
+                }
+                .padding(16)
+                .background(theme.surfaceColor)
+                .cornerRadius(16)
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.borderColor, lineWidth: 1))
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 30)
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    private func socialStatCard(title: String, value: String, subtext: String, color: Color, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(theme.textGrayColor)
+                Spacer()
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundColor(color)
+            }
+            
+            Text(value)
+                .font(.system(size: 22, weight: .black))
+                .foregroundColor(theme.onSurfaceColor)
+            
+            Text(subtext)
+                .font(.system(size: 10.5))
+                .foregroundColor(theme.textGrayColor)
+        }
+        .padding(14)
+        .frame(width: 165)
+        .background(theme.surfaceColor)
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.borderColor, lineWidth: 1))
+    }
+    
+    // MARK: - Actions
+    private func loadData() async {
+        isLoading = true
+        do {
+            async let fetchedPosts = networkClient.getSocialPosts()
+            async let fetchedComments = networkClient.getSocialComments()
+            async let fetchedInsights = networkClient.getSocialInsights()
+            
+            let (p, c, i) = try await (fetchedPosts, fetchedComments, fetchedInsights)
+            self.posts = p
+            self.comments = c
+            self.insights = i
+        } catch {
+            print("Failed to load social data: \(error)")
+        }
+        isLoading = false
+    }
+    
+    private func publishPost() {
+        guard !postText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        isPublishing = true
+        Task {
+            do {
+                let success = try await networkClient.publishSocialPost(
+                    text: postText.trimmingCharacters(in: .whitespacesAndNewlines),
+                    mediaUrl: postMediaUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : postMediaUrl.trimmingCharacters(in: .whitespacesAndNewlines),
+                    publishToFacebook: publishToFacebook,
+                    publishToInstagram: publishToInstagram
+                )
+                if success {
+                    toastMessage = "Post successfully dispatched to Meta!"
+                    postText = ""
+                    postMediaUrl = ""
+                    await loadData()
+                    selectedSubTab = "all"
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                        toastMessage = nil
+                    }
+                }
+            } catch {
+                toastMessage = "Failed to publish post: \(error.localizedDescription)"
+            }
+            isPublishing = false
+        }
+    }
+    
+    private func sendReply(commentId: String) {
+        guard !replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        isSendingReply = true
+        Task {
+            do {
+                let success = try await networkClient.replySocialComment(
+                    commentId: commentId,
+                    message: replyText.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+                if success {
+                    toastMessage = "Reply dispatched to customer comment!"
+                    replyingCommentId = nil
+                    replyText = ""
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                        toastMessage = nil
+                    }
+                }
+            } catch {
+                toastMessage = "Failed to reply: \(error.localizedDescription)"
+            }
+            isSendingReply = false
         }
     }
 }
@@ -5852,6 +6797,19 @@ struct MoreOptionsSheet: View {
                         }
                     )
                     
+                    // Meta Ads Command Option (Moved to More options sheet)
+                    moreOptionRow(
+                        icon: "megaphone.fill",
+                        iconColor: Color(red: 234/255, green: 88/255, blue: 12/255),
+                        title: "Meta Ads Command",
+                        subtitle: "Run sponsored campaigns, monitor ad sets, spend & ROAS",
+                        isSelected: selectedTab == 7,
+                        action: {
+                            selectedTab = 7
+                            isPresented = false
+                        }
+                    )
+                    
                     // Team Option (Admin only)
                     if isAdmin {
                         moreOptionRow(
@@ -5897,7 +6855,7 @@ struct MoreOptionsSheet: View {
             }
             .background(theme.surfaceColor.ignoresSafeArea())
         }
-        .presentationDetents([.fraction(isAdmin ? 0.48 : 0.42)])
+        .presentationDetents([.fraction(isAdmin ? 0.62 : 0.54)])
         .presentationDragIndicator(.visible)
     }
     

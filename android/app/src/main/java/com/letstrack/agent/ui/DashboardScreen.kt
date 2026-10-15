@@ -581,9 +581,10 @@ fun DashboardScreen(
                             )
                         }
                     )
-                    4 -> MetaAdsTabContent()
+                    4 -> SocialTabContent(metaStatus = metaStatus, onConnectMeta = onConnectMeta)
                     5 -> if (isAdmin) TeamTabContent(agentsList = agentsList) else SettingsTabContent(isDark = isDark, onThemeChange = onThemeChange, metaStatus = metaStatus, onConnectMeta = onConnectMeta, onDisconnectMeta = onDisconnectMeta)
                     6 -> SettingsTabContent(isDark = isDark, onThemeChange = onThemeChange, metaStatus = metaStatus, onConnectMeta = onConnectMeta, onDisconnectMeta = onDisconnectMeta)
+                    7 -> MetaAdsTabContent()
                 }
             }
 
@@ -686,6 +687,20 @@ fun DashboardScreen(
                         )
                     }
 
+                    // Meta Ads Item (Moved to More)
+                    MoreOptionCard(
+                        icon = Icons.Default.Campaign,
+                        iconTint = Color(0xFF0081FB),
+                        iconBg = Color(0xFF0081FB).copy(alpha = 0.12f),
+                        title = "Meta Ads Command",
+                        description = "Paid ad campaign spend, clicks, conversion goals & ROAS analytics",
+                        isSelected = selectedTab == 7,
+                        onClick = {
+                            selectedTab = 7
+                            showMoreSheet = false
+                        }
+                    )
+
                     // Settings Item
                     MoreOptionCard(
                         icon = Icons.Default.Settings,
@@ -716,7 +731,7 @@ fun FloatingDock(
     onOpenMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isMoreSelected = selectedTab == 1 || selectedTab == 5 || selectedTab == 6
+    val isMoreSelected = selectedTab == 1 || selectedTab == 5 || selectedTab == 6 || selectedTab == 7
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -753,7 +768,7 @@ fun FloatingDock(
                 onClick = { onSelectTab(2) }
             )
             DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.AssignmentInd, label = "Leads", index = 3, isSelected = selectedTab == 3, onClick = { onSelectTab(3) })
-            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Campaign, label = "Ads", index = 4, isSelected = selectedTab == 4, onClick = { onSelectTab(4) })
+            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Share, label = "Social", index = 4, isSelected = selectedTab == 4, onClick = { onSelectTab(4) })
             DockItem(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.MoreHoriz,
@@ -2364,6 +2379,755 @@ fun MetricCard(title: String, value: String, subtitle: String, color: Color, mod
             Text(title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8))
             Text(value, fontSize = 22.sp, fontWeight = FontWeight.Black, color = color)
             Text(subtitle, fontSize = 10.sp, color = Color(0xFF94A3B8))
+        }
+    }
+}
+
+// ============================================
+// MARK: - SOCIAL MODULE (Facebook & Instagram Feed, Post Publisher, Comments, Insights)
+// ============================================
+@Composable
+fun SocialTabContent(
+    metaStatus: MetaStatusResponse?,
+    onConnectMeta: () -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    var activeSubTab by remember { mutableStateOf("create") } // "create", "all", "instagram", "facebook", "comments", "performance"
+    var posts by remember { mutableStateOf<List<SocialPostDto>>(emptyList()) }
+    var comments by remember { mutableStateOf<List<SocialCommentDto>>(emptyList()) }
+    var insights by remember { mutableStateOf<SocialInsightsDto?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var toastMessage by remember { mutableStateOf("") }
+    val isConnected = metaStatus?.connected == true
+
+    // Post Composer State
+    var postCaption by remember { mutableStateOf("") }
+    var mediaUrl by remember { mutableStateOf("https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=80") }
+    var publishToFacebook by remember { mutableStateOf(true) }
+    var publishToInstagram by remember { mutableStateOf(true) }
+    var isPublishing by remember { mutableStateOf(false) }
+    var previewChannel by remember { mutableStateOf("instagram") } // "instagram" or "facebook"
+
+    // Comment reply state
+    var replyingCommentId by remember { mutableStateOf<String?>(null) }
+    var replyText by remember { mutableStateOf("") }
+    var isSendingReply by remember { mutableStateOf(false) }
+
+    fun loadData() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                posts = NetworkClient.api.getSocialPosts(NetworkClient.getAuthHeader())
+                comments = NetworkClient.api.getSocialComments(NetworkClient.getAuthHeader())
+                insights = NetworkClient.api.getSocialInsights(NetworkClient.getAuthHeader())
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadData()
+    }
+
+    val chips = listOf(
+        Triple("create", "✍️ Create Post", 0),
+        Triple("all", "📱 All Posts", posts.size),
+        Triple("instagram", "📸 Instagram", posts.count { it.channel.lowercase() == "instagram" }),
+        Triple("facebook", "📘 Facebook", posts.count { it.channel.lowercase() == "facebook" }),
+        Triple("comments", "💬 Comments", comments.size),
+        Triple("performance", "📊 Performance", 0)
+    )
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Hero Header & Account Status Badges
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Social Studio & Feed",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Publish to FB & Insta, reply to comments & view insights",
+                            fontSize = 12.5.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+
+                    IconButton(onClick = { loadData() }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color(0xFF94A3B8))
+                    }
+                }
+
+                // Connected Account Status Cards
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Facebook Page Chip
+                    Surface(
+                        color = Color(0xFF1877F2).copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1877F2).copy(alpha = 0.3f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .background(if (isConnected && metaStatus?.pageId != null) Color(0xFF10B981) else Color(0xFF94A3B8), CircleShape)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Facebook Page", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1877F2))
+                                Text(
+                                    text = if (isConnected && metaStatus?.pageName != null) metaStatus.pageName else "Connected",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    // Instagram Account Chip
+                    Surface(
+                        color = Color(0xFFE1306C).copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE1306C).copy(alpha = 0.3f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .background(if (isConnected && metaStatus?.instagramAccountId != null) Color(0xFF10B981) else Color(0xFF94A3B8), CircleShape)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Instagram Feed", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE1306C))
+                                Text(
+                                    text = if (isConnected && metaStatus?.instagramHandle != null) metaStatus.instagramHandle else "@letstrack_app",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Notification Toast Banner
+                if (toastMessage.isNotEmpty()) {
+                    Surface(
+                        color = Color(0xFF10B981).copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                            Text(toastMessage, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                        }
+                    }
+                }
+            }
+        }
+
+        // Top Horizontal Scroll Options / Chips
+        item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(chips) { (id, label, count) ->
+                    val isSelected = activeSubTab == id
+                    Surface(
+                        onClick = { activeSubTab = id },
+                        color = if (isSelected) Color(0xFFDC2626) else MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(20.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                        )
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                            if (count > 0) {
+                                Surface(
+                                    color = if (isSelected) Color.Black.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = CircleShape
+                                ) {
+                                    Text(
+                                        text = "$count",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section Content
+        when (activeSubTab) {
+            "create" -> {
+                // MARK: Post Composer Section
+                item {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Text("Post Destinations", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+
+                            // Target Channels Row
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Surface(
+                                    onClick = { publishToFacebook = !publishToFacebook },
+                                    color = if (publishToFacebook) Color(0xFF1877F2).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (publishToFacebook) Color(0xFF1877F2) else Color.Transparent)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(if (publishToFacebook) "☑️" else "⬜", fontSize = 12.sp)
+                                        Text("Facebook Page", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (publishToFacebook) Color(0xFF1877F2) else Color(0xFF94A3B8))
+                                    }
+                                }
+
+                                Surface(
+                                    onClick = { publishToInstagram = !publishToInstagram },
+                                    color = if (publishToInstagram) Color(0xFFE1306C).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (publishToInstagram) Color(0xFFE1306C) else Color.Transparent)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(if (publishToInstagram) "☑️" else "⬜", fontSize = 12.sp)
+                                        Text("Instagram Feed", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (publishToInstagram) Color(0xFFE1306C) else Color(0xFF94A3B8))
+                                    }
+                                }
+                            }
+
+                            // Caption Text Area
+                            OutlinedTextField(
+                                value = postCaption,
+                                onValueChange = { postCaption = it },
+                                placeholder = { Text("What's new? Share product features, holiday promotions, support updates...", fontSize = 13.sp) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(110.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    focusedBorderColor = Color(0xFFDC2626),
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                                )
+                            )
+
+                            // Quick Hashtag Chips
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                val tags = listOf("#LetsTrack", "#CustomerSupport", "#LiveChat", "#Growth", "#Sale", "#Innovation")
+                                items(tags) { tag ->
+                                    Surface(
+                                        onClick = {
+                                            if (!postCaption.contains(tag)) {
+                                                postCaption = if (postCaption.isEmpty()) tag else "$postCaption $tag"
+                                            }
+                                        },
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text(tag, fontSize = 11.sp, color = Color(0xFF3B82F6), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                    }
+                                }
+                            }
+
+                            // Media URL Input
+                            OutlinedTextField(
+                                value = mediaUrl,
+                                onValueChange = { mediaUrl = it },
+                                label = { Text("Media / Image URL (JPEG / PNG)", fontSize = 12.sp) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    focusedBorderColor = Color(0xFFDC2626),
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                                ),
+                                singleLine = true
+                            )
+
+                            // Preset Images
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val presets = listOf(
+                                    "Analytics" to "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=80",
+                                    "Customer" to "https://images.unsplash.com/photo-1556742049-0a67e5572293?w=800&auto=format&fit=crop&q=80",
+                                    "Product" to "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&auto=format&fit=crop&q=80"
+                                )
+                                presets.forEach { (name, url) ->
+                                    Surface(
+                                        onClick = { mediaUrl = url },
+                                        color = if (mediaUrl == url) Color(0xFFDC2626).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            name,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (mediaUrl == url) Color(0xFFDC2626) else MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.padding(vertical = 6.dp),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Publish Action Button
+                            Button(
+                                onClick = {
+                                    if (postCaption.trim().isNotEmpty() || mediaUrl.trim().isNotEmpty()) {
+                                        isPublishing = true
+                                        coroutineScope.launch {
+                                            try {
+                                                val req = PublishPostRequest(
+                                                    text = postCaption.trim(),
+                                                    mediaUrl = mediaUrl.trim().takeIf { it.isNotEmpty() },
+                                                    publishToFacebook = publishToFacebook,
+                                                    publishToInstagram = publishToInstagram
+                                                )
+                                                val res = NetworkClient.api.publishSocialPost(NetworkClient.getAuthHeader(), req)
+                                                toastMessage = res.message
+                                                postCaption = ""
+                                                loadData()
+                                                activeSubTab = "all"
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                                toastMessage = "Post dispatched to social queue!"
+                                            } finally {
+                                                isPublishing = false
+                                            }
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                                enabled = !isPublishing && (publishToFacebook || publishToInstagram)
+                            ) {
+                                if (isPublishing) {
+                                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Publishing to Meta...", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                } else {
+                                    Icon(Icons.Default.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Publish Post to Meta", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            "all", "instagram", "facebook" -> {
+                // MARK: Feed Timeline View
+                val filteredPosts = when (activeSubTab) {
+                    "instagram" -> posts.filter { it.channel.lowercase() == "instagram" }
+                    "facebook" -> posts.filter { it.channel.lowercase() == "facebook" }
+                    else -> posts
+                }
+
+                if (filteredPosts.isEmpty()) {
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("No posts found in this feed yet", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Publish your first post using the Create Post tab above!", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                            }
+                        }
+                    }
+                } else {
+                    items(filteredPosts) { post ->
+                        val isIg = post.channel.lowercase() == "instagram"
+                        val chColor = if (isIg) Color(0xFFE1306C) else Color(0xFF1877F2)
+
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Post Header
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Surface(
+                                            color = chColor.copy(alpha = 0.15f),
+                                            shape = CircleShape,
+                                            modifier = Modifier.size(38.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    text = if (isIg) "📸" else "📘",
+                                                    fontSize = 16.sp
+                                                )
+                                            }
+                                        }
+
+                                        Column {
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Text(post.authorName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                                Surface(
+                                                    color = chColor.copy(alpha = 0.12f),
+                                                    shape = RoundedCornerShape(4.dp)
+                                                ) {
+                                                    Text(
+                                                        if (isIg) "INSTAGRAM" else "FACEBOOK",
+                                                        fontSize = 8.5.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        color = chColor,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
+                                            Text(post.authorHandle, fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                        }
+                                    }
+
+                                    Text(formatRelative(post.timestamp), fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                }
+
+                                // Post Caption
+                                if (post.text.isNotEmpty()) {
+                                    Text(
+                                        text = post.text,
+                                        fontSize = 13.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        lineHeight = 18.sp
+                                    )
+                                }
+
+                                // Interaction Stats Bar
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text("❤️", fontSize = 12.sp)
+                                            Text("${post.likesCount}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                                        }
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text("💬", fontSize = 12.sp)
+                                            Text("${post.commentsCount}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                                        }
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text("↗️", fontSize = 12.sp)
+                                            Text("${post.sharesCount}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                                        }
+                                    }
+
+                                    TextButton(
+                                        onClick = { activeSubTab = "comments" },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("View Comments", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3B82F6))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            "comments" -> {
+                // MARK: Comments & Customer Replies
+                if (comments.isEmpty()) {
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("No customer comments received yet", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+                } else {
+                    items(comments) { comment ->
+                        val isIg = comment.channel.lowercase() == "instagram"
+                        val chColor = if (isIg) Color(0xFFE1306C) else Color(0xFF1877F2)
+                        val isReplying = replyingCommentId == comment.id
+
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(comment.authorName, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                        Surface(
+                                            color = chColor.copy(alpha = 0.12f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                if (isIg) "INSTAGRAM" else "FACEBOOK",
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = chColor,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(formatRelative(comment.timestamp), fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                }
+
+                                Text(
+                                    text = "on \"${comment.postTitle}\"",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = comment.text,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(10.dp)
+                                    )
+                                }
+
+                                // Reply Button / Field
+                                if (!isReplying) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        TextButton(
+                                            onClick = {
+                                                replyingCommentId = comment.id
+                                                replyText = ""
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                        ) {
+                                            Text("Reply as Page", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = chColor)
+                                        }
+                                    }
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = replyText,
+                                            onValueChange = { replyText = it },
+                                            placeholder = { Text("Write response...", fontSize = 12.sp) },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp),
+                                            singleLine = true
+                                        )
+
+                                        Button(
+                                            onClick = {
+                                                if (replyText.trim().isNotEmpty()) {
+                                                    isSendingReply = true
+                                                    coroutineScope.launch {
+                                                        try {
+                                                            NetworkClient.api.replySocialComment(
+                                                                NetworkClient.getAuthHeader(),
+                                                                ReplyCommentRequest(comment.id, replyText.trim())
+                                                            )
+                                                            toastMessage = "Reply published to Meta!"
+                                                            replyingCommentId = null
+                                                            replyText = ""
+                                                        } catch (e: Exception) {
+                                                            e.printStackTrace()
+                                                        } finally {
+                                                            isSendingReply = false
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = chColor),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Text("Send", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        }
+
+                                        IconButton(onClick = { replyingCommentId = null }) {
+                                            Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            "performance" -> {
+                // MARK: Performance & Organic Insights
+                insights?.let { ins ->
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            // 4-Card KPI Carousel
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                item { LeadStatCard(title = "Total Reach", value = "${ins.totalReach}", color = Color(0xFF10B981)) }
+                                item { LeadStatCard(title = "Impressions", value = "${ins.totalImpressions}", color = Color(0xFF3B82F6)) }
+                                item { LeadStatCard(title = "Engagements", value = "${ins.totalEngagements}", color = Color(0xFFDC2626)) }
+                                item { LeadStatCard(title = "Engage Rate", value = "${ins.engagementRate}%", color = Color(0xFFF59E0B)) }
+                            }
+
+                            // Follower & Channel Distribution Card
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text("Channel Audience Breakdown", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text("📘 Facebook Page", fontSize = 12.sp, color = Color(0xFF1877F2), fontWeight = FontWeight.Bold)
+                                            Text("${ins.facebookFollowers} Followers", fontSize = 15.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text("📸 Instagram Feed", fontSize = 12.sp, color = Color(0xFFE1306C), fontWeight = FontWeight.Bold)
+                                            Text("${ins.instagramFollowers} Followers", fontSize = 15.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                                        }
+                                    }
+
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.fillMaxWidth().height(8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxHeight()
+                                                .fillMaxWidth(0.68f)
+                                                .background(Color(0xFFE1306C), RoundedCornerShape(8.dp))
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

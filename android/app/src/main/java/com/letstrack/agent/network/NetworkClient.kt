@@ -262,6 +262,62 @@ data class MetaAdsSummaryDto(
 )
 
 // ============================================
+// SOCIAL MODULE DTOs (Facebook & Instagram Feed, Posts, Comments, Insights)
+// ============================================
+
+data class SocialPostDto(
+    val id: String,
+    val channel: String, // "facebook" or "instagram"
+    val authorName: String,
+    val authorHandle: String,
+    val text: String,
+    val mediaUrl: String? = null,
+    val timestamp: String,
+    val likesCount: Int = 0,
+    val commentsCount: Int = 0,
+    val sharesCount: Int = 0,
+    val permalink: String? = null
+)
+
+data class SocialCommentDto(
+    val id: String,
+    val postId: String,
+    val channel: String,
+    val authorName: String,
+    val text: String,
+    val timestamp: String,
+    val postTitle: String
+)
+
+data class SocialInsightsDto(
+    val totalReach: Int,
+    val totalImpressions: Int,
+    val totalEngagements: Int,
+    val engagementRate: Double,
+    val facebookFollowers: Int = 0,
+    val instagramFollowers: Int = 0
+)
+
+data class PublishPostRequest(
+    val text: String,
+    val mediaUrl: String? = null,
+    val publishToFacebook: Boolean = true,
+    val publishToInstagram: Boolean = true
+)
+
+data class PublishPostResponse(
+    val success: Boolean,
+    val message: String,
+    val post: SocialPostDto? = null,
+    val postIds: List<String>? = null
+)
+
+data class ReplyCommentRequest(
+    val commentId: String,
+    val message: String
+)
+
+// ============================================
 // RETROFIT API INTERFACES
 // ============================================
 interface LetsTrackApi {
@@ -373,6 +429,22 @@ interface LetsTrackApi {
         @Path("id") campaignId: String,
         @Body body: Map<String, String>
     ): AdCampaignDto
+
+    // Social Media Publishing, Comments & Insights
+    @GET("/api/tenant/social/posts")
+    suspend fun getSocialPosts(@Header("Authorization") token: String): List<SocialPostDto>
+
+    @POST("/api/tenant/social/publish")
+    suspend fun publishSocialPost(@Header("Authorization") token: String, @Body req: PublishPostRequest): PublishPostResponse
+
+    @GET("/api/tenant/social/comments")
+    suspend fun getSocialComments(@Header("Authorization") token: String): List<SocialCommentDto>
+
+    @POST("/api/tenant/social/comments/reply")
+    suspend fun replySocialComment(@Header("Authorization") token: String, @Body req: ReplyCommentRequest): Map<String, Any>
+
+    @GET("/api/tenant/social/insights")
+    suspend fun getSocialInsights(@Header("Authorization") token: String): SocialInsightsDto
 }
 
 // ============================================

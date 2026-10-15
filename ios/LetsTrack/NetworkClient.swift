@@ -911,4 +911,85 @@ final class NetworkClient: ObservableObject {
             throw NSError(domain: "NetworkClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to disconnect Meta assets."])
         }
     }
+    
+    // MARK: - Social Module (Facebook & Instagram Feed, Posts, Comments, Insights)
+    func getSocialPosts() async throws -> [SocialPostDto] {
+        let url = URL(string: "\(baseURL)/api/tenant/social/posts")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            return []
+        }
+        return (try? decoder.decode([SocialPostDto].self, from: data)) ?? []
+    }
+    
+    func publishSocialPost(text: String, mediaUrl: String?, publishToFacebook: Bool, publishToInstagram: Bool) async throws -> Bool {
+        let url = URL(string: "\(baseURL)/api/tenant/social/publish")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let body: [String: Any] = [
+            "text": text,
+            "mediaUrl": mediaUrl ?? "",
+            "publishToFacebook": publishToFacebook,
+            "publishToInstagram": publishToInstagram
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            return false
+        }
+        return true
+    }
+    
+    func getSocialComments() async throws -> [SocialCommentDto] {
+        let url = URL(string: "\(baseURL)/api/tenant/social/comments")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            return []
+        }
+        return (try? decoder.decode([SocialCommentDto].self, from: data)) ?? []
+    }
+    
+    func replySocialComment(commentId: String, message: String) async throws -> Bool {
+        let url = URL(string: "\(baseURL)/api/tenant/social/comments/reply")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let body: [String: Any] = [
+            "commentId": commentId,
+            "message": message
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            return false
+        }
+        return true
+    }
+    
+    func getSocialInsights() async throws -> SocialInsightsDto? {
+        let url = URL(string: "\(baseURL)/api/tenant/social/insights")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(getAuthHeader(), forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            return nil
+        }
+        return try? decoder.decode(SocialInsightsDto.self, from: data)
+    }
 }
+
