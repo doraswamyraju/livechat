@@ -59,9 +59,9 @@ fun DashboardScreen(
 
     // State holdings updated from WS and REST
     var analytics by remember { mutableStateOf<AnalyticsResponse?>(null) }
-    var visitorsList by remember { mutableStateOf<List<VisitorDto>>(emptyList()) }
-    var conversationsList by remember { mutableStateOf<List<ConversationDto>>(emptyList()) }
-    var agentsList by remember { mutableStateOf<List<UserProfile>>(emptyList()) }
+    var visitorsList by remember { mutableStateOf<List<VisitorDto>>(NetworkClient.cachedVisitors) }
+    var conversationsList by remember { mutableStateOf<List<ConversationDto>>(NetworkClient.cachedConversations) }
+    var agentsList by remember { mutableStateOf<List<UserProfile>>(NetworkClient.cachedAgents) }
     var selfStatus by remember { mutableStateOf(NetworkClient.currentUser?.status ?: "Offline") }
     var showStatusDialog by remember { mutableStateOf(false) }
     var showMoreSheet by remember { mutableStateOf(false) }
@@ -80,6 +80,14 @@ fun DashboardScreen(
 
     LaunchedEffect(Unit) {
         refreshMetaStatus()
+        val socket = NetworkClient.getSocketInstance()
+        if (socket.connected()) {
+            val payload = JSONObject().apply {
+                put("agentId", NetworkClient.currentUser?.id ?: "")
+                put("tenantId", NetworkClient.currentTenant?.id ?: "")
+            }
+            socket.emit("agent-init", payload)
+        }
     }
 
     val onConnectMeta: () -> Unit = {
@@ -142,6 +150,7 @@ fun DashboardScreen(
                     }
                 }
                 visitorsList = vList
+                NetworkClient.cachedVisitors = vList
 
                 // Extract conversations
                 val convArray = dataObj.getJSONArray("conversations")
@@ -159,13 +168,23 @@ fun DashboardScreen(
                             if (visObj is JSONObject) visObj.getString("_id") else visObj.toString()
                         } else ""
 
+                        val ch = if (obj.has("channel") && !obj.isNull("channel")) obj.getString("channel") else null
+                        val src = if (obj.has("source") && !obj.isNull("source")) obj.getString("source") else null
+                        val lastMsg = if (obj.has("lastMessageText") && !obj.isNull("lastMessageText")) obj.getString("lastMessageText")
+                            else if (obj.has("lastMessage") && !obj.isNull("lastMessage")) obj.getString("lastMessage")
+                            else null
+                        val unread = if (obj.has("unreadCount") && !obj.isNull("unreadCount")) obj.getInt("unreadCount") else 0
+
                         cList.add(
                             ConversationDto(
                                 _id = obj.getString("_id"),
                                 visitorId = vId,
                                 status = if (obj.has("status")) obj.getString("status") else "Unassigned",
                                 assignedAgentId = assignedId,
-                                channel = if (obj.has("channel") && !obj.isNull("channel")) obj.getString("channel") else null,
+                                channel = ch,
+                                source = src,
+                                lastMessage = lastMsg,
+                                unreadCount = unread,
                                 updatedAt = if (obj.has("updatedAt")) obj.getString("updatedAt") else ""
                             )
                         )
@@ -174,6 +193,7 @@ fun DashboardScreen(
                     }
                 }
                 conversationsList = cList
+                NetworkClient.cachedConversations = cList
 
                 // Extract agents
                 val agentArray = dataObj.getJSONArray("agents")
@@ -287,10 +307,12 @@ fun DashboardScreen(
                 val conv = ConversationDto(
                     _id = convObj.getString("_id"),
                     visitorId = visObj.getString("_id"),
-                    status = convObj.getString("status"),
+                    status = convObj.optString("status", "Unassigned"),
                     assignedAgentId = if (convObj.has("assignedAgentId") && !convObj.isNull("assignedAgentId")) convObj.getString("assignedAgentId") else null,
                     channel = if (convObj.has("channel") && !convObj.isNull("channel")) convObj.getString("channel") else null,
+                    source = if (convObj.has("source") && !convObj.isNull("source")) convObj.getString("source") else null,
                     lastMessage = msgObj.getString("text"),
+                    unreadCount = convObj.optInt("unreadCount", 1),
                     updatedAt = convObj.optString("updatedAt", "")
                 )
 
@@ -311,6 +333,8 @@ fun DashboardScreen(
 
                 visitorsList = visitorsList.filter { it._id != vis._id } + vis
                 conversationsList = conversationsList.filter { it._id != conv._id } + conv
+                NetworkClient.cachedVisitors = visitorsList
+                NetworkClient.cachedConversations = conversationsList
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -1371,12 +1395,19 @@ fun ConversationCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically, 
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
                         Text(
                             text = displayName,
                             fontSize = 15.sp,
                             fontWeight = if (isLive || hasUnread) FontWeight.Bold else FontWeight.SemiBold,
-                            color = if (isLive || hasUnread) MaterialTheme.colorScheme.onSurface else Color(0xFF64748B)
+                            color = if (isLive || hasUnread) MaterialTheme.colorScheme.onSurface else Color(0xFF64748B),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         if (hasUnread) {
                             Surface(color = Color(0xFFDC2626), shape = RoundedCornerShape(6.dp)) {
@@ -1385,6 +1416,8 @@ fun ConversationCard(
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black,
                                     color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                 )
                             }
@@ -1400,6 +1433,8 @@ fun ConversationCard(
                                     fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Black,
                                     color = chColor,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -1410,6 +1445,8 @@ fun ConversationCard(
                                     fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Black,
                                     color = Color(0xFF10B981),
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -1420,16 +1457,22 @@ fun ConversationCard(
                                     fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF94A3B8),
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
                         }
                     }
 
+                    Spacer(modifier = Modifier.width(6.dp))
+
                     Text(
                         text = formatRelative(conv.updatedAt),
                         fontSize = 11.sp,
-                        color = Color(0xFF94A3B8)
+                        color = Color(0xFF94A3B8),
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
 

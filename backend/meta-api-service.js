@@ -48,29 +48,62 @@ export async function sendMetaMessage(integration, recipientId, text) {
 /**
  * Fetch sender profile details from Meta Graph API
  */
-async function fetchMetaUserProfile(userId, pageAccessToken, isInstagram = false) {
+export async function fetchMetaUserProfile(userId, pageAccessToken, isInstagram = false, pageId = null) {
   try {
-    let url;
     if (isInstagram) {
-      url = `https://graph.facebook.com/v26.0/${userId}?fields=name,username,profile_pic&access_token=${pageAccessToken}`;
-    } else {
-      url = `https://graph.facebook.com/v26.0/${userId}?fields=first_name,last_name,name,profile_pic&access_token=${pageAccessToken}`;
-    }
-
-    const res = await fetch(url);
-    if (res.ok) {
-      const data = await res.json();
-      if (isInstagram) {
+      const url = `https://graph.facebook.com/v26.0/${userId}?fields=name,username,profile_pic&access_token=${pageAccessToken}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
         return data.name || (data.username ? `@${data.username}` : `Instagram User`);
-      } else {
-        if (data.name) return data.name;
-        if (data.first_name || data.last_name) {
-          return `${data.first_name || ''} ${data.last_name || ''}`.trim();
-        }
       }
     } else {
-      const errTxt = await res.text();
-      console.warn('Meta profile fetch response not ok:', errTxt);
+      // 1. Facebook Graph API - try 'name' first
+      let url = `https://graph.facebook.com/v26.0/${userId}?fields=name&access_token=${pageAccessToken}`;
+      let res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.name && data.name.trim().length > 0) {
+          return data.name.trim();
+        }
+      }
+
+      // 2. Facebook Graph API - try 'first_name,last_name'
+      url = `https://graph.facebook.com/v26.0/${userId}?fields=first_name,last_name&access_token=${pageAccessToken}`;
+      res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        const fullName = `${data.first_name || ''} ${data.last_name || ''}`.trim();
+        if (fullName) return fullName;
+      }
+
+      // 3. Fallback: Query Page conversations endpoint for user details
+      if (pageId) {
+        try {
+          const convUrl = `https://graph.facebook.com/v26.0/${pageId}/conversations?user_id=${userId}&fields=senders,participants&access_token=${pageAccessToken}`;
+          const convRes = await fetch(convUrl);
+          if (convRes.ok) {
+            const convData = await convRes.json();
+            if (convData && convData.data && convData.data.length > 0) {
+              for (const c of convData.data) {
+                const senders = c.senders?.data || c.participants?.data || [];
+                const found = senders.find(s => String(s.id) === String(userId) && s.name && s.name !== 'Facebook User');
+                if (found && found.name) return found.name;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[MetaProfile] Page conversations fallback error:', e.message);
+        }
+      }
+
+      // 4. Direct query without fields
+      url = `https://graph.facebook.com/v26.0/${userId}?access_token=${pageAccessToken}`;
+      res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.name && data.name.trim().length > 0) return data.name.trim();
+      }
     }
   } catch (err) {
     console.error('Failed to fetch Meta user profile details:', err);
@@ -177,6 +210,14 @@ export async function handleMetaWebhook(req, res) {
             // Only process text messages (skip echo messages)
             if (!senderId || !textContent || msg?.is_echo) continue;
 
+            // Prevent messages sent by the business account from being treated as incoming visitor messages
+            const isFromBusiness = senderId === entryIdStr || 
+                                   senderId === integration?.meta?.pageId || 
+                                   senderId === integration?.meta?.instagramAccountId;
+            if (isFromBusiness) {
+              console.log(`[MetaWebhook] Skipping message sent by business account itself (${senderId})`);
+              continue;
+            }
 
             // Check if source is Instagram or Facebook Page
             const isInstagram = body.object === 'instagram' || entryIdStr === integration?.meta?.instagramAccountId;
@@ -199,8 +240,19 @@ export async function handleMetaWebhook(req, res) {
             let visitor = await Visitor.findById(visitorId);
             let name = visitor ? visitor.name : null;
 
-            if (!name) {
-              name = await fetchMetaUserProfile(senderId, pageAccessToken, isInstagram);
+            // Re-resolve if name is missing or previously defaulted to generic 'Facebook User' / 'Instagram User'
+            if (!name || name === 'Facebook User' || name === 'Instagram User') {
+              const resolved = await fetchMetaUserProfile(senderId, pageAccessToken, isInstagram, integration?.meta?.pageId);
+              if (resolved && resolved !== 'Facebook User' && resolved !== 'Instagram User') {
+                name = resolved;
+                // Retroactively update past messages from this user to display real profile name
+                await Message.updateMany(
+                  { senderId: visitorId, senderName: { $in: ['Facebook User', 'Instagram User'] } },
+                  { $set: { senderName: name } }
+                ).catch(() => {});
+              } else if (!name) {
+                name = resolved;
+              }
             }
 
             // Create or update Visitor (Meta users do not have real-time web socket, so isOnline: false)
@@ -210,6 +262,7 @@ export async function handleMetaWebhook(req, res) {
                 tenantId: objTenantId,
                 name,
                 source,
+                channel: source,
                 utmCampaign: adAttributionTitle || 'Direct Meta DM',
                 isOnline: false
               });
@@ -217,6 +270,8 @@ export async function handleMetaWebhook(req, res) {
               visitor.tenantId = objTenantId;
               visitor.name = name;
               if (adAttributionTitle) visitor.utmCampaign = adAttributionTitle;
+              visitor.channel = source;
+              visitor.source = source;
               visitor.isOnline = false;
             }
             await visitor.save();
@@ -234,6 +289,7 @@ export async function handleMetaWebhook(req, res) {
                 visitorId,
                 status: 'Unassigned',
                 source,
+                channel: source,
                 unreadCount: 1,
                 lastMessageText: textContent,
                 assignedAgentId: null
@@ -244,6 +300,7 @@ export async function handleMetaWebhook(req, res) {
               conversation.lastMessageText = textContent;
               conversation.updatedAt = new Date();
               if (conversation.source !== source) conversation.source = source;
+              if (conversation.channel !== source) conversation.channel = source;
               await conversation.save();
             }
 

@@ -57,7 +57,15 @@ fun ChatScreen(
 
     var assignedAgentId by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf("Unassigned") }
-    var channel by remember { mutableStateOf(initialChannel ?: "livechat") }
+    var channel by remember {
+        mutableStateOf(
+            if (initialChannel != null && initialChannel != "livechat") initialChannel
+            else if (visitorId.startsWith("instagram:")) "instagram"
+            else if (visitorId.startsWith("facebook:")) "facebook"
+            else if (visitorId.startsWith("whatsapp:")) "whatsapp"
+            else initialChannel ?: "livechat"
+        )
+    }
 
     var visitorCountry by remember { mutableStateOf(initialCountry ?: "Unknown") }
     var visitorCity by remember { mutableStateOf(initialCity ?: "Unknown") }
@@ -84,7 +92,7 @@ fun ChatScreen(
         coroutineScope.launch {
             try {
                 val list = NetworkClient.api.getMessages(NetworkClient.getAuthHeader(), conversationId)
-                messagesList = list
+                messagesList = list.sortedBy { it.timestamp }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -118,41 +126,61 @@ fun ChatScreen(
         val socket = NetworkClient.getSocketInstance()
 
         socket.on("agent-msg-received") { args ->
-            val data = args[0] as JSONObject
-            val cId = data.getString("conversationId")
-            if (cId == conversationId) {
-                val msgObj = data.getJSONObject("message")
-                val msg = MessageDto(
-                    _id = msgObj.getString("_id"),
-                    conversationId = conversationId,
-                    senderType = "Agent",
-                    senderId = msgObj.getString("senderId"),
-                    senderName = msgObj.getString("senderName"),
-                    text = msgObj.getString("text"),
-                    timestamp = msgObj.getString("timestamp")
-                )
-                messagesList = messagesList + msg
+            try {
+                val data = args[0] as JSONObject
+                val cId = data.getString("conversationId")
+                if (cId == conversationId) {
+                    val msgObj = data.getJSONObject("message")
+                    val msg = MessageDto(
+                        _id = msgObj.getString("_id"),
+                        conversationId = conversationId,
+                        senderType = "Agent",
+                        senderId = msgObj.optString("senderId"),
+                        senderName = msgObj.optString("senderName"),
+                        text = msgObj.getString("text"),
+                        timestamp = msgObj.optString("timestamp")
+                    )
+                    val existingIdx = messagesList.indexOfFirst { it._id == msg._id }
+                    if (existingIdx == -1) {
+                        val tempIdx = messagesList.indexOfFirst { it._id.startsWith("temp_") && it.text == msg.text }
+                        if (tempIdx != -1) {
+                            val updated = messagesList.toMutableList()
+                            updated[tempIdx] = msg
+                            messagesList = updated
+                        } else {
+                            messagesList = (messagesList + msg).sortedBy { it.timestamp }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
 
         socket.on("visitor-msg") { args ->
-            val data = args[0] as JSONObject
-            val convObj = data.getJSONObject("conversation")
-            val cId = convObj.getString("_id")
-            if (cId == conversationId) {
-                val msgObj = data.getJSONObject("message")
-                val msg = MessageDto(
-                    _id = msgObj.getString("_id"),
-                    conversationId = conversationId,
-                    senderType = "Visitor",
-                    senderId = msgObj.getString("senderId"),
-                    senderName = msgObj.getString("senderName"),
-                    text = msgObj.getString("text"),
-                    timestamp = msgObj.getString("timestamp")
-                )
-                messagesList = messagesList + msg
-                isVisitorTyping = false
-                isVisitorOnline = true
+            try {
+                val data = args[0] as JSONObject
+                val convObj = data.getJSONObject("conversation")
+                val cId = convObj.getString("_id")
+                if (cId == conversationId) {
+                    val msgObj = data.getJSONObject("message")
+                    val msg = MessageDto(
+                        _id = msgObj.getString("_id"),
+                        conversationId = conversationId,
+                        senderType = msgObj.optString("senderType", "Visitor"),
+                        senderId = msgObj.optString("senderId"),
+                        senderName = msgObj.optString("senderName"),
+                        text = msgObj.getString("text"),
+                        timestamp = msgObj.optString("timestamp")
+                    )
+                    if (messagesList.none { it._id == msg._id }) {
+                        messagesList = (messagesList + msg).sortedBy { it.timestamp }
+                    }
+                    isVisitorTyping = false
+                    isVisitorOnline = true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
 
@@ -422,7 +450,7 @@ fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(messagesList) { msg ->
-                    val isSelf = msg.senderType == "Agent" && msg.senderId == selfId
+                    val isSelf = msg.senderType == "Agent"
                     val isSystem = msg.senderType == "System"
 
                     if (isSystem) {
@@ -448,15 +476,36 @@ fun ChatScreen(
                         ) {
                             Column(
                                 horizontalAlignment = if (isSelf) Alignment.End else Alignment.Start,
+                                modifier = Modifier.widthIn(max = 290.dp),
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
+                                val timeStr = try {
+                                    val clean = msg.timestamp.trim()
+                                    val isoFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).apply {
+                                        timeZone = java.util.TimeZone.getTimeZone("UTC")
+                                    }
+                                    val d = isoFormat.parse(clean.substringBefore('.'))
+                                    if (d != null) {
+                                        java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(d)
+                                    } else {
+                                        clean.takeLast(5)
+                                    }
+                                } catch (e: Exception) {
+                                    msg.timestamp.takeLast(5)
+                                }
+
                                 Text(
-                                    text = "${msg.senderName} • ${msg.timestamp.takeLast(8)}",
+                                    text = "${msg.senderName} • $timeStr",
                                     fontSize = 10.sp,
                                     color = Color(0xFF94A3B8)
                                 )
                                 Card(
-                                    shape = RoundedCornerShape(14.dp),
+                                    shape = RoundedCornerShape(
+                                        topStart = 14.dp,
+                                        topEnd = 14.dp,
+                                        bottomStart = if (isSelf) 14.dp else 3.dp,
+                                        bottomEnd = if (isSelf) 3.dp else 14.dp
+                                    ),
                                     colors = CardDefaults.cardColors(
                                         containerColor = if (isSelf) Color(0xFFDC2626) else MaterialTheme.colorScheme.surface
                                     ),
@@ -547,13 +596,27 @@ fun ChatScreen(
                         onClick = {
                             if (chatInput.trim().isNotEmpty()) {
                                 val text = chatInput.trim()
+                                chatInput = ""
+
+                                val tempMsg = MessageDto(
+                                    _id = "temp_${System.currentTimeMillis()}",
+                                    conversationId = conversationId,
+                                    senderType = "Agent",
+                                    senderId = selfId.ifEmpty { "Agent" },
+                                    senderName = NetworkClient.currentUser?.name ?: "Support Agent",
+                                    text = text,
+                                    timestamp = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).apply {
+                                        timeZone = java.util.TimeZone.getTimeZone("UTC")
+                                    }.format(java.util.Date())
+                                )
+                                messagesList = (messagesList + tempMsg).sortedBy { it.timestamp }
+
                                 val payload = JSONObject().apply {
                                     put("conversationId", conversationId)
                                     put("visitorId", visitorId)
                                     put("text", text)
                                 }
                                 NetworkClient.getSocketInstance().emit("agent-msg", payload)
-                                chatInput = ""
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),

@@ -235,6 +235,9 @@ struct VisitorDto: Codable, Identifiable, Equatable {
     var resolvedChannel: String {
         if let ch = channel, !ch.isEmpty { return ch.lowercased() }
         if let src = source, !src.isEmpty { return src.lowercased() }
+        if _id.hasPrefix("instagram:") { return "instagram" }
+        if _id.hasPrefix("facebook:") { return "facebook" }
+        if _id.hasPrefix("whatsapp:") { return "whatsapp" }
         let lowName = name.lowercased()
         if lowName.contains("whatsapp") {
             return "whatsapp"
@@ -254,12 +257,17 @@ struct ConversationDto: Codable, Identifiable, Equatable {
     var status: String
     var assignedAgentId: String?
     var channel: String?
+    var source: String?
     var lastMessage: String?
     var unreadCount: Int?
     var updatedAt: String
     
     var resolvedChannel: String {
-        if let ch = channel, !ch.isEmpty { return ch }
+        if let ch = channel, !ch.isEmpty { return ch.lowercased() }
+        if let s = source, !s.isEmpty { return s.lowercased() }
+        if visitorId.hasPrefix("instagram:") { return "instagram" }
+        if visitorId.hasPrefix("facebook:") { return "facebook" }
+        if visitorId.hasPrefix("whatsapp:") { return "whatsapp" }
         return "livechat"
     }
 }

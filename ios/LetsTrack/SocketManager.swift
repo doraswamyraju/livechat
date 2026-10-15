@@ -283,12 +283,15 @@ class SocketManager: ObservableObject {
     // MARK: - Local Parsers
     
     private func parseVisitor(from dict: [String: Any]) -> VisitorDto? {
-        guard let id = dict["_id"] as? String,
-              let name = dict["name"] as? String else { return nil }
+        guard let id = dict["_id"] as? String else { return nil }
+        let name = (dict["name"] as? String) ?? (dict["senderName"] as? String) ?? "Customer"
+        let channel = (dict["channel"] as? String) ?? (dict["source"] as? String)
+        let source = dict["source"] as? String
         
         return VisitorDto(
             _id: id,
             name: name,
+            avatarUrl: dict["avatarUrl"] as? String,
             email: dict["email"] as? String,
             phoneNumber: dict["phoneNumber"] as? String,
             country: dict["country"] as? String ?? "Unknown",
@@ -299,7 +302,11 @@ class SocketManager: ObservableObject {
             company: dict["company"] as? String,
             tags: dict["tags"] as? [String],
             isOnline: dict["isOnline"] as? Bool ?? false,
-            isMuted: dict["isMuted"] as? Bool ?? false
+            isMuted: dict["isMuted"] as? Bool ?? false,
+            source: source,
+            channel: channel,
+            firstSeen: dict["firstSeen"] as? String,
+            lastSeen: dict["lastSeen"] as? String
         )
     }
     
@@ -327,11 +334,20 @@ class SocketManager: ObservableObject {
             assignedId = nil
         }
         
+        let channel = (dict["channel"] as? String) ?? (dict["source"] as? String)
+        let source = dict["source"] as? String
+        let lastMessage = (dict["lastMessage"] as? String) ?? (dict["lastMessageText"] as? String)
+        let unreadCount = dict["unreadCount"] as? Int
+        
         return ConversationDto(
             _id: id,
             visitorId: vId,
             status: dict["status"] as? String ?? "Unassigned",
             assignedAgentId: assignedId,
+            channel: channel,
+            source: source,
+            lastMessage: lastMessage,
+            unreadCount: unreadCount,
             updatedAt: dict["updatedAt"] as? String ?? ""
         )
     }

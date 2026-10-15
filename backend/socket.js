@@ -687,6 +687,18 @@ export const initializeSocket = (httpServer) => {
           agents = await User.find({ tenantId: tenantQuery }).select('-passwordHash');
         }
 
+        // Ensure all visitors corresponding to active conversations are included in `visitors`
+        const convVisitorIds = conversations.map(c => {
+          if (!c.visitorId) return null;
+          return typeof c.visitorId === 'object' ? (c.visitorId._id || c.visitorId.id) : c.visitorId;
+        }).filter(Boolean);
+        const existingVisitorIds = new Set(visitors.map(v => String(v._id)));
+        const missingVisitorIds = convVisitorIds.filter(id => !existingVisitorIds.has(String(id)));
+        if (missingVisitorIds.length > 0) {
+          const extraVisitors = await Visitor.find({ _id: { $in: missingVisitorIds } });
+          visitors = visitors.concat(extraVisitors);
+        }
+
         socket.emit('dashboard-sync', { visitors, conversations, agents });
 
       } catch (err) {
@@ -745,46 +757,52 @@ export const initializeSocket = (httpServer) => {
           conv.lastMessageText = text ? text : (attachmentUrl ? '📷 Photo' : '');
           conv.updatedAt = new Date();
           await conv.save();
-
-          // ROUTING OUTGOING MESSAGES
-          const rawVisitorId = typeof conv.visitorId === 'object' && conv.visitorId !== null 
-            ? (conv.visitorId._id || String(conv.visitorId)) 
-            : String(conv.visitorId || '');
-          const recipientId = rawVisitorId.includes(':') ? rawVisitorId.split(':')[1] : rawVisitorId;
-
-          if (conv.source === 'whatsapp-web') {
-            throw new Error('WhatsApp Web integration is temporarily disabled');
-          } else if (conv.source === 'whatsapp-api') {
-            const integration = await Integration.findOne({
-              $or: [{ tenantId: currentTenantId }, { tenantId: conv.tenantId }, { 'whatsappApi.enabled': true }]
-            });
-            if (integration && integration.whatsappApi?.enabled) {
-              await sendWhatsAppApiMessage(integration, recipientId, text);
-            } else {
-              throw new Error('Official WhatsApp API integration is not enabled/configured');
-            }
-          } else if (conv.source === 'facebook' || conv.source === 'instagram') {
-            const integration = await Integration.findOne({
-              $or: [{ tenantId: currentTenantId }, { tenantId: conv.tenantId }, { 'meta.enabled': true }]
-            });
-            if (integration && integration.meta?.enabled) {
-              console.log(`[Socket] Sending reply to ${conv.source} recipient ${recipientId}`);
-              await sendMetaMessage(integration, recipientId, text);
-            } else {
-              throw new Error('Meta (Facebook/Instagram) integration is not enabled/configured');
-            }
-          } else {
-            // Default: webchat (VR Here, Rajugari Ventures, etc.)
-            const vId = visitorId || rawVisitorId;
-            emitToVisitor(vId, 'msg-received', message, conversationId || (conv ? conv._id : null));
-          }
         }
 
-        // Broadcast to all dashboard agents & SuperAdmin
+        // Broadcast to all dashboard agents & SuperAdmin IMMEDIATELY (0ms instant update)
         emitToDashboard(conv ? conv.tenantId : currentTenantId, 'agent-msg-received', {
           conversationId,
-          message
+          message: message.toObject ? message.toObject() : message
         });
+
+        // ROUTING OUTGOING MESSAGES ASYNCHRONOUSLY
+        try {
+          if (conv) {
+            const rawVisitorId = typeof conv.visitorId === 'object' && conv.visitorId !== null 
+              ? (conv.visitorId._id || String(conv.visitorId)) 
+              : String(conv.visitorId || '');
+            const recipientId = rawVisitorId.includes(':') ? rawVisitorId.split(':')[1] : rawVisitorId;
+
+            if (conv.source === 'whatsapp-web') {
+              throw new Error('WhatsApp Web integration is temporarily disabled');
+            } else if (conv.source === 'whatsapp-api') {
+              const integration = await Integration.findOne({
+                $or: [{ tenantId: currentTenantId }, { tenantId: conv.tenantId }, { 'whatsappApi.enabled': true }]
+              });
+              if (integration && integration.whatsappApi?.enabled) {
+                await sendWhatsAppApiMessage(integration, recipientId, text);
+              } else {
+                throw new Error('Official WhatsApp API integration is not enabled/configured');
+              }
+            } else if (conv.source === 'facebook' || conv.source === 'instagram') {
+              const integration = await Integration.findOne({
+                $or: [{ tenantId: currentTenantId }, { tenantId: conv.tenantId }, { 'meta.enabled': true }]
+              });
+              if (integration && integration.meta?.enabled) {
+                console.log(`[Socket] Sending reply to ${conv.source} recipient ${recipientId}`);
+                await sendMetaMessage(integration, recipientId, text);
+              } else {
+                throw new Error('Meta (Facebook/Instagram) integration is not enabled/configured');
+              }
+            } else {
+              // Default: webchat (VR Here, Rajugari Ventures, etc.)
+              const vId = visitorId || rawVisitorId;
+              emitToVisitor(vId, 'msg-received', message, conversationId || (conv ? conv._id : null));
+            }
+          }
+        } catch (dispatchErr) {
+          console.error('[Socket] Outgoing dispatch error:', dispatchErr);
+        }
 
       } catch (err) {
         console.error('Error in agent-msg:', err);

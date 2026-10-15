@@ -84,8 +84,11 @@ data class VisitorDto(
 ) {
     val resolvedChannel: String
         get() {
-            if (!channel.isNullOrEmpty()) return channel
-            if (!source.isNullOrEmpty()) return source
+            if (!channel.isNullOrEmpty()) return channel.lowercase()
+            if (!source.isNullOrEmpty()) return source.lowercase()
+            if (_id.startsWith("instagram:")) return "instagram"
+            if (_id.startsWith("facebook:")) return "facebook"
+            if (_id.startsWith("whatsapp:")) return "whatsapp"
             val low = name.lowercase()
             if (low.contains("whatsapp")) return "whatsapp"
             if (low.contains("instagram") || low.contains("ig")) return "instagram"
@@ -100,12 +103,18 @@ data class ConversationDto(
     val status: String,
     val assignedAgentId: String?,
     val channel: String? = null,
+    val source: String? = null,
     val lastMessage: String? = null,
     val unreadCount: Int? = null,
     val updatedAt: String
 ) {
     val resolvedChannel: String
-        get() = channel?.takeIf { it.isNotEmpty() } ?: "livechat"
+        get() = channel?.takeIf { it.isNotEmpty() }?.lowercase()
+            ?: source?.takeIf { it.isNotEmpty() }?.lowercase()
+            ?: if (visitorId.startsWith("instagram:")) "instagram"
+               else if (visitorId.startsWith("facebook:")) "facebook"
+               else if (visitorId.startsWith("whatsapp:")) "whatsapp"
+               else "livechat"
 }
 
 data class MessageDto(
@@ -457,6 +466,8 @@ object NetworkClient {
     var currentUser: UserProfile? = null
     var currentTenant: TenantDetails? = null
     var cachedAgents: List<UserProfile> = emptyList()
+    var cachedVisitors: List<VisitorDto> = emptyList()
+    var cachedConversations: List<ConversationDto> = emptyList()
 
     val gson = Gson()
     

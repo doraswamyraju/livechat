@@ -1212,35 +1212,40 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
     conv.updatedAt = new Date();
     await conv.save();
 
+    // Broadcast to dashboard immediately for 0ms UI response
+    emitToDashboard(conv.tenantId, 'agent-msg-received', {
+      conversationId: conv._id,
+      message: message.toObject ? message.toObject() : message
+    });
+
     const rawVisitorId = typeof conv.visitorId === 'object' && conv.visitorId !== null
       ? (conv.visitorId._id || String(conv.visitorId))
       : String(conv.visitorId || '');
     const recipientId = rawVisitorId.includes(':') ? rawVisitorId.split(':')[1] : rawVisitorId;
 
-    if (conv.source === 'facebook' || conv.source === 'instagram') {
-      const integration = await Integration.findOne({
-        $or: [{ tenantId: req.user.tenantId }, { tenantId: conv.tenantId }, { 'meta.enabled': true }]
-      });
-      if (integration && integration.meta?.enabled) {
-        console.log(`[HTTP API] Dispatching Meta message to ${conv.source} recipient: ${recipientId}`);
-        await sendMetaMessage(integration, recipientId, cleanText || 'Image attachment');
+    try {
+      if (conv.source === 'facebook' || conv.source === 'instagram') {
+        const integration = await Integration.findOne({
+          $or: [{ tenantId: req.user.tenantId }, { tenantId: conv.tenantId }, { 'meta.enabled': true }]
+        });
+        if (integration && integration.meta?.enabled) {
+          console.log(`[HTTP API] Dispatching Meta message to ${conv.source} recipient: ${recipientId}`);
+          await sendMetaMessage(integration, recipientId, cleanText || 'Image attachment');
+        }
+      } else if (conv.source === 'whatsapp-api') {
+        const integration = await Integration.findOne({
+          $or: [{ tenantId: req.user.tenantId }, { tenantId: conv.tenantId }, { 'whatsappApi.enabled': true }]
+        });
+        if (integration && integration.whatsappApi?.enabled) {
+          await sendWhatsAppApiMessage(integration, recipientId, cleanText || 'Image attachment');
+        }
+      } else {
+        // Default: webchat (VR Here, etc.)
+        emitToVisitor(rawVisitorId, 'msg-received', message, conv._id);
       }
-    } else if (conv.source === 'whatsapp-api') {
-      const integration = await Integration.findOne({
-        $or: [{ tenantId: req.user.tenantId }, { tenantId: conv.tenantId }, { 'whatsappApi.enabled': true }]
-      });
-      if (integration && integration.whatsappApi?.enabled) {
-        await sendWhatsAppApiMessage(integration, recipientId, cleanText || 'Image attachment');
-      }
-    } else {
-      // Default: webchat (VR Here, etc.)
-      emitToVisitor(rawVisitorId, 'msg-received', message, conv._id);
+    } catch (dispatchErr) {
+      console.error('[HTTP API] Dispatch to channel failed:', dispatchErr);
     }
-
-    emitToDashboard(conv.tenantId, 'agent-msg-received', {
-      conversationId: conv._id,
-      message: message.toObject ? message.toObject() : message
-    });
 
     res.status(200).json({ message, conversation: conv });
   } catch (err) {
