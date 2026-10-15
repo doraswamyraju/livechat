@@ -35,6 +35,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.letstrack.agent.network.*
 import com.letstrack.agent.R
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -408,132 +410,140 @@ fun DashboardScreen(
             // Modern Top Bar (Maintains status bar and camera notch insets)
             Surface(
                 color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 2.dp,
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                shadowElevation = 3.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f, fill = false),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.app_logo),
-                            contentDescription = "Logo",
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .border(1.dp, Color(0xFFDC2626).copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
-                            contentScale = ContentScale.Crop
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Left: Logo + Tenant Branding
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.app_logo),
+                                contentDescription = "Logo",
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .border(1.dp, Color(0xFFDC2626).copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = NetworkClient.currentTenant?.name ?: "LetsTrack",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (isSuperAdmin) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            color = Color(0xFFA855F7).copy(alpha = 0.15f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "SUPER",
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = Color(0xFFA855F7),
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
                                 Text(
-                                    text = NetworkClient.currentTenant?.name ?: "LetsTrack",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    text = if (isSuperAdmin) "SuperAdmin Console" else if (isAdmin) "Admin Console" else "Agent Workstation",
+                                    fontSize = 11.sp,
+                                    color = if (isSuperAdmin) Color(0xFFA855F7) else Color(0xFFDC2626),
+                                    fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                if (isSuperAdmin) {
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Surface(
-                                        color = Color(0xFFA855F7).copy(alpha = 0.2f),
-                                        shape = RoundedCornerShape(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "SUPER",
-                                            fontSize = 8.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = Color(0xFFA855F7),
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                        )
-                                    }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Right: Presence Pill + Theme Toggle + SignOut
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Presence Status Pill Button
+                            Surface(
+                                onClick = { showStatusDialog = true },
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(16.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(getStatusColor(selfStatus), CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = selfStatus,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
+                                    )
                                 }
                             }
-                            Text(
-                                text = if (isSuperAdmin) "SuperAdmin Console" else if (isAdmin) "Admin Console" else "Agent Workstation",
-                                fontSize = 10.sp,
-                                color = if (isSuperAdmin) Color(0xFFA855F7) else Color(0xFFDC2626),
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
 
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        // Theme Toggle
-                        IconButton(
-                            onClick = { onThemeChange(if (isDark) "light" else "dark") },
-                            modifier = Modifier.size(30.dp)
-                        ) {
-                            Text(if (isDark) "☀️" else "🌙", fontSize = 13.sp)
-                        }
-
-                        // Presence Status Button
-                        Surface(
-                            onClick = { showStatusDialog = true },
-                            color = MaterialTheme.colorScheme.surface,
-                            shape = RoundedCornerShape(14.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            // Theme Toggle
+                            Surface(
+                                onClick = { onThemeChange(if (isDark) "light" else "dark") },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+                                modifier = Modifier.size(34.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(7.dp)
-                                        .background(getStatusColor(selfStatus), CircleShape)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = selfStatus,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(if (isDark) "☀️" else "🌙", fontSize = 14.sp)
+                                }
+                            }
+
+                            // Sign Out
+                            Surface(
+                                onClick = onSignOut,
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.ExitToApp,
+                                        contentDescription = "Sign Out",
+                                        tint = Color(0xFF94A3B8),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
-
-                        // Settings Shortcut
-                        IconButton(
-                            onClick = { selectedTab = if (isAdmin) 6 else 5 },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = if (selectedTab == (if (isAdmin) 6 else 5)) Color(0xFFDC2626) else Color(0xFF94A3B8),
-                                modifier = Modifier.size(17.dp)
-                            )
-                        }
-
-                        // Sign Out
-                        IconButton(onClick = onSignOut, modifier = Modifier.size(28.dp)) {
-                            Icon(
-                                Icons.Default.ExitToApp,
-                                contentDescription = "Sign Out",
-                                tint = Color(0xFF94A3B8),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
                     }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), thickness = 0.5.dp)
                 }
             }
 
@@ -590,8 +600,6 @@ fun DashboardScreen(
                 }
             }
 
-            // Bottom space to avoid overlapping with floating dock and system navigation bar
-            Spacer(modifier = Modifier.navigationBarsPadding().height(80.dp))
         }
 
         // Floating Glassmorphic Dock
@@ -605,7 +613,7 @@ fun DashboardScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 8.dp, start = 12.dp, end = 12.dp)
+                .padding(bottom = 6.dp, start = 14.dp, end = 14.dp)
         )
 
         // Presence Changer Modal
@@ -740,45 +748,64 @@ fun FloatingDock(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 16.dp,
-                shape = RoundedCornerShape(28.dp),
-                ambientColor = Color.Black.copy(alpha = 0.2f),
-                spotColor = Color.Black.copy(alpha = 0.3f)
+                elevation = 12.dp,
+                shape = RoundedCornerShape(26.dp),
+                ambientColor = Color.Black.copy(alpha = 0.25f),
+                spotColor = Color.Black.copy(alpha = 0.35f)
             ),
-        shape = RoundedCornerShape(28.dp),
-        color = if (isDark) Color(0xFF141C2C).copy(alpha = 0.9f) else Color.White.copy(alpha = 0.92f),
+        shape = RoundedCornerShape(26.dp),
+        color = if (isDark) Color(0xFF0F172A).copy(alpha = 0.96f) else Color.White.copy(alpha = 0.97f),
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            Brush.linearGradient(
-                colors = listOf(Color(0xFFDC2626).copy(alpha = 0.4f), if (isDark) Color(0xFF263042) else Color(0xFFE2E8F0))
-            )
+            if (isDark) Color(0xFF334155).copy(alpha = 0.7f) else Color(0xFFE2E8F0)
         )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 5.dp),
+                .padding(horizontal = 6.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Assessment, label = "Overview", index = 0, isSelected = selectedTab == 0, onClick = { onSelectTab(0) })
+            DockItem(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.Assessment,
+                label = "Overview",
+                isSelected = selectedTab == 0,
+                isDark = isDark,
+                onClick = { onSelectTab(0) }
+            )
             DockItem(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.ChatBubble,
                 label = "Inbox",
-                index = 2,
                 isSelected = selectedTab == 2,
                 badgeCount = unreadCount,
+                isDark = isDark,
                 onClick = { onSelectTab(2) }
             )
-            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.AssignmentInd, label = "Leads", index = 3, isSelected = selectedTab == 3, onClick = { onSelectTab(3) })
-            DockItem(modifier = Modifier.weight(1f), icon = Icons.Default.Share, label = "Social", index = 4, isSelected = selectedTab == 4, onClick = { onSelectTab(4) })
+            DockItem(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.AssignmentInd,
+                label = "Leads",
+                isSelected = selectedTab == 3,
+                isDark = isDark,
+                onClick = { onSelectTab(3) }
+            )
+            DockItem(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.Share,
+                label = "Social",
+                isSelected = selectedTab == 4,
+                isDark = isDark,
+                onClick = { onSelectTab(4) }
+            )
             DockItem(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.MoreHoriz,
                 label = "More",
-                index = -1,
                 isSelected = isMoreSelected,
+                isDark = isDark,
                 onClick = onOpenMore
             )
         }
@@ -855,30 +882,35 @@ fun MoreOptionCard(
 fun DockItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    index: Int,
     isSelected: Boolean = false,
     badgeCount: Int = 0,
+    isDark: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val activeColor = Color(0xFFDC2626)
+    val inactiveColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
         modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 2.dp, vertical = 2.dp)
+            .padding(vertical = 4.dp)
     ) {
         Box(contentAlignment = Alignment.TopEnd) {
             Surface(
-                color = if (isSelected) Color(0xFFDC2626) else Color.Transparent,
+                color = if (isSelected) activeColor.copy(alpha = 0.15f) else Color.Transparent,
                 shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.size(width = 38.dp, height = 28.dp)
+                modifier = Modifier.size(width = 48.dp, height = 30.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
-                        tint = if (isSelected) Color.White else Color(0xFF94A3B8),
-                        modifier = Modifier.size(16.dp)
+                        tint = if (isSelected) activeColor else inactiveColor,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -886,28 +918,29 @@ fun DockItem(
             if (badgeCount > 0) {
                 Box(
                     modifier = Modifier
-                        .offset(x = 3.dp, y = (-3).dp)
-                        .background(Color.Red, CircleShape)
-                        .padding(horizontal = 3.dp, vertical = 1.dp)
+                        .offset(x = 4.dp, y = (-2).dp)
+                        .background(Color(0xFFDC2626), CircleShape)
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
                 ) {
                     Text(
-                        text = "$badgeCount",
+                        text = if (badgeCount > 99) "99+" else "$badgeCount",
                         color = Color.White,
-                        fontSize = 8.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
 
+        Spacer(modifier = Modifier.height(2.dp))
+
         Text(
             text = label,
-            fontSize = 9.sp,
+            fontSize = 10.5.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) Color(0xFFDC2626) else Color(0xFF94A3B8),
+            color = if (isSelected) activeColor else inactiveColor,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp)
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -977,7 +1010,7 @@ fun UnifiedInboxTabContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -1471,7 +1504,7 @@ fun LeadsTabContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -1787,7 +1820,7 @@ fun RadarTabContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -1923,7 +1956,7 @@ fun OverviewTabContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(vertical = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
@@ -2277,32 +2310,40 @@ fun OverviewTabContent(
 
         // 5. Quick Navigation Action Bar
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Button(
                     onClick = { onNavigateToTab(2) },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                    modifier = Modifier.weight(1f).height(44.dp)
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1f).height(46.dp)
                 ) {
-                    Text("💬 Open Inbox", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("💬 Inbox", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
 
                 Button(
                     onClick = { onNavigateToTab(3) },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
-                    modifier = Modifier.weight(1f).height(44.dp)
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1f).height(46.dp)
                 ) {
-                    Text("👥 Leads CRM", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("👥 Leads", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
 
                 Button(
-                    onClick = { onNavigateToTab(4) },
+                    onClick = { onNavigateToTab(7) },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
-                    modifier = Modifier.weight(1f).height(44.dp)
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1f).height(46.dp)
                 ) {
-                    Text("🚀 Meta Ads", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("🚀 Ads", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         }
@@ -2449,7 +2490,7 @@ fun SocialTabContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Hero Header & Account Status Badges
@@ -2746,6 +2787,23 @@ fun SocialTabContent(
                                 }
                             }
 
+                            // Live Image Preview
+                            if (mediaUrl.trim().isNotEmpty()) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(mediaUrl.trim())
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Preview Image",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(180.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                )
+                            }
+
                             // Publish Action Button
                             Button(
                                 onClick = {
@@ -2889,6 +2947,23 @@ fun SocialTabContent(
                                         fontSize = 13.5.sp,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         lineHeight = 18.sp
+                                    )
+                                }
+
+                                // Post Media Image (Facebook / Instagram)
+                                if (!post.mediaUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(LocalContext.current)
+                                            .data(post.mediaUrl)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "Post Media",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 180.dp, max = 280.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
                                     )
                                 }
 
@@ -3194,7 +3269,7 @@ fun MetaAdsTabContent() {
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(vertical = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
@@ -3294,7 +3369,7 @@ fun MetaAdsTabContent() {
 fun TeamTabContent(agentsList: List<UserProfile>) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -3345,7 +3420,7 @@ fun SettingsTabContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(vertical = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {

@@ -3730,7 +3730,8 @@ app.post('/api/superadmin/whatsapp-api/onboard', authenticateToken, requireSuper
 // ============================================
 // 11e. Social Media Publishing, Comments & Feed Engine (Meta FB & Instagram)
 // ============================================
-let memorySocialPosts = [
+let userCreatedPosts = [];
+const demoFallbackSocialPosts = [
   // --- 5 Latest Facebook Page Posts ---
   {
     id: 'sp_fb_1',
@@ -3934,22 +3935,29 @@ app.get('/api/tenant/social/posts', authenticateToken, async (req, res) => {
       // 1. Fetch Facebook Page posts if pageId is available
       if (meta.pageId) {
         try {
-          const fbRes = await fetch(`https://graph.facebook.com/v26.0/${meta.pageId}/feed?fields=id,message,created_time,full_picture,shares,likes.summary(true),comments.summary(true)&limit=10&access_token=${meta.pageAccessToken}`);
+          const fbRes = await fetch(`https://graph.facebook.com/v26.0/${meta.pageId}/feed?fields=id,message,created_time,full_picture,picture,attachments{media,type,url,subattachments},shares,likes.summary(true),comments.summary(true)&limit=15&access_token=${meta.pageAccessToken}`);
           const fbData = await fbRes.json();
           if (fbData.data && Array.isArray(fbData.data)) {
-            const formatted = fbData.data.map(p => ({
-              id: p.id,
-              channel: 'facebook',
-              authorName: meta.pageName || 'Facebook Page',
-              authorHandle: `@${meta.pageId}`,
-              text: p.message || 'Media post',
-              mediaUrl: p.full_picture || null,
-              timestamp: p.created_time || new Date().toISOString(),
-              likesCount: p.likes?.summary?.total_count || 0,
-              commentsCount: p.comments?.summary?.total_count || 0,
-              sharesCount: p.shares?.count || 0,
-              permalink: `https://facebook.com/${p.id}`
-            }));
+            const formatted = fbData.data.map(p => {
+              let mediaUrl = p.full_picture || p.picture || null;
+              if (!mediaUrl && p.attachments?.data?.length > 0) {
+                const att = p.attachments.data[0];
+                mediaUrl = att.media?.image?.src || att.subattachments?.data?.[0]?.media?.image?.src || null;
+              }
+              return {
+                id: p.id,
+                channel: 'facebook',
+                authorName: meta.pageName || 'Facebook Page',
+                authorHandle: `@${meta.pageId}`,
+                text: p.message || '',
+                mediaUrl: mediaUrl,
+                timestamp: p.created_time || new Date().toISOString(),
+                likesCount: p.likes?.summary?.total_count || 0,
+                commentsCount: p.comments?.summary?.total_count || 0,
+                sharesCount: p.shares?.count || 0,
+                permalink: `https://facebook.com/${p.id}`
+              };
+            });
             livePosts.push(...formatted);
           }
         } catch (e) {
@@ -3960,41 +3968,47 @@ app.get('/api/tenant/social/posts', authenticateToken, async (req, res) => {
       // 2. Fetch Instagram posts if instagramAccountId is available
       if (meta.instagramAccountId) {
         try {
-          const igRes = await fetch(`https://graph.facebook.com/v26.0/${meta.instagramAccountId}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=10&access_token=${meta.pageAccessToken}`);
+          const igRes = await fetch(`https://graph.facebook.com/v26.0/${meta.instagramAccountId}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,children{media_url,thumbnail_url}&limit=15&access_token=${meta.pageAccessToken}`);
           const igData = await igRes.json();
           if (igData.data && Array.isArray(igData.data)) {
-            const formatted = igData.data.map(p => ({
-              id: p.id,
-              channel: 'instagram',
-              authorName: meta.instagramHandle || 'Instagram Account',
-              authorHandle: meta.instagramHandle || '@instagram',
-              text: p.caption || '',
-              mediaUrl: p.media_url || p.thumbnail_url || null,
-              timestamp: p.timestamp || new Date().toISOString(),
-              likesCount: p.like_count || 0,
-              commentsCount: p.comments_count || 0,
-              sharesCount: 0,
-              permalink: p.permalink || `https://instagram.com/`
-            }));
+            const formatted = igData.data.map(p => {
+              let mediaUrl = p.media_url || p.thumbnail_url || null;
+              if (!mediaUrl && p.children?.data?.length > 0) {
+                mediaUrl = p.children.data[0].media_url || p.children.data[0].thumbnail_url || null;
+              }
+              return {
+                id: p.id,
+                channel: 'instagram',
+                authorName: meta.instagramHandle || 'Instagram Account',
+                authorHandle: meta.instagramHandle || '@instagram',
+                text: p.caption || '',
+                mediaUrl: mediaUrl,
+                timestamp: p.timestamp || new Date().toISOString(),
+                likesCount: p.like_count || 0,
+                commentsCount: p.comments_count || 0,
+                sharesCount: 0,
+                permalink: p.permalink || `https://instagram.com/`
+              };
+            });
             livePosts.push(...formatted);
           }
         } catch (e) {
           console.warn('[SocialPosts] IG Graph fetch warning:', e.message);
         }
       }
-    }
 
-    if (livePosts.length > 0) {
-      // Merge with memory posts created during session
-      const combined = [...livePosts, ...memorySocialPosts];
+      // Connected Meta: return live posts merged with any session created posts, never inject demo dummy posts!
+      const combined = [...userCreatedPosts, ...livePosts];
       const unique = Array.from(new Map(combined.map(p => [p.id, p])).values());
       return res.status(200).json(unique);
     }
 
-    return res.status(200).json(memorySocialPosts);
+    // Meta not connected: return user created posts if any, otherwise demo dummy posts for onboarding preview
+    const result = userCreatedPosts.length > 0 ? userCreatedPosts : demoFallbackSocialPosts;
+    return res.status(200).json(result);
   } catch (err) {
     console.error('[SocialPosts] Error:', err);
-    res.status(200).json(memorySocialPosts);
+    res.status(200).json(userCreatedPosts.length > 0 ? userCreatedPosts : demoFallbackSocialPosts);
   }
 });
 
@@ -4087,7 +4101,7 @@ app.post('/api/tenant/social/publish', authenticateToken, async (req, res) => {
       sharesCount: 0,
       permalink: null
     };
-    memorySocialPosts.unshift(newPost);
+    userCreatedPosts.unshift(newPost);
 
     res.status(200).json({
       success: true,
