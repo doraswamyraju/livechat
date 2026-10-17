@@ -1344,10 +1344,10 @@ fun ConversationCard(
     val isLive = visitor.isOnline || isSocial
 
     val displayName = when {
-        visitor.name.isNotBlank() && visitor.name != "Customer" -> visitor.name
-        ch.contains("instagram") || ch.contains("ig") -> "Instagram User"
-        ch.contains("facebook") || ch.contains("fb") -> "Facebook User"
-        ch.contains("whatsapp") -> "WhatsApp Contact"
+        visitor.name.isNotBlank() && visitor.name != "Customer" && visitor.name != "Facebook User" && visitor.name != "Instagram User" -> visitor.name
+        ch.contains("instagram") || ch.contains("ig") -> if (visitor.name.isNotBlank() && visitor.name != "Customer") visitor.name else "Instagram User"
+        ch.contains("facebook") || ch.contains("fb") -> if (visitor.name.isNotBlank() && visitor.name != "Customer") visitor.name else "Facebook User"
+        ch.contains("whatsapp") -> if (visitor.name.isNotBlank() && visitor.name != "Customer") visitor.name else "WhatsApp Contact"
         else -> visitor.name
     }
 

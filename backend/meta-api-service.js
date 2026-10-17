@@ -56,22 +56,39 @@ export async function fetchMetaUserProfile(userId, pageAccessToken, isInstagram 
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        return data.name || (data.username ? `@${data.username}` : `Instagram User`);
+        const found = data.name || (data.username ? `@${data.username}` : null);
+        if (found) return found;
       }
     } else {
-      // 1. Try querying Page conversations endpoint first (PSID is scoped to the page)
+      // 1. Direct Graph Query for Page-Scoped User (PSID)
+      // With pages_messaging + pages_read_user_content / public_profile, PSID profile endpoint supports name,first_name,last_name
+      try {
+        const psidUrl = `https://graph.facebook.com/v26.0/${userId}?fields=name,first_name,last_name,short_name&access_token=${pageAccessToken}`;
+        const psidRes = await fetch(psidUrl);
+        const psidData = await psidRes.json();
+        console.log(`[MetaProfile] PSID lookup for ${userId}:`, JSON.stringify(psidData));
+        if (psidData.name && psidData.name.trim().length > 0 && psidData.name.trim() !== 'Facebook User') {
+          return psidData.name.trim();
+        }
+        const fullName = `${psidData.first_name || ''} ${psidData.last_name || ''}`.trim();
+        if (fullName) return fullName;
+        if (psidData.short_name) return psidData.short_name.trim();
+      } catch (e) {
+        console.warn('[MetaProfile] PSID lookup error:', e.message);
+      }
+
+      // 2. Query Page conversations endpoint (user_id filter or list active conversations)
       if (pageId) {
         try {
           const convUrl = `https://graph.facebook.com/v26.0/${pageId}/conversations?user_id=${userId}&fields=senders,participants&access_token=${pageAccessToken}`;
           const convRes = await fetch(convUrl);
-          if (convRes.ok) {
-            const convData = await convRes.json();
-            if (convData && convData.data && convData.data.length > 0) {
-              for (const c of convData.data) {
-                const senders = [...(c.senders?.data || []), ...(c.participants?.data || [])];
-                const found = senders.find(s => String(s.id) === String(userId) && s.name && s.name !== 'Facebook User');
-                if (found && found.name) return found.name.trim();
-              }
+          const convData = await convRes.json();
+          console.log(`[MetaProfile] Page conversations lookup for user ${userId}:`, JSON.stringify(convData));
+          if (convData && convData.data && convData.data.length > 0) {
+            for (const c of convData.data) {
+              const senders = [...(c.senders?.data || []), ...(c.participants?.data || [])];
+              const found = senders.find(s => String(s.id) === String(userId) && s.name && s.name !== 'Facebook User');
+              if (found && found.name) return found.name.trim();
             }
           }
         } catch (e) {
@@ -79,25 +96,16 @@ export async function fetchMetaUserProfile(userId, pageAccessToken, isInstagram 
         }
       }
 
-      // 2. Facebook Graph API - try 'name,first_name,last_name'
-      let url = `https://graph.facebook.com/v26.0/${userId}?fields=name,first_name,last_name,short_name&access_token=${pageAccessToken}`;
-      let res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.name && data.name.trim().length > 0 && data.name.trim() !== 'Facebook User') {
-          return data.name.trim();
+      // 3. Fallback: Query Graph API root object
+      try {
+        const rootUrl = `https://graph.facebook.com/v26.0/${userId}?access_token=${pageAccessToken}`;
+        const rootRes = await fetch(rootUrl);
+        const rootData = await rootRes.json();
+        if (rootData.name && rootData.name.trim().length > 0 && rootData.name.trim() !== 'Facebook User') {
+          return rootData.name.trim();
         }
-        const fullName = `${data.first_name || ''} ${data.last_name || ''}`.trim();
-        if (fullName) return fullName;
-        if (data.short_name) return data.short_name.trim();
-      }
-
-      // 3. Direct query without fields
-      url = `https://graph.facebook.com/v26.0/${userId}?access_token=${pageAccessToken}`;
-      res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.name && data.name.trim().length > 0 && data.name.trim() !== 'Facebook User') return data.name.trim();
+      } catch (e) {
+        // ignore
       }
     }
   } catch (err) {
@@ -343,14 +351,15 @@ export async function handleMetaWebhook(req, res) {
                 if (Array.isArray(staff.fcmTokens)) staff.fcmTokens.forEach(t => t && recipientTokens.add(t));
               }
 
-              const channelLabel = source === 'instagram' ? 'Instagram' : 'Facebook';
-              console.log(`[MetaWebhook] Dispatching FCM push to ${recipientTokens.size} devices for ${channelLabel} message from ${name}`);
+              const channelIcon = source === 'instagram' ? '📷' : '💬';
+              const channelTag = source === 'instagram' ? 'Instagram' : 'Facebook';
+              console.log(`[MetaWebhook] Dispatching FCM push to ${recipientTokens.size} devices for ${channelTag} message from ${name}`);
 
               for (const fcmToken of recipientTokens) {
                 await sendPushNotification(
                   fcmToken,
-                  `💬 ${channelLabel} message from ${name}`,
-                  `“${textContent}”`,
+                  `${name} (${channelTag})`,
+                  textContent,
                   {
                     type: 'chat-message',
                     conversationId: String(conversation._id),

@@ -65,6 +65,7 @@ class LetsTrackMessagingService : FirebaseMessagingService() {
             .setSmallIcon(android.R.drawable.sym_def_app_icon) // Built-in default app icon fallback
             .setContentTitle(title)
             .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body).setSummaryText(if (visitorName.isNotEmpty()) visitorName else null))
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
