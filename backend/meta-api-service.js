@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
-import { Visitor, Conversation, Message, Integration, Tenant, Lead } from './models.js';
+import { Visitor, Conversation, Message, Integration, Tenant, Lead, User } from './models.js';
 import { dashboardNamespace } from './socket.js';
+import { sendPushNotification } from './firebase.js';
 
 
 
@@ -58,26 +59,7 @@ export async function fetchMetaUserProfile(userId, pageAccessToken, isInstagram 
         return data.name || (data.username ? `@${data.username}` : `Instagram User`);
       }
     } else {
-      // 1. Facebook Graph API - try 'name' first
-      let url = `https://graph.facebook.com/v26.0/${userId}?fields=name&access_token=${pageAccessToken}`;
-      let res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.name && data.name.trim().length > 0) {
-          return data.name.trim();
-        }
-      }
-
-      // 2. Facebook Graph API - try 'first_name,last_name'
-      url = `https://graph.facebook.com/v26.0/${userId}?fields=first_name,last_name&access_token=${pageAccessToken}`;
-      res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        const fullName = `${data.first_name || ''} ${data.last_name || ''}`.trim();
-        if (fullName) return fullName;
-      }
-
-      // 3. Fallback: Query Page conversations endpoint for user details
+      // 1. Try querying Page conversations endpoint first (PSID is scoped to the page)
       if (pageId) {
         try {
           const convUrl = `https://graph.facebook.com/v26.0/${pageId}/conversations?user_id=${userId}&fields=senders,participants&access_token=${pageAccessToken}`;
@@ -86,23 +68,36 @@ export async function fetchMetaUserProfile(userId, pageAccessToken, isInstagram 
             const convData = await convRes.json();
             if (convData && convData.data && convData.data.length > 0) {
               for (const c of convData.data) {
-                const senders = c.senders?.data || c.participants?.data || [];
+                const senders = [...(c.senders?.data || []), ...(c.participants?.data || [])];
                 const found = senders.find(s => String(s.id) === String(userId) && s.name && s.name !== 'Facebook User');
-                if (found && found.name) return found.name;
+                if (found && found.name) return found.name.trim();
               }
             }
           }
         } catch (e) {
-          console.warn('[MetaProfile] Page conversations fallback error:', e.message);
+          console.warn('[MetaProfile] Page conversations endpoint error:', e.message);
         }
       }
 
-      // 4. Direct query without fields
+      // 2. Facebook Graph API - try 'name,first_name,last_name'
+      let url = `https://graph.facebook.com/v26.0/${userId}?fields=name,first_name,last_name,short_name&access_token=${pageAccessToken}`;
+      let res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.name && data.name.trim().length > 0 && data.name.trim() !== 'Facebook User') {
+          return data.name.trim();
+        }
+        const fullName = `${data.first_name || ''} ${data.last_name || ''}`.trim();
+        if (fullName) return fullName;
+        if (data.short_name) return data.short_name.trim();
+      }
+
+      // 3. Direct query without fields
       url = `https://graph.facebook.com/v26.0/${userId}?access_token=${pageAccessToken}`;
       res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        if (data.name && data.name.trim().length > 0) return data.name.trim();
+        if (data.name && data.name.trim().length > 0 && data.name.trim() !== 'Facebook User') return data.name.trim();
       }
     }
   } catch (err) {
@@ -330,6 +325,44 @@ export async function handleMetaWebhook(req, res) {
                 message,
                 visitor
               });
+            }
+
+            // Dispatch Push Notification to all connected agent devices
+            try {
+              const recipientTokens = new Set();
+              const staffList = await User.find({
+                $or: [
+                  { tenantId: objTenantId },
+                  { role: 'SuperAdmin' },
+                  { email: 'rajugariventures@gmail.com' }
+                ]
+              });
+
+              for (const staff of staffList) {
+                if (staff.fcmToken) recipientTokens.add(staff.fcmToken);
+                if (Array.isArray(staff.fcmTokens)) staff.fcmTokens.forEach(t => t && recipientTokens.add(t));
+              }
+
+              const channelLabel = source === 'instagram' ? 'Instagram' : 'Facebook';
+              console.log(`[MetaWebhook] Dispatching FCM push to ${recipientTokens.size} devices for ${channelLabel} message from ${name}`);
+
+              for (const fcmToken of recipientTokens) {
+                await sendPushNotification(
+                  fcmToken,
+                  `💬 ${channelLabel} message from ${name}`,
+                  `“${textContent}”`,
+                  {
+                    type: 'chat-message',
+                    conversationId: String(conversation._id),
+                    visitorName: String(name),
+                    visitorId: String(visitorId),
+                    tenantId: String(tenantId || ''),
+                    channel: String(source)
+                  }
+                );
+              }
+            } catch (pushErr) {
+              console.error('[MetaWebhook] Error dispatching push notification:', pushErr);
             }
 
 

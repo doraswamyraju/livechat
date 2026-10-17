@@ -3652,6 +3652,26 @@ app.post('/api/tenant/meta/connect', authenticateToken, async (req, res) => {
 
     await integration.save();
 
+    // Broadcast Meta status change in real time to Web, iOS, and Android
+    if (dashboardNamespace && req.user.tenantId) {
+      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('meta-status-changed', {
+        connected: true,
+        pageId: page.id,
+        pageName: page.name,
+        instagramAccountId: instagramId,
+        instagramHandle: instagramHandle,
+        facebookUrl: page.link || `https://facebook.com/${page.id}`
+      });
+      dashboardNamespace.emit('meta-status-changed', {
+        tenantId: req.user.tenantId,
+        connected: true,
+        pageId: page.id,
+        pageName: page.name,
+        instagramAccountId: instagramId,
+        instagramHandle: instagramHandle
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: `🎉 Facebook Page "${page.name}" ${instagramHandle ? `& Instagram (${instagramHandle})` : ''} connected successfully!`,
@@ -3678,6 +3698,18 @@ app.post('/api/tenant/meta/disconnect', authenticateToken, async (req, res) => {
       integration.meta.pageAccessToken = '';
       await integration.save();
     }
+
+    // Broadcast Meta disconnection to all clients in real time
+    if (dashboardNamespace && req.user.tenantId) {
+      dashboardNamespace.to(`tenant_${req.user.tenantId}`).emit('meta-status-changed', {
+        connected: false
+      });
+      dashboardNamespace.emit('meta-status-changed', {
+        tenantId: req.user.tenantId,
+        connected: false
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Facebook Page & Instagram account disconnected.',

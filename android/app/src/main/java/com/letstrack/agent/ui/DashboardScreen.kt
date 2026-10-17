@@ -374,6 +374,23 @@ fun DashboardScreen(
             }
         }
 
+        socket.on("meta-status-changed") { _ ->
+            refreshMetaStatus()
+        }
+
+        socket.on("conversation-read") { args ->
+            try {
+                val data = args[0] as JSONObject
+                val cId = data.getString("conversationId")
+                conversationsList = conversationsList.map {
+                    if (it._id == cId) it.copy(unreadCount = 0) else it
+                }
+                NetworkClient.cachedConversations = conversationsList
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
         NetworkClient.connectSocket()
 
         onDispose {
@@ -385,6 +402,8 @@ fun DashboardScreen(
             socket.off("agent-status-changed")
             socket.off("visitor-msg")
             socket.off("start-conversation-success")
+            socket.off("meta-status-changed")
+            socket.off("conversation-read")
         }
     }
 
@@ -602,6 +621,22 @@ fun DashboardScreen(
                         metaStatus = metaStatus,
                         onConnectMeta = onConnectMeta,
                         onSelectConversation = { conv, vis ->
+                            // Mark read locally and on server
+                            conversationsList = conversationsList.map {
+                                if (it._id == conv._id) it.copy(unreadCount = 0) else it
+                            }
+                            NetworkClient.cachedConversations = conversationsList
+                            try {
+                                val socket = NetworkClient.getSocketInstance()
+                                if (socket.connected()) {
+                                    val rPayload = JSONObject().apply {
+                                        put("conversationId", conv._id)
+                                    }
+                                    socket.emit("mark-conversation-read", rPayload)
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
                             onNavigateToChat(
                                 conv._id, vis.name, vis._id, vis.country, vis.city,
                                 vis.deviceType, vis.currentUrl, vis.email, vis.phoneNumber, conv.resolvedChannel
@@ -1227,13 +1262,19 @@ fun UnifiedInboxTabContent(
             items(filteredList) { conv ->
                 val vis = visitorsList.find { it._id == conv.visitorId } ?: VisitorDto(
                     _id = conv.visitorId,
-                    name = "Customer",
+                    name = when {
+                        conv.visitorId.startsWith("instagram:") -> "Instagram User"
+                        conv.visitorId.startsWith("facebook:") -> "Facebook User"
+                        conv.visitorId.startsWith("whatsapp:") -> "WhatsApp Contact"
+                        else -> "Customer"
+                    },
                     email = null,
                     country = "Unknown",
                     city = "Unknown",
-                    deviceType = "Desktop",
+                    deviceType = "Mobile",
                     currentUrl = null,
-                    isOnline = false
+                    isOnline = conv.resolvedChannel == "instagram" || conv.resolvedChannel == "facebook" || conv.resolvedChannel == "whatsapp",
+                    channel = conv.channel ?: conv.resolvedChannel
                 )
 
                 ConversationCard(conv = conv, visitor = vis, onClick = { onSelectConversation(conv, vis) })
@@ -1363,13 +1404,27 @@ fun ConversationCard(
                 }
 
                 if (isSocial) {
-                    // Channel-branded status indicator dot
-                    Box(
-                        modifier = Modifier
-                            .size(13.dp)
-                            .background(chColor, CircleShape)
-                            .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                    )
+                    // Channel-branded icon badge (no overlapping text)
+                    Surface(
+                        color = chColor,
+                        shape = CircleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.size(17.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = when {
+                                    ch.contains("instagram") || ch.contains("ig") -> "📷"
+                                    ch.contains("facebook") || ch.contains("fb") -> "f"
+                                    ch.contains("whatsapp") -> "💬"
+                                    else -> "⚡"
+                                },
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                        }
+                    }
                 } else if (isLive) {
                     // Live Online Green Pulse Dot
                     Box(
@@ -1410,32 +1465,15 @@ fun ConversationCard(
                             modifier = Modifier.weight(1f, fill = false)
                         )
                         if (hasUnread) {
-                            Surface(color = Color(0xFFDC2626), shape = RoundedCornerShape(6.dp)) {
+                            Surface(color = Color(0xFFDC2626), shape = RoundedCornerShape(10.dp)) {
                                 Text(
-                                    text = if ((conv.unreadCount ?: 0) > 1) "${conv.unreadCount} NEW" else "NEW",
-                                    fontSize = 9.sp,
+                                    text = if ((conv.unreadCount ?: 0) > 1) "${conv.unreadCount}" else "1",
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Black,
                                     color = Color.White,
                                     maxLines = 1,
                                     softWrap = false,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                )
-                            }
-                        } else if (isSocial) {
-                            Surface(color = chColor.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
-                                Text(
-                                    text = when {
-                                        ch.contains("instagram") || ch.contains("ig") -> "INSTAGRAM"
-                                        ch.contains("facebook") || ch.contains("fb") -> "FACEBOOK"
-                                        ch.contains("whatsapp") -> "WHATSAPP"
-                                        else -> ch.uppercase()
-                                    },
-                                    fontSize = 8.5.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = chColor,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         } else if (isLive) {
@@ -1445,18 +1483,6 @@ fun ConversationCard(
                                     fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Black,
                                     color = Color(0xFF10B981),
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                )
-                            }
-                        } else if (isUnassigned) {
-                            Surface(color = Color(0xFFF1F5F9), shape = RoundedCornerShape(6.dp)) {
-                                Text(
-                                    text = "OFFLINE",
-                                    fontSize = 8.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF94A3B8),
                                     maxLines = 1,
                                     softWrap = false,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -1478,21 +1504,10 @@ fun ConversationCard(
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "via ${when {
-                            ch.contains("instagram") || ch.contains("ig") -> "Instagram"
-                            ch.contains("facebook") || ch.contains("fb") -> "Facebook"
-                            ch.contains("whatsapp") -> "WhatsApp"
-                            else -> ch.replaceFirstChar { it.uppercase() }
-                        }}",
-                        fontSize = 11.sp,
-                        fontWeight = if (isLive) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isLive) chColor else Color(0xFF94A3B8)
-                    )
-                    Text("•", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                    Text(
                         text = conv.lastMessage ?: (visitor.currentUrl?.let { "Browsing $it" } ?: "Conversation thread"),
                         fontSize = 12.sp,
-                        color = if (isLive) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f) else Color(0xFF94A3B8),
+                        color = if (hasUnread) MaterialTheme.colorScheme.onSurface else if (isLive) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f) else Color(0xFF94A3B8),
+                        fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

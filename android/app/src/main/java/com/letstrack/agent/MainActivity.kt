@@ -262,6 +262,35 @@ fun AppNavigator(
     // Read intent parameters on startup or intent updates
     LaunchedEffect(intent) {
         intent?.let {
+            // Check for OAuth deep link: letstrack://meta-callback#access_token=... or ?access_token=...
+            val dataUri = it.data
+            if (dataUri != null && dataUri.scheme == "letstrack" && dataUri.host == "meta-callback") {
+                val tokenParam = dataUri.getQueryParameter("access_token")
+                    ?: dataUri.fragment?.let { frag ->
+                        frag.split("&").find { param -> param.startsWith("access_token=") }?.substringAfter("access_token=")
+                    }
+                if (!tokenParam.isNullOrEmpty()) {
+                    coroutineScope.launch {
+                        try {
+                            NetworkClient.api.connectMeta(
+                                NetworkClient.getAuthHeader(),
+                                com.letstrack.agent.network.MetaConnectRequest(accessToken = tokenParam)
+                            )
+                            android.widget.Toast.makeText(context, "Meta accounts connected successfully!", android.widget.Toast.LENGTH_LONG).show()
+                            val socket = NetworkClient.getSocketInstance()
+                            if (socket.connected()) {
+                                socket.emit("meta-status-changed", org.json.JSONObject().apply {
+                                    put("tenantId", NetworkClient.currentTenant?.id ?: "")
+                                })
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            android.widget.Toast.makeText(context, "Failed to link Meta account: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+
             val convId = it.getStringExtra("conversationId")
             val name = it.getStringExtra("visitorName")
             val visitorId = it.getStringExtra("visitorId")

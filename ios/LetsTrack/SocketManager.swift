@@ -29,6 +29,7 @@ class SocketManager: ObservableObject {
     let navigationPathPublisher = PassthroughSubject<(visitorId: String, currentUrl: String), Never>()
     let chatAssignedPublisher = PassthroughSubject<(conversationId: String, status: String, assignedAgentId: String?, systemMessage: MessageDto?), Never>()
     let startConversationSuccessPublisher = PassthroughSubject<ConversationDto, Never>()
+    let metaStatusChangedPublisher = PassthroughSubject<[String: Any], Never>()
     
     private init() {}
     
@@ -236,6 +237,13 @@ class SocketManager: ObservableObject {
             
             self.conversationsList = self.conversationsList.filter { $0.id != conversation.id } + [conversation]
             self.startConversationSuccessPublisher.send(conversation)
+        }
+        
+        // 11. Meta connection status changed in real-time
+        s.on("meta-status-changed") { [weak self] data, _ in
+            guard let self = self,
+                  let dict = data.first as? [String: Any] else { return }
+            self.metaStatusChangedPublisher.send(dict)
         }
         
         // Connect socket client

@@ -1478,6 +1478,17 @@ function App() {
       }
     });
 
+    socket.on('meta-status-changed', (data) => {
+      if (data) {
+        setMetaStatus(prev => ({ ...prev, ...data }));
+        if (data.connected) {
+          showToast(`Meta Facebook & Instagram connected!`);
+        } else {
+          showToast(`Meta Facebook & Instagram disconnected`);
+        }
+      }
+    });
+
     socket.on('visitors-bulk-deleted', (data) => {
       if (data.deleteAll) {
         setVisitors([]);

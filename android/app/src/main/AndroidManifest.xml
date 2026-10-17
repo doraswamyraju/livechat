@@ -23,6 +23,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Meta OAuth Deep Link Handler -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="letstrack" android:host="meta-callback" />
+            </intent-filter>
         </activity>
 
         <!-- Firebase Background Messaging Handler -->

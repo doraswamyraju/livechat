@@ -16,6 +16,7 @@ import java.net.URISyntaxException
 // ============================================
 data class LoginRequest(val email: String, val password: String)
 data class GoogleLoginRequest(val idToken: String)
+data class MetaConnectRequest(val accessToken: String, val selectedPageId: String? = null)
 
 data class MetaStatusResponse(
     val connected: Boolean = false,
@@ -341,6 +342,12 @@ interface LetsTrackApi {
 
     @GET("/api/tenant/meta/status")
     suspend fun getMetaStatus(@Header("Authorization") token: String): MetaStatusResponse
+
+    @POST("/api/tenant/meta/connect")
+    suspend fun connectMeta(
+        @Header("Authorization") token: String,
+        @Body request: MetaConnectRequest
+    ): retrofit2.Response<okhttp3.ResponseBody>
 
     @POST("/api/tenant/meta/disconnect")
     suspend fun disconnectMeta(@Header("Authorization") token: String): retrofit2.Response<Unit>
