@@ -4154,9 +4154,78 @@ app.post('/api/tenant/social/publish', authenticateToken, async (req, res) => {
   }
 });
 
-// GET: Social Comments
+// GET: Social Comments (Live Graph API comments from Facebook Page & Instagram Media)
 app.get('/api/tenant/social/comments', authenticateToken, async (req, res) => {
-  res.status(200).json(memorySocialComments);
+  try {
+    const integration = await Integration.findOne({ tenantId: req.user.tenantId });
+    const meta = integration?.meta;
+    const liveComments = [];
+
+    if (meta?.enabled && meta?.pageAccessToken) {
+      // 1. Fetch live Facebook post comments
+      if (meta.pageId) {
+        try {
+          const fbFeedRes = await fetch(`https://graph.facebook.com/v26.0/${meta.pageId}/feed?fields=id,message,comments{id,from,message,created_time,like_count}&limit=8&access_token=${meta.pageAccessToken}`);
+          const fbFeed = await fbFeedRes.json();
+          if (fbFeed.data && Array.isArray(fbFeed.data)) {
+            for (const post of fbFeed.data) {
+              if (post.comments?.data && Array.isArray(post.comments.data)) {
+                for (const c of post.comments.data) {
+                  liveComments.push({
+                    id: c.id,
+                    postId: post.id,
+                    channel: 'facebook',
+                    authorName: c.from?.name || 'Facebook User',
+                    text: c.message || '',
+                    timestamp: c.created_time || new Date().toISOString(),
+                    likesCount: c.like_count || 0,
+                    postTitleSnippet: post.message ? post.message.substring(0, 50) + '...' : 'Facebook Post'
+                  });
+                }
+              }
+            }
+          }
+        } catch (fbErr) {
+          console.warn('[SocialComments] Facebook comments fetch warning:', fbErr.message);
+        }
+      }
+
+      // 2. Fetch live Instagram media comments
+      if (meta.instagramAccountId) {
+        try {
+          const igMediaRes = await fetch(`https://graph.facebook.com/v26.0/${meta.instagramAccountId}/media?fields=id,caption,comments{id,username,text,timestamp,like_count}&limit=8&access_token=${meta.pageAccessToken}`);
+          const igMedia = await igMediaRes.json();
+          if (igMedia.data && Array.isArray(igMedia.data)) {
+            for (const media of igMedia.data) {
+              if (media.comments?.data && Array.isArray(media.comments.data)) {
+                for (const c of media.comments.data) {
+                  liveComments.push({
+                    id: c.id,
+                    postId: media.id,
+                    channel: 'instagram',
+                    authorName: c.username ? `@${c.username}` : 'Instagram User',
+                    text: c.text || '',
+                    timestamp: c.timestamp || new Date().toISOString(),
+                    likesCount: c.like_count || 0,
+                    postTitleSnippet: media.caption ? media.caption.substring(0, 50) + '...' : 'Instagram Post'
+                  });
+                }
+              }
+            }
+          }
+        } catch (igErr) {
+          console.warn('[SocialComments] Instagram comments fetch warning:', igErr.message);
+        }
+      }
+    }
+
+    // Return live comments merged with any session comments
+    const result = liveComments.length > 0 ? liveComments : memorySocialComments;
+    res.status(200).json(result);
+  } catch (err) {
+    console.error('[SocialComments] Error:', err);
+    res.status(200).json(memorySocialComments);
+  }
 });
 
 // POST: Reply to a Social Comment

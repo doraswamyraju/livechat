@@ -299,6 +299,19 @@ data class SocialCommentDto(
     val postTitle: String
 )
 
+data class UploadMediaRequest(
+    val imageBase64: String,
+    val filename: String = "photo.jpg",
+    val mimeType: String = "image/jpeg"
+)
+
+data class UploadMediaResponse(
+    val url: String,
+    val filename: String,
+    val size: Long
+)
+
+
 data class SocialInsightsDto(
     val totalReach: Int,
     val totalImpressions: Int,
@@ -445,6 +458,12 @@ interface LetsTrackApi {
         @Path("id") campaignId: String,
         @Body body: Map<String, String>
     ): AdCampaignDto
+
+    @POST("/api/upload")
+    suspend fun uploadMedia(
+        @Header("Authorization") token: String,
+        @Body req: UploadMediaRequest
+    ): UploadMediaResponse
 
     // Social Media Publishing, Comments & Insights
     @GET("/api/tenant/social/posts")

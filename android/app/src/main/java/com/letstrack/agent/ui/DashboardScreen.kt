@@ -2510,6 +2510,37 @@ fun SocialTabContent(
     var publishToInstagram by remember { mutableStateOf(true) }
     var isPublishing by remember { mutableStateOf(false) }
     var previewChannel by remember { mutableStateOf("instagram") } // "instagram" or "facebook"
+    var isUploadingImage by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    val galleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isUploadingImage = true
+            coroutineScope.launch {
+                try {
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val bytes = inputStream?.readBytes()
+                    inputStream?.close()
+                    if (bytes != null) {
+                        val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        val uploadRes = NetworkClient.api.uploadMedia(
+                            NetworkClient.getAuthHeader(),
+                            UploadMediaRequest(imageBase64 = base64, filename = "social_upload.jpg")
+                        )
+                        mediaUrl = uploadRes.url
+                        toastMessage = "Image uploaded from gallery!"
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    Toast.makeText(context, "Upload failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                } finally {
+                    isUploadingImage = false
+                }
+            }
+        }
+    }
 
     // Comment reply state
     var replyingCommentId by remember { mutableStateOf<String?>(null) }
@@ -2800,11 +2831,34 @@ fun SocialTabContent(
                                 }
                             }
 
+                            // Native Gallery Image Picker & Media Upload
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { galleryLauncher.launch("image/*") },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    enabled = !isUploadingImage,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    if (isUploadingImage) {
+                                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Uploading...", fontSize = 12.sp, color = Color.White)
+                                    } else {
+                                        Text("🖼️ Pick from Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+
                             // Media URL Input
                             OutlinedTextField(
                                 value = mediaUrl,
                                 onValueChange = { mediaUrl = it },
-                                label = { Text("Media / Image URL (JPEG / PNG)", fontSize = 12.sp) },
+                                label = { Text("Image CDN / URL (Auto-filled on gallery pick)", fontSize = 12.sp) },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -2816,7 +2870,7 @@ fun SocialTabContent(
                                 singleLine = true
                             )
 
-                            // Preset Images
+                            // Preset Sample Images
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
