@@ -71,6 +71,24 @@ export const sendPushNotification = async (fcmToken, title, body, data = {}) => 
     console.log('FCM Push Notification sent successfully. Response:', response);
     return response;
   } catch (err) {
-    console.error('Error sending FCM Push Notification:', err);
+    const errCode = err?.errorInfo?.code || err?.code || '';
+    const errMsg = err?.message || '';
+    // If device uninstalled app or token expired, auto-prune from DB
+    if (errCode === 'messaging/registration-token-not-registered' || 
+        errMsg.includes('NotRegistered') || 
+        errMsg.includes('APNs device token is disabled')) {
+      try {
+        const { User } = await import('./models.js');
+        await User.updateMany(
+          { $or: [{ fcmToken }, { fcmTokens: fcmToken }] },
+          { $pull: { fcmTokens: fcmToken }, $set: { fcmToken: '' } }
+        );
+        console.log(`[FCM Cleanup] Pruned stale/unregistered device token: ${fcmToken.substring(0, 15)}...`);
+      } catch (cleanupErr) {
+        // ignore
+      }
+    } else {
+      console.error('Error sending FCM Push Notification:', err);
+    }
   }
 };
