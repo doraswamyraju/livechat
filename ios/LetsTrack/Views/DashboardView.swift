@@ -17,6 +17,8 @@ struct DashboardView: View {
     @State private var activeVisitorId: String = ""
     @State private var navigationToChat = false
     
+    @Environment(\.scenePhase) private var scenePhase
+    
     var isAdmin: Bool {
         networkClient.currentUser?.isAdmin == true
     }
@@ -118,7 +120,13 @@ struct DashboardView: View {
                 )
             }
             .onAppear {
+                socketManager.requestSync()
                 checkForPendingDeepLink()
+            }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active {
+                    socketManager.requestSync()
+                }
             }
             .onChange(of: socketManager.pendingDeepLink) { _ in
                 checkForPendingDeepLink()
@@ -673,6 +681,14 @@ struct UnifiedInboxTab: View {
                 }
             }
         }
+        .refreshable {
+            socketManager.requestSync()
+            do {
+                metaStatus = try await NetworkClient.shared.getMetaStatus()
+            } catch {
+                // Fail gracefully
+            }
+        }
     }
     
     private func channelPill(id: String, label: String, icon: String, color: Color, count: Int) -> some View {
@@ -890,6 +906,24 @@ struct UnifiedInboxTab: View {
                 .foregroundColor(theme.textGrayColor)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+            
+            Button(action: {
+                theme.triggerHaptic(style: .medium)
+                socketManager.requestSync()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Refresh Inbox")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(theme.inputBackground)
+                .foregroundColor(theme.primaryColor)
+                .cornerRadius(12)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.borderColor, lineWidth: 1))
+            }
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)

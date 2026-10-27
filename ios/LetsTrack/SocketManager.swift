@@ -257,6 +257,22 @@ class SocketManager: ObservableObject {
         isConnected = false
     }
     
+    func requestSync() {
+        guard let tenantId = NetworkClient.shared.currentTenant?.id,
+              let agentId = NetworkClient.shared.currentUser?.id else { return }
+        
+        if isConnected, let s = socket {
+            let initData: [String: Any] = [
+                "tenantId": tenantId,
+                "agentId": agentId
+            ]
+            s.emit("agent-init", initData)
+            print("[SocketManager] Re-emitted agent-init for sync.")
+        } else {
+            connectSocket()
+        }
+    }
+    
     // MARK: - Emitted Event wrappers
     
     func updateStatus(status: String) {
