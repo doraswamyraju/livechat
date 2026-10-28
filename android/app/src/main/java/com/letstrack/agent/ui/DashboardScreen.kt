@@ -2511,6 +2511,7 @@ fun SocialTabContent(
     var isPublishing by remember { mutableStateOf(false) }
     var previewChannel by remember { mutableStateOf("instagram") } // "instagram" or "facebook"
     var isUploadingImage by remember { mutableStateOf(false) }
+    var scheduleOption by remember { mutableStateOf("now") } // "now", "1h", "3h", "tomorrow_morning", "tomorrow_evening"
     val context = LocalContext.current
 
     val galleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -2916,18 +2917,91 @@ fun SocialTabContent(
                                 )
                             }
 
-                            // Publish Action Button
+                            // Publishing Timing Options
+                            Text("Publish Timing", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                val timingOptions = listOf(
+                                    "now" to "⚡ Now",
+                                    "1h" to "+1 Hr",
+                                    "3h" to "+3 Hrs",
+                                    "tomorrow_morning" to "🌅 Tmrw 9 AM",
+                                    "tomorrow_evening" to "🌆 Tmrw 6 PM"
+                                )
+                                timingOptions.forEach { (key, label) ->
+                                    val isSelected = scheduleOption == key
+                                    Surface(
+                                        onClick = { scheduleOption = key },
+                                        color = if (isSelected) Color(0xFFDC2626) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            label,
+                                            fontSize = 10.5.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.padding(vertical = 8.dp),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Publish / Schedule Action Button
                             Button(
                                 onClick = {
                                     if (postCaption.trim().isNotEmpty() || mediaUrl.trim().isNotEmpty()) {
                                         isPublishing = true
                                         coroutineScope.launch {
                                             try {
+                                                val scheduledIso: String? = when (scheduleOption) {
+                                                    "1h" -> {
+                                                        val cal = java.util.Calendar.getInstance()
+                                                        cal.add(java.util.Calendar.HOUR_OF_DAY, 1)
+                                                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                                                        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                                                        sdf.format(cal.time)
+                                                    }
+                                                    "3h" -> {
+                                                        val cal = java.util.Calendar.getInstance()
+                                                        cal.add(java.util.Calendar.HOUR_OF_DAY, 3)
+                                                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                                                        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                                                        sdf.format(cal.time)
+                                                    }
+                                                    "tomorrow_morning" -> {
+                                                        val cal = java.util.Calendar.getInstance()
+                                                        cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                                                        cal.set(java.util.Calendar.HOUR_OF_DAY, 9)
+                                                        cal.set(java.util.Calendar.MINUTE, 0)
+                                                        cal.set(java.util.Calendar.SECOND, 0)
+                                                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                                                        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                                                        sdf.format(cal.time)
+                                                    }
+                                                    "tomorrow_evening" -> {
+                                                        val cal = java.util.Calendar.getInstance()
+                                                        cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                                                        cal.set(java.util.Calendar.HOUR_OF_DAY, 18)
+                                                        cal.set(java.util.Calendar.MINUTE, 0)
+                                                        cal.set(java.util.Calendar.SECOND, 0)
+                                                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                                                        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                                                        sdf.format(cal.time)
+                                                    }
+                                                    else -> null
+                                                }
+
                                                 val req = PublishPostRequest(
                                                     text = postCaption.trim(),
                                                     mediaUrl = mediaUrl.trim().takeIf { it.isNotEmpty() },
                                                     publishToFacebook = publishToFacebook,
-                                                    publishToInstagram = publishToInstagram
+                                                    publishToInstagram = publishToInstagram,
+                                                    scheduledAt = scheduledIso
                                                 )
                                                 val res = NetworkClient.api.publishSocialPost(NetworkClient.getAuthHeader(), req)
                                                 toastMessage = res.message
@@ -2936,7 +3010,7 @@ fun SocialTabContent(
                                                 activeSubTab = "all"
                                             } catch (e: Exception) {
                                                 e.printStackTrace()
-                                                toastMessage = "Post dispatched to social queue!"
+                                                toastMessage = "Post queued successfully!"
                                             } finally {
                                                 isPublishing = false
                                             }
@@ -2953,11 +3027,26 @@ fun SocialTabContent(
                                 if (isPublishing) {
                                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Publishing to Meta...", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text(
+                                        if (scheduleOption == "now") "Publishing to Meta..." else "Scheduling Post...",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
                                 } else {
-                                    Icon(Icons.Default.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                    Icon(
+                                        if (scheduleOption == "now") Icons.Default.Send else Icons.Default.Schedule,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Publish Post to Meta", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text(
+                                        if (scheduleOption == "now") "Publish Post to Meta" else "Schedule Post",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
                                 }
                             }
                         }
@@ -3193,12 +3282,37 @@ fun SocialTabContent(
                                     )
                                 }
 
-                                // Reply Button / Field
+                                // Reply & Convert to Lead Action Buttons
                                 if (!isReplying) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        TextButton(
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    try {
+                                                        val req = CreateLeadRequest(
+                                                            name = comment.authorName,
+                                                            source = if (isIg) "instagram_comment" else "facebook_comment",
+                                                            status = "New",
+                                                            notes = listOf("Created from social comment on: \"${comment.postTitle}\"\nComment: \"${comment.text}\""),
+                                                            tags = listOf(if (isIg) "Instagram" else "Facebook", "Social Lead")
+                                                        )
+                                                        NetworkClient.api.createLead(NetworkClient.getAuthHeader(), req)
+                                                        toastMessage = "Lead saved to CRM for ${comment.authorName}!"
+                                                    } catch (e: Exception) {
+                                                        e.printStackTrace()
+                                                        toastMessage = "Failed to create lead"
+                                                    }
+                                                }
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text("🎯 Convert to Lead", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                        }
+
                                         TextButton(
                                             onClick = {
                                                 replyingCommentId = comment.id

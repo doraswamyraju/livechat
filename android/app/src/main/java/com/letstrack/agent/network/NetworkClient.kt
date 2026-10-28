@@ -325,7 +325,8 @@ data class PublishPostRequest(
     val text: String,
     val mediaUrl: String? = null,
     val publishToFacebook: Boolean = true,
-    val publishToInstagram: Boolean = true
+    val publishToInstagram: Boolean = true,
+    val scheduledAt: String? = null
 )
 
 data class PublishPostResponse(

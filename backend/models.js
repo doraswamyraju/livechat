@@ -277,6 +277,23 @@ const LeadSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+// 12. Scheduled Social Post Model
+const ScheduledPostSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+  authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  authorName: { type: String, default: '' },
+  text: { type: String, required: true },
+  mediaUrl: { type: String, default: '' },
+  publishToFacebook: { type: Boolean, default: true },
+  publishToInstagram: { type: Boolean, default: true },
+  scheduledAt: { type: Date, required: true, index: true },
+  status: { type: String, enum: ['scheduled', 'published', 'failed', 'cancelled'], default: 'scheduled', index: true },
+  publishedAt: { type: Date, default: null },
+  errorMessage: { type: String, default: '' },
+  postIds: [{ type: String }],
+  createdAt: { type: Date, default: Date.now }
+});
+
 export const Tenant = mongoose.model('Tenant', TenantSchema);
 export const User = mongoose.model('User', UserSchema);
 export const Visitor = mongoose.model('Visitor', VisitorSchema);
@@ -289,4 +306,6 @@ export const Integration = mongoose.model('Integration', IntegrationSchema);
 export const Payment = mongoose.model('Payment', PaymentSchema);
 export const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 export const Lead = mongoose.model('Lead', LeadSchema);
+export const ScheduledPost = mongoose.model('ScheduledPost', ScheduledPostSchema);
+
 

@@ -11,7 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 
-import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, UpsellPitch, Integration, Payment, AuditLog, Lead } from './models.js';
+import { Tenant, User, Visitor, Conversation, Message, WidgetSettings, QuickReply, UpsellPitch, Integration, Payment, AuditLog, Lead, ScheduledPost } from './models.js';
 
 import { initializeSocket, emitToDashboard, emitToVisitor } from './socket.js';
 import { 
@@ -4049,9 +4049,78 @@ app.get('/api/tenant/social/posts', authenticateToken, async (req, res) => {
   }
 });
 
-// POST: Publish a new post to Facebook Page, Instagram, or both
+// Helper function to dispatch post to Facebook and Instagram
+async function dispatchMetaPost(meta, text, mediaUrl, publishToFacebook, publishToInstagram) {
+  const publishedChannels = [];
+  const postIds = [];
+
+  // Publish to Facebook via Graph API
+  if (publishToFacebook && meta?.enabled && meta?.pageId && meta?.pageAccessToken) {
+    try {
+      let endpoint = `https://graph.facebook.com/v26.0/${meta.pageId}/feed`;
+      let payload = { message: text, access_token: meta.pageAccessToken };
+
+      if (mediaUrl) {
+        endpoint = `https://graph.facebook.com/v26.0/${meta.pageId}/photos`;
+        payload = { url: mediaUrl, caption: text, access_token: meta.pageAccessToken };
+      }
+
+      const fbPublishRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const fbPublishData = await fbPublishRes.json();
+      if (fbPublishData.id) {
+        publishedChannels.push('Facebook Page');
+        postIds.push(fbPublishData.id);
+      }
+    } catch (fbErr) {
+      console.warn('[SocialPublish] Facebook API error:', fbErr.message);
+    }
+  }
+
+  // Publish to Instagram via Graph API
+  if (publishToInstagram && meta?.enabled && meta?.instagramAccountId && meta?.pageAccessToken && mediaUrl) {
+    try {
+      // Step 1: Create IG Container
+      const containerRes = await fetch(`https://graph.facebook.com/v26.0/${meta.instagramAccountId}/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_url: mediaUrl,
+          caption: text,
+          access_token: meta.pageAccessToken
+        })
+      });
+      const containerData = await containerRes.json();
+      if (containerData.id) {
+        // Step 2: Publish Container
+        const pubRes = await fetch(`https://graph.facebook.com/v26.0/${meta.instagramAccountId}/media_publish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            creation_id: containerData.id,
+            access_token: meta.pageAccessToken
+          })
+        });
+        const pubData = await pubRes.json();
+        if (pubData.id) {
+          publishedChannels.push('Instagram Feed');
+          postIds.push(pubData.id);
+        }
+      }
+    } catch (igErr) {
+      console.warn('[SocialPublish] Instagram API error:', igErr.message);
+    }
+  }
+
+  return { publishedChannels, postIds };
+}
+
+// POST: Publish or Schedule a new post to Facebook Page, Instagram, or both
 app.post('/api/tenant/social/publish', authenticateToken, async (req, res) => {
-  const { text, mediaUrl, publishToFacebook = true, publishToInstagram = true } = req.body;
+  const { text, mediaUrl, publishToFacebook = true, publishToInstagram = true, scheduledAt = null } = req.body;
   if (!text && !mediaUrl) {
     return res.status(400).json({ error: 'Text content or media URL is required to publish a post' });
   }
@@ -4059,69 +4128,31 @@ app.post('/api/tenant/social/publish', authenticateToken, async (req, res) => {
   try {
     const integration = await Integration.findOne({ tenantId: req.user.tenantId });
     const meta = integration?.meta;
-    const publishedChannels = [];
-    const postIds = [];
 
-    // Publish to Facebook via Graph API
-    if (publishToFacebook && meta?.enabled && meta?.pageId && meta?.pageAccessToken) {
-      try {
-        let endpoint = `https://graph.facebook.com/v26.0/${meta.pageId}/feed`;
-        let payload = { message: text, access_token: meta.pageAccessToken };
+    // Check if post is scheduled for future
+    if (scheduledAt && new Date(scheduledAt) > new Date()) {
+      const scheduledPost = new ScheduledPost({
+        tenantId: req.user.tenantId,
+        authorId: req.user.userId,
+        authorName: req.user.name || 'Agent',
+        text,
+        mediaUrl: mediaUrl || '',
+        publishToFacebook: Boolean(publishToFacebook),
+        publishToInstagram: Boolean(publishToInstagram),
+        scheduledAt: new Date(scheduledAt),
+        status: 'scheduled'
+      });
+      await scheduledPost.save();
 
-        if (mediaUrl) {
-          endpoint = `https://graph.facebook.com/v26.0/${meta.pageId}/photos`;
-          payload = { url: mediaUrl, caption: text, access_token: meta.pageAccessToken };
-        }
-
-        const fbPublishRes = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const fbPublishData = await fbPublishRes.json();
-        if (fbPublishData.id) {
-          publishedChannels.push('Facebook Page');
-          postIds.push(fbPublishData.id);
-        }
-      } catch (fbErr) {
-        console.warn('[SocialPublish] Facebook API error:', fbErr.message);
-      }
+      return res.status(200).json({
+        success: true,
+        message: `Post scheduled successfully for ${new Date(scheduledAt).toLocaleString()}!`,
+        scheduledPost
+      });
     }
 
-    // Publish to Instagram via Graph API
-    if (publishToInstagram && meta?.enabled && meta?.instagramAccountId && meta?.pageAccessToken && mediaUrl) {
-      try {
-        // Step 1: Create IG Container
-        const containerRes = await fetch(`https://graph.facebook.com/v26.0/${meta.instagramAccountId}/media`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            image_url: mediaUrl,
-            caption: text,
-            access_token: meta.pageAccessToken
-          })
-        });
-        const containerData = await containerRes.json();
-        if (containerData.id) {
-          // Step 2: Publish Container
-          const pubRes = await fetch(`https://graph.facebook.com/v26.0/${meta.instagramAccountId}/media_publish`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              creation_id: containerData.id,
-              access_token: meta.pageAccessToken
-            })
-          });
-          const pubData = await pubRes.json();
-          if (pubData.id) {
-            publishedChannels.push('Instagram Feed');
-            postIds.push(pubData.id);
-          }
-        }
-      } catch (igErr) {
-        console.warn('[SocialPublish] Instagram API error:', igErr.message);
-      }
-    }
+    // Immediate publishing
+    const { publishedChannels, postIds } = await dispatchMetaPost(meta, text, mediaUrl, publishToFacebook, publishToInstagram);
 
     // Always create local representation for instant UI reactivity
     const newId = `sp_${Date.now()}`;
@@ -4153,6 +4184,38 @@ app.post('/api/tenant/social/publish', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to publish post: ' + err.message });
   }
 });
+
+// Periodic Runner for Scheduled Social Posts (Every 60 seconds)
+setInterval(async () => {
+  try {
+    const now = new Date();
+    const pendingPosts = await ScheduledPost.find({
+      status: 'scheduled',
+      scheduledAt: { $lte: now }
+    });
+
+    for (const post of pendingPosts) {
+      try {
+        const integration = await Integration.findOne({ tenantId: post.tenantId });
+        const meta = integration?.meta;
+        const { postIds } = await dispatchMetaPost(meta, post.text, post.mediaUrl, post.publishToFacebook, post.publishToInstagram);
+
+        post.status = 'published';
+        post.publishedAt = new Date();
+        post.postIds = postIds;
+        await post.save();
+        console.log(`[ScheduledPosts] Auto-published scheduled post ${post._id} for tenant ${post.tenantId}`);
+      } catch (err) {
+        post.status = 'failed';
+        post.errorMessage = err.message || 'Publishing error';
+        await post.save();
+      }
+    }
+  } catch (loopErr) {
+    // ignore
+  }
+}, 60000);
+
 
 // GET: Social Comments (Live Graph API comments from Facebook Page & Instagram Media)
 app.get('/api/tenant/social/comments', authenticateToken, async (req, res) => {
