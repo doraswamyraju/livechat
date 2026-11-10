@@ -351,6 +351,12 @@ function App() {
   const [agentInvitePassword, setAgentInvitePassword] = useState('');
   const [agentInviteRole, setAgentInviteRole] = useState('Agent');
   const [seatInfo, setSeatInfo] = useState({ used: 1, max: 1, plan: 'free' });
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [editingAgent, setEditingAgent] = useState(null);
+  const [editAgentName, setEditAgentName] = useState('');
+  const [editAgentEmail, setEditAgentEmail] = useState('');
+  const [editAgentRole, setEditAgentRole] = useState('Agent');
+  const [isUpdatingAgent, setIsUpdatingAgent] = useState(false);
   const [inboxSearchQuery, setInboxSearchQuery] = useState('');
   const [selectedConvIds, setSelectedConvIds] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -1150,6 +1156,7 @@ function App() {
       setAgentInviteEmail('');
       setAgentInvitePassword('');
       setAgentInviteRole('Agent');
+      setShowInviteModal(false);
       fetchAgentsData();
       
       // Update Agent List via WebSocket
@@ -1158,6 +1165,47 @@ function App() {
       }
     } catch (err) {
       showToast(err.message, 'error');
+    }
+  };
+
+  const handleOpenEditAgent = (agent) => {
+    setEditingAgent(agent);
+    setEditAgentName(agent.name || '');
+    setEditAgentEmail(agent.email || '');
+    setEditAgentRole(agent.role || 'Agent');
+  };
+
+  const handleUpdateAgent = async (e) => {
+    e.preventDefault();
+    if (!editingAgent) return;
+    if (!editAgentName.trim() || !editAgentEmail.trim()) {
+      return showToast('Name and email are required', 'error');
+    }
+
+    setIsUpdatingAgent(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/agents/${editingAgent._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editAgentName.trim(),
+          email: editAgentEmail.trim(),
+          role: editAgentRole
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update staff member');
+
+      showToast(data.message || 'Staff member updated successfully!');
+      setEditingAgent(null);
+      fetchAgentsData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsUpdatingAgent(false);
     }
   };
 
@@ -5435,177 +5483,127 @@ function App() {
                 </div>
               </div>
 
-              {/* 2. Grid with Table + Add Form */}
-              <div className="monitor-grid">
-                
-                {/* Staff List Table */}
-                <div className="monitor-card glass-card">
-                  <div className="card-header">
-                    <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* 2. Staff List Card */}
+              <div className="glass-card" style={{ padding: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span>👥 Active Staff Members</span>
                       <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({agents.length})</span>
-                    </div>
+                    </h3>
                   </div>
-                  <div className="card-body-scroll">
-                    <table className="visitor-list-table">
-                      <thead>
-                        <tr>
-                          <th>Staff Member</th>
-                          <th>Email Username</th>
-                          <th>Role</th>
-                          <th>Live Workload</th>
-                          <th>Status</th>
-                          <th style={{ textAlign: 'right' }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {agents.map(agent => {
-                          const activeChats = conversations.filter(c => c.assignedAgentId && (c.assignedAgentId._id === agent._id || c.assignedAgentId === agent._id) && !c.isArchived && c.status !== 'Archived').length;
 
-                          return (
-                            <tr key={agent._id}>
-                              <td>
-                                <div className="visitor-badge-info">
-                                  <div className="agent-avatar" style={{ width: '30px', height: '30px', fontSize: '12px', background: agent.status === 'Online' ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--bg-accent)' }}>
-                                    {agent.name[0]?.toUpperCase()}
-                                  </div>
-                                  <div>
-                                    <div style={{ fontWeight: '600' }}>
-                                      {agent.name} {agent._id === user.id ? '<span style="color: var(--primary); font-size: 11px;">(You)</span>' : ''}
-                                    </div>
-                                    <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
-                                      Joined {agent.createdAt ? new Date(agent.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently'}
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>{agent.email}</td>
-                              <td>
-                                <span className="path-tag" style={{ color: agent.role === 'Admin' ? '#EF4444' : 'var(--primary)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                                  {agent.role}
-                                </span>
-                              </td>
-                              <td>
-                                <span className="path-tag" style={{ color: activeChats > 0 ? '#10B981' : 'var(--text-muted)', border: activeChats > 0 ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-color)', padding: '2px 8px', borderRadius: '4px' }}>
-                                  💬 {activeChats} Active
-                                </span>
-                              </td>
-                              <td>
-                                <span className={`status-dot ${agent.status.toLowerCase()}`} style={{ marginRight: '6px' }}></span>
-                                <span style={{ fontSize: '12px', color: agent.status === 'Online' ? '#10B981' : 'var(--text-muted)' }}>{agent.status}</span>
-                              </td>
-                              <td style={{ textAlign: 'right' }}>
-                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                                  <button
-                                    onClick={() => handleResetAgentPassword(agent._id, agent.name)}
-                                    title="Reset Password"
-                                    className="staff-action-btn"
-                                  >
-                                    🔑 Reset Pass
-                                  </button>
-                                  {agent._id !== user.id && agent.role !== 'Admin' && agent.role !== 'SuperAdmin' && (
-                                    <button
-                                      onClick={() => handleDeleteAgent(agent._id, agent.name)}
-                                      title="Remove staff member"
-                                      className="staff-action-btn danger"
-                                    >
-                                      🗑️ Remove
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <button
+                    onClick={() => {
+                      if (seatInfo.used >= seatInfo.max && user?.role !== 'SuperAdmin') {
+                        showToast(`Team seat limit reached (${seatInfo.used}/${seatInfo.max} seats used). Upgrade plan to add more agents!`, 'error');
+                        setActiveTab('billing');
+                        return;
+                      }
+                      setShowInviteModal(true);
+                    }}
+                    className="auth-btn"
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      margin: 0,
+                      width: 'auto'
+                    }}
+                  >
+                    <span>➕</span> Add / Invite Team Member
+                  </button>
                 </div>
 
-                {/* Invite Employee Form */}
-                <div className="glass-card" style={{ padding: '24px' }}>
-                  <h3 className="card-title" style={{ marginBottom: '8px' }}>Invite New Team Member</h3>
-                  <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '18px' }}>
-                    Create login credentials for support agents to handle chat conversations.
-                  </p>
+                <div className="card-body-scroll" style={{ overflowX: 'auto' }}>
+                  <table className="visitor-list-table">
+                    <thead>
+                      <tr>
+                        <th>Staff Member</th>
+                        <th>Email Username</th>
+                        <th>Role</th>
+                        <th>Live Workload</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {agents.map(agent => {
+                        const activeChats = conversations.filter(c => c.assignedAgentId && (c.assignedAgentId._id === agent._id || c.assignedAgentId === agent._id) && !c.isArchived && c.status !== 'Archived').length;
+                        const isSelf = agent._id === user.id || agent._id === user._id;
 
-                  {seatInfo.used >= seatInfo.max && user?.role !== 'SuperAdmin' ? (
-                    <div style={{
-                      backgroundColor: 'rgba(220, 38, 38, 0.08)',
-                      border: '1px solid rgba(220, 38, 38, 0.3)',
-                      borderRadius: '10px',
-                      padding: '18px',
-                      textAlign: 'center'
-                    }}>
-                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔒</div>
-                      <h4 style={{ color: '#F87171', fontSize: '14px', marginBottom: '6px' }}>Team Seat Capacity Reached</h4>
-                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-                        Your current <strong>{seatInfo.plan ? seatInfo.plan.toUpperCase() : 'FREE'}</strong> plan allows maximum {seatInfo.max} seat(s).
-                      </p>
-                      <button
-                        onClick={() => { setActiveTab('billing'); fetchBillingData(); }}
-                        className="auth-btn"
-                        style={{ background: 'linear-gradient(135deg, #DC2626, #B91C1C)' }}
-                      >
-                        ⚡ Upgrade to Growth (3 Seats) or Business (6 Seats)
-                      </button>
-                    </div>
-                  ) : (
-                    <form className="auth-form" onSubmit={handleInviteAgent}>
-                      <div className="form-group">
-                        <label className="form-label">Full Name</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          placeholder="e.g. Sarah Connor"
-                          value={agentInviteName}
-                          onChange={(e) => setAgentInviteName(e.target.value)}
-                          required
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Email Address (Login ID)</label>
-                        <input
-                          type="email"
-                          className="form-input"
-                          placeholder="sarah@company.com"
-                          value={agentInviteEmail}
-                          onChange={(e) => setAgentInviteEmail(e.target.value)}
-                          required
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Temporary Password</label>
-                        <input
-                          type="password"
-                          className="form-input"
-                          placeholder="At least 6 characters"
-                          value={agentInvitePassword}
-                          onChange={(e) => setAgentInvitePassword(e.target.value)}
-                          required
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Access Role</label>
-                        <select
-                          className="form-input"
-                          value={agentInviteRole}
-                          onChange={(e) => setAgentInviteRole(e.target.value)}
-                          style={{ background: 'var(--bg-tertiary)' }}
-                        >
-                          <option value="Agent">Support Agent (Chat Inbox Only)</option>
-                          <option value="Admin">Tenant Admin (Full Management Access)</option>
-                        </select>
-                      </div>
-
-                      <button type="submit" className="auth-btn" style={{ marginTop: '10px' }}>
-                        ➕ Register & Allocate Team Seat
-                      </button>
-                    </form>
-                  )}
+                        return (
+                          <tr key={agent._id}>
+                            <td>
+                              <div className="visitor-badge-info">
+                                <div className="agent-avatar" style={{ width: '30px', height: '30px', fontSize: '12px', background: agent.status === 'Online' ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--bg-accent)' }}>
+                                  {agent.name?.[0]?.toUpperCase() || 'U'}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>{agent.name}</span>
+                                    {isSelf && (
+                                      <span style={{ color: 'var(--primary)', fontSize: '11px', fontWeight: 600 }}>
+                                        (You)
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                                    Joined {agent.createdAt ? new Date(agent.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently'}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>{agent.email}</td>
+                            <td>
+                              <span className="path-tag" style={{ color: agent.role === 'Admin' || agent.role === 'SuperAdmin' ? '#EF4444' : 'var(--primary)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                {agent.role}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="path-tag" style={{ color: activeChats > 0 ? '#10B981' : 'var(--text-muted)', border: activeChats > 0 ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-color)', padding: '2px 8px', borderRadius: '4px' }}>
+                                💬 {activeChats} Active
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`status-dot ${agent.status ? agent.status.toLowerCase() : 'offline'}`} style={{ marginRight: '6px' }}></span>
+                              <span style={{ fontSize: '12px', color: agent.status === 'Online' ? '#10B981' : 'var(--text-muted)' }}>{agent.status || 'Offline'}</span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
+                                <button
+                                  onClick={() => handleOpenEditAgent(agent)}
+                                  title="Edit details"
+                                  className="staff-action-btn"
+                                >
+                                  ✏️ Edit
+                                </button>
+                                <button
+                                  onClick={() => handleResetAgentPassword(agent._id, agent.name)}
+                                  title="Reset Password"
+                                  className="staff-action-btn"
+                                >
+                                  🔑 Reset Pass
+                                </button>
+                                {!isSelf && (
+                                  <button
+                                    onClick={() => handleDeleteAgent(agent._id, agent.name)}
+                                    title="Remove staff member"
+                                    className="staff-action-btn danger"
+                                  >
+                                    🗑️ Remove
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -6580,6 +6578,199 @@ function App() {
                   style={{ flex: 1, background: 'linear-gradient(135deg, #d97706, #b45309)', color: '#ffffff', fontWeight: 800 }}
                 >
                   ➕ Save & Activate Pitch
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Invite / Add Staff Member Modal */}
+      {showInviteModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div className="glass-card" style={{ padding: '24px', width: '440px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '18px', fontWeight: '700' }}>Invite New Team Member</h3>
+                <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)', fontSize: '12.5px' }}>
+                  Create login credentials for support agents or admins.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form className="auth-form" onSubmit={handleInviteAgent}>
+              <div className="form-group">
+                <label className="form-label">Full Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. Sarah Connor"
+                  value={agentInviteName}
+                  onChange={(e) => setAgentInviteName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Email Address (Login ID)</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="sarah@company.com"
+                  value={agentInviteEmail}
+                  onChange={(e) => setAgentInviteEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Temporary Password</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="At least 6 characters"
+                  value={agentInvitePassword}
+                  onChange={(e) => setAgentInvitePassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Access Role</label>
+                <select
+                  className="form-input"
+                  value={agentInviteRole}
+                  onChange={(e) => setAgentInviteRole(e.target.value)}
+                  style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+                >
+                  <option value="Agent">Support Agent (Chat Inbox Only)</option>
+                  <option value="Admin">Tenant Admin (Full Management Access)</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  className="claim-btn"
+                  onClick={() => setShowInviteModal(false)}
+                  style={{ flex: 1, backgroundColor: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="auth-btn" style={{ flex: 1, margin: 0 }}>
+                  ➕ Register & Allocate Seat
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Staff Member Modal */}
+      {editingAgent && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div className="glass-card" style={{ padding: '24px', width: '440px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '18px', fontWeight: '700' }}>Edit Team Member</h3>
+                <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)', fontSize: '12.5px' }}>
+                  Update member name, email or administrative permissions.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingAgent(null)}
+                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form className="auth-form" onSubmit={handleUpdateAgent}>
+              <div className="form-group">
+                <label className="form-label">Full Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. Sarah Connor"
+                  value={editAgentName}
+                  onChange={(e) => setEditAgentName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Email Address (Login ID)</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="sarah@company.com"
+                  value={editAgentEmail}
+                  onChange={(e) => setEditAgentEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Access Role</label>
+                <select
+                  className="form-input"
+                  value={editAgentRole}
+                  onChange={(e) => setEditAgentRole(e.target.value)}
+                  style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+                >
+                  <option value="Agent">Support Agent (Chat Inbox Only)</option>
+                  <option value="Admin">Tenant Admin (Full Management Access)</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  className="claim-btn"
+                  onClick={() => setEditingAgent(null)}
+                  style={{ flex: 1, backgroundColor: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingAgent}
+                  className="auth-btn"
+                  style={{ flex: 1, margin: 0, opacity: isUpdatingAgent ? 0.7 : 1 }}
+                >
+                  {isUpdatingAgent ? 'Saving...' : '💾 Save Changes'}
                 </button>
               </div>
             </form>

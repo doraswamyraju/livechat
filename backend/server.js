@@ -794,7 +794,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
 // 3. Register New Agent (Admin only)
 app.post('/api/auth/register-agent', authenticateToken, async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, role } = req.body;
 
   if (req.user.role !== 'Admin' && req.user.role !== 'SuperAdmin') {
     return res.status(403).json({ error: 'Forbidden: Admins only' });
@@ -820,13 +820,14 @@ app.post('/api/auth/register-agent', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
+    const assignedRole = (role === 'Admin' || role === 'Agent') ? role : 'Agent';
     const passwordHash = await bcrypt.hash(password, 10);
     const agent = new User({
       tenantId: req.user.tenantId,
       name,
       email,
       passwordHash,
-      role: 'Agent',
+      role: assignedRole,
       status: 'Offline'
     });
     await agent.save();
@@ -891,7 +892,70 @@ app.get('/api/agents', authenticateToken, async (req, res) => {
   }
 });
 
-// 3c. Delete Agent (Admin only)
+// 3c. Update Agent Details (Admin only)
+app.put('/api/agents/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'Admin' && req.user.role !== 'SuperAdmin') {
+    return res.status(403).json({ error: 'Forbidden: Admins only' });
+  }
+
+  const { name, email, role } = req.body;
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Name and email are required' });
+  }
+
+  try {
+    const targetUser = await User.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+    if (!targetUser) return res.status(404).json({ error: 'Staff member not found' });
+
+    // If email is changing, verify it's not already in use
+    if (email.toLowerCase() !== targetUser.email.toLowerCase()) {
+      const emailExists = await User.findOne({ email: email.toLowerCase(), _id: { $ne: targetUser._id } });
+      if (emailExists) {
+        return res.status(400).json({ error: 'Email already taken by another account' });
+      }
+      targetUser.email = email.toLowerCase();
+    }
+
+    targetUser.name = name.trim();
+
+    // Prevent demoting last Admin in tenant
+    if (role && (role === 'Admin' || role === 'Agent')) {
+      if (targetUser.role === 'Admin' && role === 'Agent') {
+        const adminCount = await User.countDocuments({ tenantId: req.user.tenantId, role: { $in: ['Admin', 'SuperAdmin'] } });
+        if (adminCount <= 1) {
+          return res.status(400).json({ error: 'Cannot demote the only remaining Admin of this organization' });
+        }
+      }
+      targetUser.role = role;
+    }
+
+    await targetUser.save();
+
+    await AuditLog.create({
+      tenantId: req.user.tenantId,
+      userId: req.user.userId,
+      actorEmail: req.user.email || 'Admin',
+      action: 'AGENT_UPDATED',
+      details: { agentId: targetUser._id, name: targetUser.name, email: targetUser.email, role: targetUser.role }
+    });
+
+    res.status(200).json({
+      message: 'Staff member updated successfully',
+      agent: {
+        id: targetUser._id,
+        name: targetUser.name,
+        email: targetUser.email,
+        role: targetUser.role,
+        status: targetUser.status
+      }
+    });
+  } catch (err) {
+    console.error('Error updating agent:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 3d. Delete Agent (Admin only)
 app.delete('/api/agents/:id', authenticateToken, async (req, res) => {
   if (req.user.role !== 'Admin' && req.user.role !== 'SuperAdmin') {
     return res.status(403).json({ error: 'Forbidden: Admins only' });
@@ -900,8 +964,18 @@ app.delete('/api/agents/:id', authenticateToken, async (req, res) => {
   try {
     const targetUser = await User.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
     if (!targetUser) return res.status(404).json({ error: 'Agent not found' });
+
+    // Prevent deleting oneself
+    if (targetUser._id.toString() === req.user.userId.toString()) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+
+    // If deleting an admin, ensure at least one admin remains
     if (targetUser.role === 'Admin' || targetUser.role === 'SuperAdmin') {
-      return res.status(400).json({ error: 'Cannot delete primary Admin account' });
+      const adminCount = await User.countDocuments({ tenantId: req.user.tenantId, role: { $in: ['Admin', 'SuperAdmin'] } });
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: 'Cannot delete the only remaining Admin account' });
+      }
     }
 
     await targetUser.deleteOne();
@@ -912,7 +986,15 @@ app.delete('/api/agents/:id', authenticateToken, async (req, res) => {
       { $unset: { assignedAgentId: '' }, $set: { status: 'Unassigned' } }
     );
 
-    res.status(200).json({ message: 'Agent removed successfully' });
+    await AuditLog.create({
+      tenantId: req.user.tenantId,
+      userId: req.user.userId,
+      actorEmail: req.user.email || 'Admin',
+      action: 'AGENT_DELETED',
+      details: { agentId: targetUser._id, name: targetUser.name, email: targetUser.email }
+    });
+
+    res.status(200).json({ message: 'Staff member removed successfully' });
   } catch (err) {
     console.error('Error deleting agent:', err);
     res.status(500).json({ error: 'Internal Server Error' });
